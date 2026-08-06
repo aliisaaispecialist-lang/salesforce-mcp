@@ -20,6 +20,8 @@ dependencies = [
     "structlog>=26.1",  # observability.py: structured logs and contextvars
     "httpx>=0.27",  # client.py: the only module that opens a socket
     "pydantic[email]>=2.7",  # schemas: reject a malformed address before sending it
+    "aiolimiter>=1.2",  # ratelimit.py: the leaky bucket, done properly
+    "itsdangerous>=2.2",  # approval.py: signs state that passes through the client
 ]
 
 [project.optional-dependencies]

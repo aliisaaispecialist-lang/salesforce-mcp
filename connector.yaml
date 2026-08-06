@@ -1,0 +1,71 @@
+# What this connector is, declared rather than inferred.
+#
+# The registry decides which actions exist; this file declares them. Startup
+# compares the two and refuses to run if they disagree, so a manifest someone
+# reads to decide whether to trust this connector cannot quietly go stale.
+#
+# No secret appears here. required_env names the variables the connector reads;
+# their values live in the environment and nowhere else.
+
+provider: salesforce
+
+auth_type: oauth2_jwt_bearer
+
+# Least privilege. `api` is what the REST endpoints need; `refresh_token` lets a
+# session be renewed without a fresh assertion. Nothing here grants more than
+# the five actions require, and the Salesforce user's own profile still bounds
+# what those actions can reach.
+scopes:
+  - api
+  - refresh_token
+
+actions:
+  - salesforce.add_activity_note
+  - salesforce.create_contact
+  - salesforce.create_opportunity
+  - salesforce.search_contact
+  - salesforce.update_contact
+
+capabilities:
+  pagination: true
+  rate_limit_metadata: true
+  idempotency: with_key
+  transports:
+    - stdio
+  approval_required_for_writes: true
+
+# What can go wrong, stated plainly rather than discovered.
+risks:
+  - >-
+    Writes are not idempotent at the provider. The connector deduplicates a
+    repeated idempotency key within one process, so a retry after a timeout
+    returns the original outcome; a process restart mid-write loses that
+    memory. Provider-side deduplication needs an External Id field on the org.
+  - >-
+    Creating an opportunity and linking a contact to it are two writes. The
+    second can fail after the first has taken effect, and the result reports
+    that partial state rather than a plain failure.
+  - >-
+    Contact and opportunity records hold text written by other people. Anything
+    read back is data, never instruction, and is marked as such before it
+    reaches a model.
+  - >-
+    Sales stages are configured per org. The connector reads the org's own
+    picklist rather than assuming a list, and returns the accepted values when
+    a stage is rejected.
+  - >-
+    The connector holds Salesforce credentials for a single integration user.
+    Every action runs as that user, so its profile is the real boundary on what
+    any caller can reach.
+
+limitations:
+  - Sandbox only. A production login host is refused unless explicitly enabled.
+  - Five actions. The wider Salesforce REST surface is out of scope for v1.
+  - stdio transport only. There is no deployed HTTPS endpoint.
+  - Idempotency memory is process-scoped, not durable.
+
+required_env:
+  - SF_CLIENT_ID
+  - SF_USERNAME
+  - SF_PRIVATE_KEY
+  - SF_LOGIN_URL

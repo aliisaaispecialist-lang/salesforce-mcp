@@ -209,6 +209,12 @@ class ConnectorManifest(_Frozen):
     actions: tuple[ActionId, ...]
     risks: tuple[str, ...]
     capabilities: Capabilities
+    # What this connector cannot do, stated where someone deciding whether to
+    # trust it will look. Required by Definition of Done item 11.
+    limitations: tuple[str, ...] = ()
+    # The variables the connector reads. Names only: values live in the
+    # environment, and a manifest is something people paste into issues.
+    required_env: tuple[str, ...] = ()
 
 
 class Credentials(Protocol):
