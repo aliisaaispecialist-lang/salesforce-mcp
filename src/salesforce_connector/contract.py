@@ -11,9 +11,10 @@ from typing import Annotated, Any, Protocol, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-# The program assigns dotted action IDs (salesforce.search_contact) and requires
-# them verbatim. LLM providers reject dots in tool names, so a separate
-# provider-safe name is carried alongside rather than rewriting either one.
+# The programme assigns dotted action IDs (salesforce.search_contact) and
+# requires them verbatim. MCP itself permits dots in tool names; the LLM
+# providers do not, since their function names match ^[a-zA-Z0-9_-]{1,64}$. So
+# a provider-safe name is carried alongside rather than rewriting either one.
 ActionId = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]+\.[a-z0-9_]+$")]
 ToolName = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_]{1,64}$")]
 ErrorCode = Annotated[str, StringConstraints(pattern=r"^[a-z0-9_.]+$")]
@@ -78,13 +79,21 @@ class ActionError(_Frozen):
 class Pagination(_Frozen):
     """Where a paged result stopped and how to continue it.
 
-    `next_cursor` is opaque and must be passed back unmodified.
+    `next_cursor` is opaque and must be passed back unmodified. Whether more
+    results exist is derived from it rather than stored alongside it: the
+    protocol defines the end of a walk as the absence of a cursor, so a
+    separate flag could only ever disagree with the truth. Note that an empty
+    string is a valid cursor and does not mean the end.
     """
 
     returned: int
-    has_more: bool
     next_cursor: str | None = None
     total_size: int | None = None
+
+    @property
+    def has_more(self) -> bool:
+        """Say whether another page exists, by whether a cursor came back."""
+        return self.next_cursor is not None
 
 
 class RateLimit(_Frozen):
