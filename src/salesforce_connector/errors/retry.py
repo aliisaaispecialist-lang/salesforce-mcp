@@ -48,6 +48,10 @@ class RetryContext(BaseModel):
 class RetryDecision(BaseModel):
     """The verdict, and why.
 
+    `base_delay_seconds` is named for what it is: the wait before jitter is
+    applied. Nothing should sleep on it directly - pass this decision through
+    `jittered` instead, or simultaneous callers retry in lockstep.
+
     `reason` is recorded whether or not a retry happens: during an incident the
     first question is why something stopped retrying, and an unexplained halt
     is indistinguishable from a bug.
@@ -60,7 +64,7 @@ class RetryDecision(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     should_retry: bool
-    delay_seconds: float = 0.0
+    base_delay_seconds: float = 0.0
     min_delay_seconds: float = 0.0
     reason: str
 
@@ -121,9 +125,9 @@ def decide(
 
     return RetryDecision(
         should_retry=True,
-        delay_seconds=delay,
+        base_delay_seconds=delay,
         min_delay_seconds=provider_wait,
-        reason=f"attempt {context.attempt} of {policy.max_attempts}, waiting {delay:.1f}s",
+        reason=f"attempt {context.attempt} of {policy.max_attempts}, waiting about {delay:.1f}s",
     )
 
 
@@ -135,6 +139,6 @@ def jittered(decision: RetryDecision, rng: Random) -> float:
     retry immediately" instruction the same failure gives the model. The wait
     never falls below whatever the provider asked for.
     """
-    half = decision.delay_seconds / _HALF
+    half = decision.base_delay_seconds / _HALF
     spread = half + rng.uniform(0, half)
     return max(decision.min_delay_seconds, spread)

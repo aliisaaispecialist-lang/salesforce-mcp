@@ -75,27 +75,30 @@ class TestBackoff:
     def test_the_wait_doubles_each_attempt(self, attempt: int, expected: float) -> None:
         policy = RetryPolicy(max_attempts=99)
 
-        assert decide(TransportError("x"), read_attempt(attempt), policy).delay_seconds == expected
+        assert (
+            decide(TransportError("x"), read_attempt(attempt), policy).base_delay_seconds
+            == expected
+        )
 
     def test_the_wait_stops_growing_at_the_ceiling(self) -> None:
         policy = RetryPolicy(max_attempts=99, max_delay_seconds=10.0)
 
         decision = decide(TransportError("x"), read_attempt(20), policy)
 
-        assert decision.delay_seconds == 10.0
+        assert decision.base_delay_seconds == 10.0
 
     def test_the_provider_instruction_wins_when_it_asks_for_longer(self) -> None:
         error = RateLimitError("quota spent", ErrorContext(retry_after_seconds=30.0))
 
         decision = decide(error, read_attempt(1))
 
-        assert decision.delay_seconds == 30.0
+        assert decision.base_delay_seconds == 30.0
         assert decision.min_delay_seconds == 30.0
 
     def test_our_backoff_wins_when_the_provider_asks_for_less(self) -> None:
         error = RateLimitError("quota spent", ErrorContext(retry_after_seconds=0.5))
 
-        assert decide(error, read_attempt(2)).delay_seconds == 2.0
+        assert decide(error, read_attempt(2)).base_delay_seconds == 2.0
 
 
 class TestLimits:
@@ -126,7 +129,7 @@ class TestLimits:
 
 class TestJitter:
     def test_the_wait_is_spread_but_never_reaches_zero(self) -> None:
-        decision = RetryDecision(should_retry=True, delay_seconds=8.0, reason="x")
+        decision = RetryDecision(should_retry=True, base_delay_seconds=8.0, reason="x")
         rng = Random(1234)
 
         waits = [jittered(decision, rng) for _ in range(200)]
@@ -137,7 +140,7 @@ class TestJitter:
 
     def test_jitter_never_undercuts_what_the_provider_demanded(self) -> None:
         decision = RetryDecision(
-            should_retry=True, delay_seconds=30.0, min_delay_seconds=30.0, reason="x"
+            should_retry=True, base_delay_seconds=30.0, min_delay_seconds=30.0, reason="x"
         )
         rng = Random(99)
 
