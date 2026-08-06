@@ -12,6 +12,7 @@ description = "Salesforce connector with a reusable core, five typed actions, an
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",  # contract.py: typed models and validation
+    "pyyaml>=6.0",  # errors/mapping.py: the error classification rules
 ]
 
 [project.optional-dependencies]
@@ -19,6 +20,7 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "pytest>=8.0",
+    "types-PyYAML>=6.0",  # yaml ships no inline types; mypy --strict needs these
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -42,6 +44,11 @@ ignore = [
     "TRY003",  # conflicts with our rule that every error states what failed
     "D107",    # google style documents __init__ args in the class docstring
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, compare literals, and say what they mean in their names rather
+# than in docstrings. They stay fully type-annotated.
+"tests/**/*.py" = ["S101", "D100", "D101", "D102", "D103", "PLR2004"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 8
@@ -69,6 +76,10 @@ enable_error_code = [
     "truthy-bool",
     "ignore-without-code",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]  # the package is imported from source, not installed
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

@@ -1,0 +1,85 @@
+# How a Salesforce error code becomes a failure the caller can act on.
+#
+# Salesforce publishes no machine-readable catalogue of its error codes, so
+# nothing here can be fetched at runtime. What this file does instead is
+# classify by the shape of the code, so a code released next season that
+# nobody has seen still lands in the right category without a code change.
+#
+# Resolution order, first match wins:
+#   1. overrides   - codes the patterns get wrong
+#   2. patterns    - matched top to bottom, in the order written here
+#   3. status      - HTTP status, when the body carried no usable code
+#   4. built-in    - 5xx is transient, anything else is fatal
+#
+# Outcome names must match the vocabulary in mapping.py; an unknown name is
+# rejected at load time rather than misclassifying a live failure.
+
+overrides:
+  # Arrives as HTTP 403 and matches no limit pattern by status alone. Read as
+  # a permission failure, a caller stops instead of waiting and retrying.
+  REQUEST_LIMIT_EXCEEDED: rate_limit
+  # Row lock contention. Reads like a conflict, but it clears by itself.
+  UNABLE_TO_LOCK_ROW: transient
+  # Matches INVALID_* and would be read as bad input, but the remedy is to
+  # re-authenticate.
+  INVALID_OPERATION_WITH_EXPIRED_PASSWORD: auth
+
+patterns:
+  - outcome: rate_limit
+    match:
+      - "*_LIMIT_EXCEEDED"
+      - "REQUEST_LIMIT*"
+
+  - outcome: auth
+    match:
+      - "INVALID_SESSION*"
+      - "INVALID_LOGIN*"
+      - "INVALID_GRANT"
+      - "*_SESSION_EXPIRED"
+      - "INVALID_AUTH*"
+
+  - outcome: permission
+    match:
+      - "INSUFFICIENT_ACCESS*"
+      - "*_DISABLED_FOR_ORG"
+      - "*_NOT_ALLOWED*"
+      - "*_ACCESS_DENIED"
+
+  - outcome: not_found
+    match:
+      - "*_NOT_FOUND"
+      - "ENTITY_IS_DELETED"
+
+  - outcome: conflict
+    match:
+      - "DUPLICATE*"
+      - "*_IS_LOCKED"
+      - "*_ALREADY_*"
+
+  - outcome: transient
+    match:
+      - "UNABLE_TO_LOCK_*"
+      - "SERVER_UNAVAILABLE"
+      - "*_TIMEOUT"
+
+  # Deliberately last: INVALID_* and MALFORMED_* are broad, so any narrower
+  # rule above claims its codes first.
+  - outcome: input
+    match:
+      - "INVALID_*"
+      - "MALFORMED_*"
+      - "REQUIRED_*"
+      - "*_TOO_LONG"
+      - "*_TOO_BIG"
+      - "*_TOO_SHORT"
+      - "*_OUT_OF_RANGE"
+
+status:
+  400: input
+  401: auth
+  403: permission
+  404: not_found
+  405: input
+  409: conflict
+  412: conflict
+  429: rate_limit
