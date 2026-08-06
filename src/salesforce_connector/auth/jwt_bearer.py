@@ -19,7 +19,7 @@ from typing import Final
 import jwt
 from pydantic import SecretStr
 
-from salesforce_connector.auth.base import TOKEN_PATH, Token, TokenRequest
+from salesforce_connector.auth.strategy import TOKEN_PATH, Token, TokenRequest
 from salesforce_connector.config import Settings
 from salesforce_connector.errors.model import AuthenticationError, ConfigurationError
 

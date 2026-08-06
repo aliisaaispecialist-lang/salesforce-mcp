@@ -8,6 +8,7 @@ Salesforce SDK appearing here means the layering has been broken.
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated, Any, Protocol, Self
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
@@ -134,6 +135,9 @@ class ActionRequest(_Frozen):
     params: Mapping[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
     approved: bool = False
+    # Correlates every log line of one call. Generated here so a caller never
+    # has to, and so the id exists before anything can fail.
+    request_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
 class ActionDescriptor(_Frozen):

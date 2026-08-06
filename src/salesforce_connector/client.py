@@ -21,7 +21,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict
 from tenacity import RetryCallState
 
-from salesforce_connector.auth.base import AuthStrategy, Token
+from salesforce_connector.auth.strategy import AuthStrategy, Token
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import RateLimit
 from salesforce_connector.errors.mapping import to_connector_error
@@ -52,6 +52,9 @@ class RequestSpec(BaseModel):
     absolute_url: str | None = None  # for an opaque cursor, used verbatim
     params: Mapping[str, str] = {}
     json_body: Mapping[str, Any] | None = None
+    # Salesforce turns a few behaviours on through headers rather than fields,
+    # such as permitting a save that duplicate rules would otherwise refuse.
+    headers: Mapping[str, str] = {}
     is_write: bool = False
     idempotency_key: str | None = None
 
@@ -179,7 +182,7 @@ class SalesforceClient:
                 spec.absolute_url or self._url(token, spec.path),
                 params=dict(spec.params) or None,
                 json=dict(spec.json_body) if spec.json_body is not None else None,
-                headers=self._headers(token, request_id),
+                headers={**self._headers(token, request_id), **spec.headers},
                 timeout=self._timeout(spec),
             )
         except httpx.HTTPError as exc:

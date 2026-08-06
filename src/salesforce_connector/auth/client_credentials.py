@@ -15,8 +15,8 @@ It does transmit a secret, which is why it is the fallback and not the default.
 from datetime import datetime
 from typing import Final
 
-from salesforce_connector.auth.base import TOKEN_PATH, Token, TokenRequest
 from salesforce_connector.auth.jwt_bearer import _token_from
+from salesforce_connector.auth.strategy import TOKEN_PATH, Token, TokenRequest
 from salesforce_connector.config import Settings
 from salesforce_connector.errors.model import ConfigurationError
 
