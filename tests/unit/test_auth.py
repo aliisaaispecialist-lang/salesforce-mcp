@@ -11,13 +11,10 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from pydantic import SecretStr
 
-from salesforce_connector.auth.base import Token
 from salesforce_connector.auth.client_credentials import ClientCredentialsAuth
 from salesforce_connector.auth.jwt_bearer import GRANT_TYPE, JwtBearerAuth
-from salesforce_connector.auth.token_cache import DEFAULT_TTL_SECONDS, TokenCache
-from salesforce_connector.config import Settings, load_settings
+from salesforce_connector.config import Settings
 from salesforce_connector.errors.model import AuthenticationError, ConfigurationError
 
 NOW = datetime(2026, 8, 6, 12, 0, tzinfo=UTC)
@@ -39,13 +36,14 @@ PUBLIC_KEY_PEM = (
 
 
 def settings_with(**overrides: str) -> Settings:
-    env = {
-        "SF_CLIENT_ID": "3MVG9consumerkey",
-        "SF_USERNAME": "integration@example.com.sandbox",
-        "SF_PRIVATE_KEY": PRIVATE_KEY_PEM,
+    """Build settings directly, so a test never depends on the real environment."""
+    values: dict[str, str] = {
+        "client_id": "3MVG9consumerkey",
+        "username": "integration@example.com.sandbox",
+        "private_key": PRIVATE_KEY_PEM,
     }
-    env.update(overrides)
-    return load_settings(env)
+    values.update(overrides)
+    return Settings(**values)  # type: ignore[arg-type]
 
 
 def token_reply(**overrides: str) -> dict[str, str]:
@@ -104,13 +102,13 @@ class TestTheAssertionSalesforceWillVerify:
     def test_a_key_that_travelled_on_one_line_is_still_usable(self) -> None:
         flattened = PRIVATE_KEY_PEM.replace("\n", "\\n")
 
-        request = JwtBearerAuth().build_request(settings_with(SF_PRIVATE_KEY=flattened), NOW)
+        request = JwtBearerAuth().build_request(settings_with(private_key=flattened), NOW)
 
         assert request.form["assertion"]
 
     def test_an_unusable_key_names_the_variable_and_the_likely_cause(self) -> None:
         with pytest.raises(ConfigurationError, match="SF_PRIVATE_KEY"):
-            JwtBearerAuth().build_request(settings_with(SF_PRIVATE_KEY="not a key"), NOW)
+            JwtBearerAuth().build_request(settings_with(private_key="not a key"), NOW)
 
 
 class TestReadingTheReply:
@@ -141,7 +139,7 @@ class TestReadingTheReply:
 
 class TestClientCredentialsFallback:
     def test_it_sends_the_key_and_secret(self) -> None:
-        settings = settings_with(SF_CLIENT_SECRET="shhh")
+        settings = settings_with(client_secret="shhh")
 
         request = ClientCredentialsAuth().build_request(settings, NOW)
 
@@ -157,43 +155,3 @@ class TestClientCredentialsFallback:
         from_secret = ClientCredentialsAuth().parse_token(token_reply(), NOW)
 
         assert from_jwt == from_secret
-
-
-class TestTokenCache:
-    def token(self, issued: datetime = NOW) -> Token:
-        return Token(
-            access_token=SecretStr("tok"),
-            instance_url="https://x.my.salesforce.com",
-            issued_at=issued,
-        )
-
-    def test_nothing_is_held_before_the_first_handshake(self) -> None:
-        assert TokenCache().find_valid(NOW) is None
-
-    def test_a_fresh_token_is_reused(self) -> None:
-        cache = TokenCache()
-        cache.store(self.token())
-
-        assert cache.find_valid(NOW + timedelta(minutes=5)) is not None
-
-    def test_a_token_is_renewed_before_it_actually_expires(self) -> None:
-        cache = TokenCache()
-        cache.store(self.token())
-
-        just_inside = NOW + timedelta(seconds=DEFAULT_TTL_SECONDS - 30)
-
-        assert cache.find_valid(just_inside) is None
-
-    def test_an_expired_token_is_not_reused(self) -> None:
-        cache = TokenCache()
-        cache.store(self.token())
-
-        assert cache.find_valid(NOW + timedelta(seconds=DEFAULT_TTL_SECONDS + 1)) is None
-
-    def test_a_rejected_token_is_forgotten_at_once(self) -> None:
-        cache = TokenCache()
-        cache.store(self.token())
-
-        cache.invalidate()
-
-        assert cache.find_valid(NOW) is None

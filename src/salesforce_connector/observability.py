@@ -1,44 +1,63 @@
 """Structured logging and in-process counters.
 
+Built on structlog rather than hand-rolled JSON, which brings three things the
+hand-written version did not have:
+
+- contextvars binding, so a request id set once is attached to every line for
+  that call without being threaded through every function signature, and
+  without leaking between concurrent calls;
+- censoring as a processor in the chain, so it runs on the event dictionary
+  before rendering rather than as a regex over an already-rendered string;
+- cache_logger_on_first_use, which the structlog performance guide recommends
+  for hot paths.
+
 Everything is written to stderr. An MCP server speaking over stdio owns stdout
 for JSON-RPC, so a single stray line there corrupts the stream and ends the
 session. The T20 lint rule bans print for the same reason.
-
-Redaction is a filter on the logger rather than a rule at call sites: a
-forgotten logger.debug(response) still cannot leak a token, because the mask is
-applied on the way out.
 
 Record field values are never logged. Salesforce contacts carry names, emails,
 and phone numbers, so identifiers are logged and payloads are not.
 """
 
-import json
 import logging
 import re
 import sys
 from collections import Counter, defaultdict
+from collections.abc import MutableMapping
 from statistics import median
 from typing import Any, Final
 
+import structlog
+
 _REDACTED: Final = "[redacted]"
 
-# Matched against the rendered line, so a secret is masked no matter which
-# field or nested structure carried it.
+# Censored wherever they appear as keys, at any depth of the event dictionary.
+_SECRET_KEYS: Final = frozenset(
+    {
+        "access_token",
+        "assertion",
+        "authorization",
+        "client_id",
+        "client_secret",
+        "private_key",
+        "refresh_token",
+        "sf_client_secret",
+        "sf_private_key",
+        "token",
+    }
+)
+
+# Censored inside string values, for secrets that arrive embedded in a message.
 _SECRET_PATTERNS: Final = (
     re.compile(r"(?i)(bearer\s+)[\w.\-]+"),
-    re.compile(
-        r"(?i)(\"?(?:access_token|refresh_token|client_secret|assertion)\"?\s*[:=]\s*\"?)[^\"\s,}]+"
-    ),
     re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----", re.DOTALL),
-    re.compile(r"(?i)(\"?authorization\"?\s*[:=]\s*\"?)[^\"\s,}]+"),
 )
 
 _PERCENTILE_95: Final = 0.95
 
 
-def redact(text: str) -> str:
-    """Mask anything token-shaped in an already-rendered line."""
-    masked = text
+def _censor_text(value: str) -> str:
+    masked = value
     for pattern in _SECRET_PATTERNS:
         masked = pattern.sub(
             lambda match: f"{match.group(1)}{_REDACTED}" if match.groups() else _REDACTED,
@@ -47,43 +66,70 @@ def redact(text: str) -> str:
     return masked
 
 
-class RedactingFormatter(logging.Formatter):
-    """Render each record as one JSON object, with secrets masked."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        """Flatten the record and its extra fields into one masked JSON line."""
-        payload: dict[str, Any] = {
-            "level": record.levelname.lower(),
-            "event": record.getMessage(),
-        }
-        payload.update(getattr(record, "fields", {}))
-        if record.exc_info:
-            payload["error"] = self.formatException(record.exc_info)
-        return redact(json.dumps(payload, default=str))
+def _censor_value(key: str, value: object) -> object:
+    if key.lower() in _SECRET_KEYS:
+        return _REDACTED
+    if isinstance(value, str):
+        return _censor_text(value)
+    if isinstance(value, dict):
+        return {inner: _censor_value(str(inner), held) for inner, held in value.items()}
+    return value
 
 
-def configure_logging(level: int = logging.INFO) -> logging.Logger:
-    """Send this package's logs to stderr as redacted JSON lines."""
-    logger = logging.getLogger("salesforce_connector")
-    logger.handlers.clear()
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(RedactingFormatter())
-    logger.addHandler(handler)
-    logger.setLevel(level)
-    logger.propagate = False
-    return logger
+def censor_secrets(
+    _logger: Any,
+    _method: str,
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
+    """Mask secrets before the event is rendered.
 
-
-def log_event(logger: logging.Logger, event: str, **fields: object) -> None:
-    """Record one structured event.
-
-    Args:
-        logger: The package logger.
-        event: Short, stable name for what happened.
-        fields: Identifiers and outcomes only. Never record payloads, field
-            values, or credentials.
+    A structlog processor, so it applies to every line regardless of which
+    call site produced it. A forgotten log.debug(response) cannot leak.
     """
-    logger.info(event, extra={"fields": fields})
+    return {key: _censor_value(key, value) for key, value in event_dict.items()}
+
+
+def configure_logging(level: int = logging.INFO) -> None:
+    """Send structured JSON to stderr, with secrets censored on the way out."""
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(level)
+
+    structlog.configure(
+        cache_logger_on_first_use=True,
+        wrapper_class=structlog.make_filtering_bound_logger(level),
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            structlog.processors.format_exc_info,
+            censor_secrets,
+            structlog.processors.JSONRenderer(),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+    )
+
+
+def get_logger() -> structlog.stdlib.BoundLogger:
+    """Return the connector's logger."""
+    return structlog.get_logger("salesforce_connector")  # type: ignore[no-any-return]
+
+
+def bind_request(request_id: str, action_id: str) -> None:
+    """Attach a call's identity to every line it produces.
+
+    Uses contextvars, so concurrent calls do not inherit each other's context
+    and no function has to carry the request id through its signature.
+    """
+    structlog.contextvars.bind_contextvars(request_id=request_id, action_id=action_id)
+
+
+def clear_request() -> None:
+    """Drop the call's context once it has finished."""
+    structlog.contextvars.clear_contextvars()
 
 
 class Metrics:

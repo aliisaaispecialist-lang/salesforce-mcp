@@ -1,38 +1,46 @@
 """Settings read from the environment, validated once at startup.
 
-The only place credentials enter the process. Secrets are held as SecretStr so
-that printing the settings, logging them, or rendering them in a traceback
-shows a mask rather than the value.
+Built on pydantic-settings rather than hand-parsed: the library owns reading,
+coercing, and reporting, so booleans, floats, and missing values behave the way
+every other pydantic project behaves instead of the way one hand-written parser
+happened to.
 
-Nothing here has a default that is a secret. A missing credential stops the
-server before any tool is exposed, because a connector that starts and then
-fails every call is harder to diagnose than one that refuses to start.
+Secrets are SecretStr, so printing the settings, logging them, or rendering
+them in a traceback shows a mask rather than the value.
+
+A missing credential stops the server before any tool is exposed. A connector
+that starts and then fails every call is harder to diagnose than one that
+refuses to start.
 """
 
-import os
-from collections.abc import Mapping
 from typing import Final, Self
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from salesforce_connector.errors.model import ConfigurationError
 
 SANDBOX_LOGIN_URL: Final = "https://test.salesforce.com"
 PRODUCTION_LOGIN_URL: Final = "https://login.salesforce.com"
 
-_REQUIRED: Final = ("SF_CLIENT_ID", "SF_USERNAME", "SF_PRIVATE_KEY")
-
-_TRUE_VALUES: Final = frozenset({"1", "true", "yes", "on"})
+_ENV_PREFIX: Final = "SF_"
 
 
-class Settings(BaseModel):
+class Settings(BaseSettings):
     """Everything the connector needs to reach one Salesforce org.
 
-    Satisfies the Credentials protocol, so it can be handed to
-    test_connection without exposing its fields to that layer.
+    Field names map to SF_-prefixed environment variables, so `client_id` is
+    read from SF_CLIENT_ID.
+
+    Satisfies the Credentials protocol, so it can be handed to test_connection
+    without exposing its fields to that layer.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = SettingsConfigDict(
+        env_prefix=_ENV_PREFIX,
+        frozen=True,
+        extra="ignore",  # the environment always holds variables that are not ours
+    )
 
     client_id: SecretStr
     username: str
@@ -43,6 +51,17 @@ class Settings(BaseModel):
     read_timeout_seconds: float = Field(default=5.0, gt=0)
     write_timeout_seconds: float = Field(default=15.0, gt=0)
     allow_production: bool = False
+
+    @field_validator("private_key", mode="before")
+    @classmethod
+    def _restore_newlines(cls, value: object) -> object:
+        """Repair a key that had to travel on a single line.
+
+        Container runtimes and CI secret stores generally cannot hold a
+        multi-line value, so the key arrives with literal backslash-n. RSA
+        parsing fails on that with a message that never mentions newlines.
+        """
+        return value.replace("\\n", "\n").strip() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def _production_needs_saying_so(self) -> Self:
@@ -65,76 +84,37 @@ class Settings(BaseModel):
         return f"{self.username} at {self.login_url} ({self.api_version})"
 
 
-def _missing(env: Mapping[str, str]) -> tuple[str, ...]:
-    """Name every required variable that is absent or blank, not just the first."""
-    return tuple(name for name in _REQUIRED if not env.get(name, "").strip())
+def _variable_for(location: tuple[object, ...]) -> str:
+    """Name the environment variable behind a validation error."""
+    return f"{_ENV_PREFIX}{location[0]}".upper() if location else "the environment"
 
 
-def _flag(env: Mapping[str, str], name: str) -> bool:
-    return env.get(name, "").strip().lower() in _TRUE_VALUES
+def _explain(error: ValidationError) -> str:
+    """Report every problem at once, named by environment variable.
 
-
-def _pem(raw: str) -> str:
-    """Restore real newlines in a key that had to travel on a single line.
-
-    Container runtimes and CI secret stores generally cannot hold a multi-line
-    value, so the key arrives with literal backslash-n. RSA parsing fails on
-    that with a message that says nothing about newlines, so it is normalised
-    here rather than debugged later.
+    One message listing three faults beats three restarts finding them one at
+    a time.
     """
-    return raw.replace("\\n", "\n").strip()
+    faults = tuple(
+        f"{_variable_for(problem['loc'])}: {problem['msg']}" for problem in error.errors()
+    )
+    return (
+        f"The environment is not usable. {'; '.join(faults)}. "
+        f"See .env.example for the full list of variables."
+    )
 
 
-def _secret(env: Mapping[str, str], name: str) -> SecretStr | None:
-    value = env.get(name, "").strip()
-    return SecretStr(value) if value else None
-
-
-def _number(env: Mapping[str, str], name: str, fallback: float) -> float:
-    raw = env.get(name, "").strip()
-    if not raw:
-        return fallback
-    try:
-        return float(raw)
-    except ValueError as exc:
-        raise ConfigurationError(f"{name} must be a number of seconds, but was {raw!r}.") from exc
-
-
-def load_settings(env: Mapping[str, str] | None = None) -> Settings:
+def load_settings() -> Settings:
     """Read and validate the environment, or refuse to continue.
-
-    Args:
-        env: Source of variables. Defaults to the real environment; tests pass
-            a mapping instead of mutating the process.
 
     Returns:
         Validated settings.
 
     Raises:
-        ConfigurationError: A required variable is missing, or a value is
-            unusable. The message names every problem found, so the operator
-            fixes them in one pass rather than one restart each.
+        ConfigurationError: A required variable is missing or a value is
+            unusable, with every fault named.
     """
-    source = os.environ if env is None else env
-
-    absent = _missing(source)
-    if absent:
-        raise ConfigurationError(
-            f"Missing required environment variable(s): {', '.join(absent)}. "
-            f"See .env.example for the full list."
-        )
-
     try:
-        return Settings(
-            client_id=SecretStr(source["SF_CLIENT_ID"].strip()),
-            username=source["SF_USERNAME"].strip(),
-            private_key=SecretStr(_pem(source["SF_PRIVATE_KEY"])),
-            client_secret=_secret(source, "SF_CLIENT_SECRET"),
-            login_url=source.get("SF_LOGIN_URL", "").strip() or SANDBOX_LOGIN_URL,
-            api_version=source.get("SF_API_VERSION", "").strip() or "v67.0",
-            read_timeout_seconds=_number(source, "SF_READ_TIMEOUT", 5.0),
-            write_timeout_seconds=_number(source, "SF_WRITE_TIMEOUT", 15.0),
-            allow_production=_flag(source, "SF_ALLOW_PRODUCTION"),
-        )
-    except ValueError as exc:
-        raise ConfigurationError(f"The environment is not usable: {exc}") from exc
+        return Settings()
+    except ValidationError as exc:
+        raise ConfigurationError(_explain(exc)) from exc

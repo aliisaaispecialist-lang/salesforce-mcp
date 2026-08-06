@@ -15,6 +15,9 @@ dependencies = [
     "pyyaml>=6.0",  # errors/mapping.py: the error classification rules
     "pyjwt>=2.8",  # auth/jwt_bearer.py: builds the signed assertion
     "cryptography>=42.0",  # the RS256 backend pyjwt signs with
+    "pydantic-settings>=2.12",  # config.py: environment reading and reporting
+    "tenacity>=9.1",  # errors/retry.py: the attempt loop, backoff, and sleeping
+    "structlog>=26.1",  # observability.py: structured logs and contextvars
 ]
 
 [project.optional-dependencies]
@@ -22,6 +25,7 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "pytest>=8.0",
+    "pytest-asyncio>=0.24",  # the retry loop is async
     "types-PyYAML>=6.0",  # yaml ships no inline types; mypy --strict needs these
 ]
 
@@ -56,6 +60,7 @@ ignore = [
     "S106",
     "S311",     # seeded randomness, for deterministic jitter tests
     "D100", "D101", "D102", "D103",  # a test's name is its description
+    "ARG002",   # a fixture requested for its side effect is not "unused"
     "PLR2004",  # expected values are literals on purpose
 ]
 
@@ -87,6 +92,7 @@ enable_error_code = [
 ]
 
 [tool.pytest.ini_options]
+asyncio_mode = "strict"
 testpaths = ["tests"]
 pythonpath = ["src"]  # the package is imported from source, not installed
 
@@ -94,3 +100,4 @@ pythonpath = ["src"]  # the package is imported from source, not installed
 init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
+
