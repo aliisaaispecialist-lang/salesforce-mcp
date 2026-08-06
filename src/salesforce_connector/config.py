@@ -37,6 +37,7 @@ class Settings(BaseModel):
     client_id: SecretStr
     username: str
     private_key: SecretStr
+    client_secret: SecretStr | None = None  # only the client credentials flow needs one
     login_url: str = SANDBOX_LOGIN_URL
     api_version: str = "v67.0"
     read_timeout_seconds: float = Field(default=5.0, gt=0)
@@ -71,6 +72,22 @@ def _missing(env: Mapping[str, str]) -> tuple[str, ...]:
 
 def _flag(env: Mapping[str, str], name: str) -> bool:
     return env.get(name, "").strip().lower() in _TRUE_VALUES
+
+
+def _pem(raw: str) -> str:
+    """Restore real newlines in a key that had to travel on a single line.
+
+    Container runtimes and CI secret stores generally cannot hold a multi-line
+    value, so the key arrives with literal backslash-n. RSA parsing fails on
+    that with a message that says nothing about newlines, so it is normalised
+    here rather than debugged later.
+    """
+    return raw.replace("\\n", "\n").strip()
+
+
+def _secret(env: Mapping[str, str], name: str) -> SecretStr | None:
+    value = env.get(name, "").strip()
+    return SecretStr(value) if value else None
 
 
 def _number(env: Mapping[str, str], name: str, fallback: float) -> float:
@@ -111,7 +128,8 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         return Settings(
             client_id=SecretStr(source["SF_CLIENT_ID"].strip()),
             username=source["SF_USERNAME"].strip(),
-            private_key=SecretStr(source["SF_PRIVATE_KEY"]),
+            private_key=SecretStr(_pem(source["SF_PRIVATE_KEY"])),
+            client_secret=_secret(source, "SF_CLIENT_SECRET"),
             login_url=source.get("SF_LOGIN_URL", "").strip() or SANDBOX_LOGIN_URL,
             api_version=source.get("SF_API_VERSION", "").strip() or "v67.0",
             read_timeout_seconds=_number(source, "SF_READ_TIMEOUT", 5.0),

@@ -13,6 +13,8 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.7",  # contract.py: typed models and validation
     "pyyaml>=6.0",  # errors/mapping.py: the error classification rules
+    "pyjwt>=2.8",  # auth/jwt_bearer.py: builds the signed assertion
+    "cryptography>=42.0",  # the RS256 backend pyjwt signs with
 ]
 
 [project.optional-dependencies]

@@ -19,7 +19,7 @@ def minimal_env(**overrides: str) -> dict[str, str]:
     env = {
         "SF_CLIENT_ID": "3MVG9abc",
         "SF_USERNAME": "integration@example.com.sandbox",
-        "SF_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----",
+        "SF_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADxx\n-----END PRIVATE KEY-----",
     }
     env.update(overrides)
     return env
@@ -55,7 +55,7 @@ class TestSecretsAreNotPrintable:
     def test_the_private_key_is_masked_in_the_repr(self) -> None:
         settings = load_settings(minimal_env())
 
-        assert "secret" not in repr(settings)
+        assert "MIIEvQIBADxx" not in repr(settings)
         assert "3MVG9abc" not in repr(settings)
 
     def test_the_value_is_still_reachable_deliberately(self) -> None:
@@ -66,7 +66,7 @@ class TestSecretsAreNotPrintable:
     def test_the_log_safe_description_carries_no_secret(self) -> None:
         described = load_settings(minimal_env()).redacted()
 
-        assert "secret" not in described
+        assert "MIIEvQIBADxx" not in described
         assert "3MVG9abc" not in described
         assert "integration@example.com.sandbox" in described
 
