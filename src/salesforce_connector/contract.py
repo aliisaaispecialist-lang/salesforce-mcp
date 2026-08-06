@@ -5,7 +5,7 @@ this package and nothing vendor-specific. An import of httpx, mcp, or a
 Salesforce SDK appearing here means the layering has been broken.
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated, Any, Protocol, Self
 
@@ -145,6 +145,25 @@ class ActionDescriptor(_Frozen):
     def _high_risk_requires_approval(self) -> Self:
         if self.risk is RiskLevel.HIGH and not self.requires_approval:
             raise ValueError(f"{self.action_id}: high-risk actions must require approval")
+        return self
+
+    @model_validator(mode="after")
+    def _writes_require_an_idempotency_key(self) -> Self:
+        """Refuse to describe a write that a caller could repeat blindly.
+
+        A write retried after a timeout without a key creates a second record.
+        Rejecting it here means such an action cannot be registered at all,
+        rather than relying on anyone remembering to add the field.
+        """
+        if self.kind is not ActionKind.WRITE:
+            return self
+        required = self.input_schema.get("required", ())
+        listed = isinstance(required, Sequence) and not isinstance(required, str)
+        if not listed or "idempotency_key" not in required:
+            raise ValueError(
+                f"{self.action_id}: a write action must list idempotency_key in its "
+                f"schema's required fields, so a repeated call cannot duplicate a record"
+            )
         return self
 
 
