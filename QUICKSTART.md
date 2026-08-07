@@ -76,14 +76,29 @@ You will produce three values: a **Consumer Key**, a **username**, and a
 On any machine with OpenSSL (Git Bash on Windows includes it):
 
 ```bash
+mkdir -p secrets && cd secrets
 openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 \
   -keyout salesforce.key -out salesforce.crt \
   -subj "/CN=salesforce-mcp"
 ```
 
+**On Windows, prefix that with `MSYS_NO_PATHCONV=1`.** Git Bash rewrites any
+argument beginning with `/` into a Windows path, so `/CN=salesforce-mcp`
+arrives as `C:/Program Files/Git/CN=salesforce-mcp` and OpenSSL rejects it.
+The error names the format and not the cause, which is why it is worth saying
+here.
+
 `salesforce.key` is the private key — the connector reads this. `salesforce.crt`
-is the certificate — Salesforce reads this. **Never commit either.** Both
-patterns are already in `.gitignore`.
+is the certificate — Salesforce reads this. **Never commit either.** `secrets/`,
+`*.key`, and `*.crt` are all in `.gitignore` and `.dockerignore`.
+
+Check they belong to each other before uploading anything — a mismatched pair
+fails later as `invalid_grant`, which reads like a wrong username:
+
+```bash
+openssl x509 -in salesforce.crt -noout -pubkey | openssl md5
+openssl pkey -in salesforce.key -pubout | openssl md5   # same hash = a pair
+```
 
 ### 3b. Create the Connected App
 
@@ -135,9 +150,21 @@ Fill in three values. Every other line already has a working default.
 | `SF_USERNAME` | The user the connector acts as — the one you pre-authorised |
 | `SF_PRIVATE_KEY` | The contents of `salesforce.key`, header and footer lines included |
 
-On the private key: keep the `-----BEGIN PRIVATE KEY-----` and
-`-----END PRIVATE KEY-----` lines. If your `.env` format needs it on one line,
-put `\n` between the lines — the connector repairs that on the way in.
+**The private key needs care.** A `.env` file is line-oriented: a PEM pasted
+across thirty lines parses as one assignment and twenty-nine syntax errors.
+Put it on **one line, in double quotes, with `\n` between the lines**:
+
+```
+SF_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBAD...\n-----END PRIVATE KEY-----"
+```
+
+The quotes are what make the escapes expand back into real newlines on the way
+in; the connector repairs anything they miss. To convert the file without doing
+it by hand:
+
+```bash
+python -c "print(repr(open('secrets/salesforce.key').read().strip()))"
+```
 
 `SF_LOGIN_URL` defaults to `https://test.salesforce.com`, the sandbox host.
 Pointing it at production additionally requires `SF_ALLOW_PRODUCTION=true`, so
