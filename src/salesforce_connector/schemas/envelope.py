@@ -18,12 +18,13 @@ absent, the action asks the user for exactly that value and revalidates,
 instead of guessing or failing.
 """
 
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from salesforce_connector.contract import ActionId, ActionKind, RiskLevel, ToolName
+from salesforce_connector.contract import ActionExample, ActionId, ActionKind, RiskLevel, ToolName
 
 
 class _Frozen(BaseModel):
@@ -72,19 +73,40 @@ class ActionSpec(_Frozen):
     output_schema: Mapping[str, Any]
     errors: Sequence[ErrorGuidance]
     missing_inputs: Sequence[MissingInput] = ()
+    examples: tuple[ActionExample, ...] = ()
 
     def description(self) -> str:
-        """Render the single description string a model will actually read."""
+        """Render the single description string a model will actually read.
+
+        The first example is rendered inline. A worked call is the cheapest
+        correction available for the mistakes a schema alone invites -- a field
+        left out, a date in the wrong shape, an id from the wrong object -- and
+        it costs a handful of tokens in the one place a model is certain to
+        look.
+        """
         return "\n".join(
             (
                 self.summary,
                 "",
                 f"Use this when: {self.when_to_use}",
                 f"Do not use this when: {self.when_not_to_use}",
+                *self._worked_example(),
                 "",
                 "Failures and what to do:",
                 *(f"- {error.code}: {error.when} {error.remedy}" for error in self.errors),
             )
+        )
+
+    def _worked_example(self) -> tuple[str, ...]:
+        """Render the first example, or nothing if this action has none."""
+        if not self.examples:
+            return ()
+        shown = self.examples[0]
+        return (
+            "",
+            f"Example -- {shown.title}",
+            f"  call: {json.dumps(shown.arguments, sort_keys=True)}",
+            f"  returns: {json.dumps(shown.result, sort_keys=True)}",
         )
 
     def find_missing_input(self, field: str) -> MissingInput | None:

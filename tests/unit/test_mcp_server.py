@@ -62,7 +62,11 @@ class TestPublishedTools:
 
         assert len(published) == 5
         for tool, described in zip(published, descriptors(), strict=True):
-            assert tool.input_schema == dict(described.input_schema)
+            # The published input schema is the authored one plus `examples`,
+            # a JSON Schema annotation rather than a change to what validates.
+            assert {k: v for k, v in tool.input_schema.items() if k != "examples"} == dict(
+                described.input_schema
+            )
             assert tool.output_schema == dict(described.output_schema)
 
     def test_arguments_are_flat_rather_than_nested_under_a_wrapper(self) -> None:

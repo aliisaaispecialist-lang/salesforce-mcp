@@ -18,7 +18,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from salesforce_connector.contract import ActionKind, RiskLevel
+from salesforce_connector.contract import ActionExample, ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
     APPROVED_DESCRIPTION,
     IDEMPOTENCY_KEY_DESCRIPTION,
@@ -145,6 +145,40 @@ SPEC = ActionSpec(
     requires_approval=True,
     input_schema=schema_of(AddActivityNoteInput),
     output_schema=schema_of(AddActivityNoteOutput),
+    examples=(
+        ActionExample(
+            title="Log a call against a contact",
+            arguments={
+                "related_to_id": "003xx000004TmiQAAS",
+                "subject": "Intro call",
+                "body": "Walked through pricing. Wants a quote by Friday.",
+                "activity_kind": "Call",
+                "idempotency_key": "d4e5f6a7-b8c9-4d0e-9f1a-3b4c5d6e7f8a",
+                "approved": True,
+            },
+            result={
+                "id": "00Txx0000012345AAA",
+                "subject": "Intro call",
+                "related_to_id": "003xx000004TmiQAAS",
+                "created": True,
+            },
+        ),
+        ActionExample(
+            title="Log the same note against an opportunity instead",
+            arguments={
+                "related_to_id": "006xx000004TmiQAAS",
+                "subject": "Quote sent",
+                "idempotency_key": "e5f6a7b8-c9d0-4e1f-8a2b-4c5d6e7f8a9b",
+                "approved": True,
+            },
+            result={
+                "id": "00Txx0000012346AAA",
+                "subject": "Quote sent",
+                "related_to_id": "006xx000004TmiQAAS",
+                "created": True,
+            },
+        ),
+    ),
     missing_inputs=(
         MissingInput(
             field="related_to_id",

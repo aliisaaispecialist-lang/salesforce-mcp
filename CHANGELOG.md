@@ -39,6 +39,18 @@ of this entry.
   arguments, expires after ten minutes by default, and is generated fresh
   per process. Any write action refuses to run without an approved request.
   (`approval.py`, `actions/action.py`)
+- **A worked example on every action**, carried on the `ActionSpec` and
+  rendered into all three surfaces: the MCP tool's input schema as the JSON
+  Schema `examples` annotation, the OpenAPI operation as keyed request and
+  response examples, and the tool description a model reads. Each one is
+  validated against the action's own input and output models by
+  `tests/unit/test_examples.py`, so an example that stopped being true fails
+  the build. (`contract.py::ActionExample`, `schemas/*.py`)
+- **Contract tests** (`tests/contract/`) asserting that the four descriptions
+  of this connector stay one description: `connector.yaml`, the action
+  registry, the MCP tool list, and `openapi.yaml`. Also that
+  `SalesforceConnector` still has every member `DooConnector` declares —
+  asked of the Protocol itself rather than copied into the test.
 - **The server asks before it writes.** Every write goes through an MCP
   elicitation — a single-boolean confirmation quoting the action and the
   caller's own values — before the connector is called at all, whether or not
@@ -141,11 +153,6 @@ of this entry.
 
 ### Blocked
 
-- **Tag and pyproject version bump.** `pyproject.toml` still reads
-  `version = "0.1.0"` with a comment marking it `-> 1.0.0 at final handoff`.
-  Bumping it and creating the `v1.0.0` Git tag is the last step of the
-  release and was deliberately left to whoever performs it, since this
-  document was written under instructions not to modify `pyproject.toml`.
 - **A provisioned sandbox org.** No Salesforce sandbox credentials exist yet
   for this project. Nothing beyond mocked HTTP has been exercised, and the
   Definition of Done's "one real sandbox test where access permits" item is
@@ -163,7 +170,9 @@ release.
 What is deliberately not built: HTTP/SSE transport, durable cross-restart
 idempotency, and anything beyond the five assigned actions.
 
-What is blocked: everything under "Blocked" above needs either a decision
-(when to bump the version and tag) or an asset this project does not
-currently have (a sandbox org). Neither blocks reading or reviewing the code
-as it stands.
+What is blocked: one thing, and it is an asset rather than a decision — a
+Salesforce sandbox org. It blocks the live evaluation run, the one real
+sandbox test, and two questions that cannot be answered from documentation
+(whether `parameterizedSearch` honours `offset`, and whether an External Id
+field is the right answer to cross-restart idempotency). None of it blocks
+reading or reviewing the code as it stands.

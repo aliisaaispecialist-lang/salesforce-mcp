@@ -13,7 +13,7 @@ from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
-from salesforce_connector.contract import ActionKind, RiskLevel
+from salesforce_connector.contract import ActionExample, ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
     APPROVED_DESCRIPTION,
     IDEMPOTENCY_KEY_DESCRIPTION,
@@ -119,6 +119,23 @@ SPEC = ActionSpec(
     requires_approval=True,
     input_schema=schema_of(UpdateContactInput),
     output_schema=schema_of(UpdateContactOutput),
+    examples=(
+        ActionExample(
+            title="Change one field, leaving the rest of the record alone",
+            arguments={
+                "contact_id": "003xx000004TmiQAAS",
+                "title": "Chief Analyst",
+                "idempotency_key": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+                "approved": True,
+            },
+            result={
+                "id": "003xx000004TmiQAAS",
+                "name": "Ada Lovelace",
+                "changed_fields": ["title"],
+                "title": "Chief Analyst",
+            },
+        ),
+    ),
     missing_inputs=(
         MissingInput(
             field="contact_id",

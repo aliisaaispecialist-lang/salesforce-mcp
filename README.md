@@ -146,10 +146,10 @@ Finds contacts by name, email, phone, or account name via `POST
 - **Optional:** `limit` (1–200, default 20), `cursor` (opaque, from a previous
   page's `next_cursor`).
 - **Returns:** `contacts[]` (`id`, `name`, `email`, `phone`, `account_id`,
-  `account_name`, `title`), `returned`, `next_cursor`. `account_name` is
-  declared in the output schema but is always `null` today — the action never
-  requests `AccountName` from Salesforce; see
-  [Known limitations](#known-limitations-and-access-blockers).
+  `title`), `returned`, `next_cursor`. Every one of those is requested in
+  `_FIELDS` and populated in `_as_summary`, so the schema promises nothing the
+  action does not deliver. The account is returned as an id rather than a name
+  deliberately — see [ADR-023](#adr-023-the-account-comes-back-as-an-id-not-a-name).
 
 ### `salesforce.create_contact`
 
@@ -1020,6 +1020,70 @@ model retries. Caught and turned into a plain refusal, it does not.
 two ends of the wiring: that a declined write never reaches `execute`, and
 that an accepted one arrives there already marked approved.
 
+### ADR-023: The account comes back as an id, not a name
+
+**Context.** `search_contact` returns `account_id` — the Salesforce id of the
+account a contact belongs to. A name would obviously read better in a
+sentence a model composes for a user. Salesforce exposes it as a relationship
+field, `Account.Name`, in the `fields` list sent to `parameterizedSearch`.
+
+**Options considered.**
+1. Return `account_id` only.
+2. Also request `Account.Name` and return an `account_name` beside it.
+3. Declare `account_name` in the output schema and populate it later.
+
+**Decision.** Option 1. Whether `parameterizedSearch` accepts a relationship
+field in its `fields` list is exactly the kind of claim this project refuses
+to make from general knowledge, and there is no org to check it against. An
+unverified field would either come back empty or fail the whole search, and
+the second is a real cost paid for a cosmetic gain.
+
+Option 3 was in fact how this stood at one point, and it was the worse of the
+three: a field a schema promises and the data never fills teaches a model to
+expect a value, and a model that reads `null` where a name should be has no
+way to tell "this contact has no account" from "this connector never asked".
+A schema is a promise, and an unkept one is worse than a smaller promise.
+
+**Trade-offs accepted.** A caller that wants the account's name must look it
+up, and this connector offers no action that does — so in practice it shows
+an id or says nothing. That is a real loss in readability, taken knowingly.
+
+**Consequences.** `_FIELDS` in `actions/search_contact.py` and
+`ContactSummary` in `schemas/search_contact.py` list the same six fields, and
+`_as_summary` populates every one. Adding the name later is one line in each
+plus a live check that Salesforce honours it.
+
+### ADR-024: Examples live on the spec, so all three surfaces show the same ones
+
+**Context.** Definition of Done item 4 asks every action for "typed JSON
+Schema inputs, outputs, and examples". Examples could be written directly
+into the tool description, into `openapi.yaml`, and into this README — three
+places, three chances to drift, and no way to notice when they do.
+
+**Options considered.**
+1. Prose examples written into each surface by hand.
+2. One `examples` field on `ActionSpec`, rendered into every surface.
+3. Examples only in the OpenAPI document, where the convention already exists.
+
+**Decision.** Option 2. `ActionExample` lives in `contract.py` — the layer
+that imports nothing — carrying a title, the arguments, and the result. From
+there it reaches the MCP tool's input schema as the JSON Schema 2020-12
+`examples` annotation, the OpenAPI operation as keyed request and response
+examples, and the tool description a model actually reads, where the first
+example is rendered inline.
+
+**Trade-offs accepted.** The description grows by a few dozen tokens per
+tool. That is the cheapest correction available for the mistakes a schema
+alone invites — a field left out, a date in the wrong shape, an id from the
+wrong object — and it is spent in the one place a model is certain to look.
+
+**Consequences.** `tests/unit/test_examples.py` validates every example's
+arguments against the action's own input model and every result against its
+output model, so an example that stopped being true fails the build instead
+of shipping. That test earned its place immediately: it caught
+`activity_kind: "call"` where the enum requires `"Call"`, in an example
+written minutes earlier.
+
 ---
 
 ## Reliability
@@ -1129,16 +1193,16 @@ machine:
 
 ```
 $ python -m pytest -q
-370 passed, 2 warnings in 15.43s
+438 passed, 2 skipped, 2 warnings in 16.02s
 
 $ python -m ruff check .
 All checks passed!
 
 $ python -m mypy src tests
-Success: no issues found in 57 source files
+Success: no issues found in 59 source files
 
 $ PYTHONPATH=src lint-imports
-Analyzed 70 files, 218 dependencies.
+Analyzed 70 files, 219 dependencies.
 Contracts: 4 kept, 0 broken.
 
 $ docker build -t salesforce-connector .
@@ -1159,11 +1223,14 @@ from a transitive dependency (`python-multipart`), and one test misusing the
 **Test tiers** (`pyproject.toml` markers):
 
 - **Default** (`addopts = "-m 'not learning and not integration'"`, what the
-  370-pass run above covers): unit tests (`tests/unit/`, schema validation,
+  438-pass run above covers): unit tests (`tests/unit/`, schema validation,
   error mapping, retry classification, idempotency ledger, approval path,
-  OpenAPI generation, MCP adapter thinness) and security/fixture tests
-  (`tests/security/`), all against mocked HTTP (`respx`) — no network, no
-  credentials required.
+  published examples, OpenAPI generation, MCP adapter thinness), contract
+  tests (`tests/contract/`, that `connector.yaml`, the registry, the tool
+  list, and `openapi.yaml` still describe one connector rather than four),
+  and security tests (`tests/security/`) — all against mocked HTTP (`respx`),
+  no network and no credentials required. The two skips are the read action
+  sitting out a test about idempotency keys, which only writes have.
 - **`learning`** — "pins real Salesforce behaviour (needs an org)." No test
   file in this repository currently carries this marker.
 - **`integration`** — "end to end against a live sandbox (needs an org)." No
@@ -1255,10 +1322,10 @@ than the gaps themselves.
   confirmation from a model setting a boolean. Nothing on the server side
   can close that gap. See
   [ADR-022](#adr-022-the-server-asks-the-client-to-ask-a-person-and-falls-back-to-a-parameter).
-- **`search_contact`'s `account_name` output field is always `null`.** The
-  action's own `_FIELDS` tuple never requests `AccountName` from Salesforce,
-  and `_as_summary` never populates it. The field is real in the schema and
-  in `openapi.yaml`; the data behind it is not populated yet.
+- **A contact's account comes back as an id, not a name.** `account_id` is
+  populated; resolving it to a human-readable account name would need a
+  relationship field this project cannot verify without an org. See
+  [ADR-023](#adr-023-the-account-comes-back-as-an-id-not-a-name).
 - **The search pagination cursor's real behaviour against Salesforce is
   unverified.** `search_contact` builds its cursor from an `offset` field
   sent to `parameterizedSearch`; SOSL-backed search results have not
@@ -1321,8 +1388,9 @@ demand appears, the answer is `soql_query` plus documentation, not a new
 action per object.
 
 **Also on the list, not yet started:**
-- Populate `search_contact`'s `account_name` field, or remove it from the
-  schema if it stays unpopulated.
+- Resolve `account_id` to an account name on a live org, once the relationship
+  field can be verified rather than guessed
+  ([ADR-023](#adr-023-the-account-comes-back-as-an-id-not-a-name)).
 - Run `evaluations/questions.xml` for real against a live Developer Edition
   org, once one exists, per the procedure in `evaluations/README.md`.
 - A streamable-HTTP transport alongside stdio, additive to the existing

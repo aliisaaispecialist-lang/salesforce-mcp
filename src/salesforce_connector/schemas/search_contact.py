@@ -9,7 +9,7 @@ from typing import Annotated, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from salesforce_connector.contract import ActionKind, RiskLevel
+from salesforce_connector.contract import ActionExample, ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
     ActionSpec,
     ErrorGuidance,
@@ -127,6 +127,33 @@ SPEC = ActionSpec(
     requires_approval=False,
     input_schema=schema_of(SearchContactInput),
     output_schema=schema_of(SearchContactOutput),
+    examples=(
+        ActionExample(
+            title="Find someone by name",
+            arguments={"query": "Ada Lovelace"},
+            result={
+                "contacts": [
+                    {
+                        "id": "003xx000004TmiQAAS",
+                        "name": "Ada Lovelace",
+                        "email": "ada@example.com",
+                        "phone": "+973 1234 5678",
+                        "account_id": "001xx000003DGb2AAG",
+                        "title": "Chief Analyst",
+                    }
+                ],
+                "returned": 1,
+            },
+        ),
+        ActionExample(
+            title="Read the second page",
+            arguments={"query": "Example Corp", "limit": 3, "cursor": "3"},
+            result={
+                "contacts": [{"id": "003xx000004TmiRAAS", "name": "Grace Hopper", "title": "CTO"}],
+                "returned": 1,
+            },
+        ),
+    ),
     missing_inputs=(
         MissingInput(
             field="query",

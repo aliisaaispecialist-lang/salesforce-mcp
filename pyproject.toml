@@ -7,7 +7,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "salesforce-connector"
-version = "0.1.0"  # -> 1.0.0 at final handoff (DoD 12)
+# One source of truth. The server reports `__version__` to every client, so a
+# second copy here would eventually disagree with what the protocol says.
+dynamic = ["version"]
 description = "Salesforce connector with a reusable core, five typed actions, and a thin MCP adapter."
 requires-python = ">=3.12"
 dependencies = [
@@ -36,6 +38,10 @@ dev = [
     "import-linter>=2.0",  # the layering, enforced rather than described
     "pre-commit>=3.8",  # the same checks, before a commit exists
 ]
+
+[tool.hatch.version]
+# Read from the package, so `pip show` and the MCP handshake cannot disagree.
+path = "src/salesforce_connector/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/salesforce_connector"]

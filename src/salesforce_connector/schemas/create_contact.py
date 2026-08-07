@@ -9,7 +9,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from salesforce_connector.contract import ActionKind, RiskLevel
+from salesforce_connector.contract import ActionExample, ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
     APPROVED_DESCRIPTION,
     IDEMPOTENCY_KEY_DESCRIPTION,
@@ -117,6 +117,30 @@ SPEC = ActionSpec(
     requires_approval=True,
     input_schema=schema_of(CreateContactInput),
     output_schema=schema_of(CreateContactOutput),
+    examples=(
+        ActionExample(
+            title="Create a contact after searching and finding nobody",
+            arguments={
+                "last_name": "Lovelace",
+                "first_name": "Ada",
+                "email": "ada@example.com",
+                "idempotency_key": "8f14e45f-ea11-4b52-9f1a-0c2d3e4f5a6b",
+                "approved": True,
+            },
+            result={"id": "003xx000004TmiQAAS", "name": "Ada Lovelace", "created": True},
+        ),
+        ActionExample(
+            title="The same key sent again after a timeout: no second record",
+            arguments={
+                "last_name": "Lovelace",
+                "first_name": "Ada",
+                "email": "ada@example.com",
+                "idempotency_key": "8f14e45f-ea11-4b52-9f1a-0c2d3e4f5a6b",
+                "approved": True,
+            },
+            result={"id": "003xx000004TmiQAAS", "name": "Ada Lovelace", "created": False},
+        ),
+    ),
     missing_inputs=(
         MissingInput(
             field="last_name",

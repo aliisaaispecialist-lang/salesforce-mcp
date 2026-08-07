@@ -39,10 +39,24 @@ def as_tool(described: ActionDescriptor) -> Tool:
         name=described.tool_name,
         title=described.title,
         description=described.description,
-        input_schema=dict(described.input_schema),
+        input_schema=with_examples(described),
         output_schema=dict(described.output_schema),
         annotations=annotations_for(described),
     )
+
+
+def with_examples(described: ActionDescriptor) -> dict[str, Any]:
+    """Attach the worked calls to the input schema, where a reader will find them.
+
+    `examples` is a JSON Schema 2020-12 annotation, so it travels inside the
+    schema itself rather than beside it, and any consumer that renders a schema
+    -- a form builder, a documentation generator, a model -- gets them without
+    being taught about a field of ours.
+    """
+    schema = dict(described.input_schema)
+    if described.examples:
+        schema["examples"] = [dict(shown.arguments) for shown in described.examples]
+    return schema
 
 
 def annotations_for(described: ActionDescriptor) -> ToolAnnotations:

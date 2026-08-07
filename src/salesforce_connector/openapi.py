@@ -60,6 +60,31 @@ def _envelope(output_schema: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _sent(described: ActionDescriptor) -> dict[str, Any]:
+    """The worked calls, as OpenAPI names examples: keyed, each with a summary."""
+    return {
+        shown.title: {"summary": shown.title, "value": dict(shown.arguments)}
+        for shown in described.examples
+    }
+
+
+def _received(described: ActionDescriptor) -> dict[str, Any]:
+    """The same worked calls from the other end, wrapped in the envelope.
+
+    A response example is worth more than a request example here, because the
+    envelope is the part a first-time reader has to learn: every action answers
+    with the same shape, and seeing one filled in explains it faster than the
+    schema does.
+    """
+    return {
+        shown.title: {
+            "summary": shown.title,
+            "value": {"ok": True, "request_id": "req-01HZY6", "data": dict(shown.result)},
+        }
+        for shown in described.examples
+    }
+
+
 def _operation(described: ActionDescriptor) -> dict[str, Any]:
     """Describe one action as an operation."""
     writes = described.kind is ActionKind.WRITE
@@ -70,7 +95,12 @@ def _operation(described: ActionDescriptor) -> dict[str, Any]:
         "tags": ["write" if writes else "read"],
         "requestBody": {
             "required": True,
-            "content": {"application/json": {"schema": dict(described.input_schema)}},
+            "content": {
+                "application/json": {
+                    "schema": dict(described.input_schema),
+                    "examples": _sent(described),
+                }
+            },
         },
         "responses": {
             "200": {
@@ -78,6 +108,7 @@ def _operation(described: ActionDescriptor) -> dict[str, Any]:
                 "content": {
                     "application/json": {
                         "schema": _envelope(dict(described.output_schema)),
+                        "examples": _received(described),
                     }
                 },
             }

@@ -140,6 +140,24 @@ class ActionRequest(_Frozen):
     request_id: str = Field(default_factory=lambda: str(uuid4()))
 
 
+class ActionExample(_Frozen):
+    """One worked call: what a caller sends, and what comes back.
+
+    A schema says what is allowed. An example says what is meant, which is a
+    different question and usually the one a reader is actually asking. Both
+    halves are kept together because an example argument list with no result
+    beside it leaves the reader guessing at the shape of the answer.
+
+    Lives here, in the layer that imports nothing, so that the tool schema, the
+    OpenAPI document, and the documentation can all carry the same examples
+    rather than three sets that drift.
+    """
+
+    title: str
+    arguments: Mapping[str, Any]
+    result: Mapping[str, Any]
+
+
 class ActionDescriptor(_Frozen):
     """What a consumer needs to expose one action without reading its code."""
 
@@ -153,6 +171,7 @@ class ActionDescriptor(_Frozen):
     requires_approval: bool
     input_schema: Mapping[str, Any]
     output_schema: Mapping[str, Any]
+    examples: tuple[ActionExample, ...] = ()
 
     @model_validator(mode="after")
     def _high_risk_requires_approval(self) -> Self:

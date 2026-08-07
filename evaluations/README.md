@@ -117,12 +117,14 @@ tool name, an id prefix, an idempotency key) are still met.
 
 ## Other things worth knowing before running this live
 
-- `search_contact`'s output schema (`ContactSummary`) declares an
-  `account_name` field, but the action (`actions/search_contact.py`) never
-  requests `AccountName` in `_FIELDS` and never populates it in `_as_summary`
-  — it will always come back `null`. None of the ten questions depend on it,
-  but it means a question about account name could not currently be answered
-  even on a live org.
+- **Resolved.** This section used to record that `ContactSummary` declared an
+  `account_name` the action never populated. The field is gone: the schema now
+  declares `account_id`, which `_FIELDS` requests and `_as_summary` fills, so
+  every field the schema promises is delivered. The reasoning is
+  ADR-023 in the root README. None of the ten questions asked for an account
+  name, so nothing here changes — but a question about one still cannot be
+  answered, because the connector returns the id and offers no action that
+  resolves it to a name.
 - The pagination question (question 3) assumes Salesforce's
   `parameterizedSearch` endpoint honors the `offset` field the way
   `actions/search_contact.py` sends it. SOSL search results have not

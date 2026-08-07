@@ -19,39 +19,31 @@ paths:
     post:
       operationId: salesforce_add_activity_note
       summary: Log an activity note in Salesforce
-      description: 'Record a call, email, meeting, or note against a Salesforce contact or
-        opportunity, so it appears on that record''s activity timeline.
-
-
-        Use this when: the user wants to capture what happened with someone, such as a call
-        summary, a meeting outcome, or a note to the account team, and you have the record
-        it belongs to.
-
-        Do not use this when: the information belongs on the record itself, such as a corrected
-        phone number, which is the update action; or you do not know which record it attaches
-        to, in which case search first rather than guessing.
-
-
-        Failures and what to do:
-
-        - salesforce.record_not_found: No record has that id, or it has been deleted. Do not
-        retry with the same id. Search for the contact or opportunity by name, and confirm
-        with the user which record they meant.
-
-        - connector.invalid_input: A required field was missing, or the subject exceeded 255
-        characters. Shorten the subject and move the detail into body, or ask the user for
-        the missing value, then call again with the same idempotency key.
-
-        - salesforce.permission_denied: This Salesforce user may not create activities on
-        that record. Do not retry. Report that the profile lacks the permission and an administrator
-        must grant it.
-
-        - salesforce.rate_limited: The org has spent its API allowance for now. Wait the stated
-        number of seconds, then repeat with the same key.
-
-        - salesforce.transport_failed: The request did not complete, so the note may or may
-        not have been saved. Repeat with the identical idempotency key. Retrying with a new
-        key would put the same note on the timeline twice.'
+      description: "Record a call, email, meeting, or note against a Salesforce contact or\
+        \ opportunity, so it appears on that record's activity timeline.\n\nUse this when:\
+        \ the user wants to capture what happened with someone, such as a call summary, a\
+        \ meeting outcome, or a note to the account team, and you have the record it belongs\
+        \ to.\nDo not use this when: the information belongs on the record itself, such as\
+        \ a corrected phone number, which is the update action; or you do not know which record\
+        \ it attaches to, in which case search first rather than guessing.\n\nExample -- Log\
+        \ a call against a contact\n  call: {\"activity_kind\": \"Call\", \"approved\": true,\
+        \ \"body\": \"Walked through pricing. Wants a quote by Friday.\", \"idempotency_key\"\
+        : \"d4e5f6a7-b8c9-4d0e-9f1a-3b4c5d6e7f8a\", \"related_to_id\": \"003xx000004TmiQAAS\"\
+        , \"subject\": \"Intro call\"}\n  returns: {\"created\": true, \"id\": \"00Txx0000012345AAA\"\
+        , \"related_to_id\": \"003xx000004TmiQAAS\", \"subject\": \"Intro call\"}\n\nFailures\
+        \ and what to do:\n- salesforce.record_not_found: No record has that id, or it has\
+        \ been deleted. Do not retry with the same id. Search for the contact or opportunity\
+        \ by name, and confirm with the user which record they meant.\n- connector.invalid_input:\
+        \ A required field was missing, or the subject exceeded 255 characters. Shorten the\
+        \ subject and move the detail into body, or ask the user for the missing value, then\
+        \ call again with the same idempotency key.\n- salesforce.permission_denied: This\
+        \ Salesforce user may not create activities on that record. Do not retry. Report that\
+        \ the profile lacks the permission and an administrator must grant it.\n- salesforce.rate_limited:\
+        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
+        \ then repeat with the same key.\n- salesforce.transport_failed: The request did not\
+        \ complete, so the note may or may not have been saved. Repeat with the identical\
+        \ idempotency key. Retrying with a new key would put the same note on the timeline\
+        \ twice."
       tags:
       - write
       requestBody:
@@ -135,6 +127,23 @@ paths:
               - idempotency_key
               title: AddActivityNoteInput
               type: object
+            examples:
+              Log a call against a contact:
+                summary: Log a call against a contact
+                value:
+                  related_to_id: 003xx000004TmiQAAS
+                  subject: Intro call
+                  body: Walked through pricing. Wants a quote by Friday.
+                  activity_kind: Call
+                  idempotency_key: d4e5f6a7-b8c9-4d0e-9f1a-3b4c5d6e7f8a
+                  approved: true
+              Log the same note against an opportunity instead:
+                summary: Log the same note against an opportunity instead
+                value:
+                  related_to_id: 006xx000004TmiQAAS
+                  subject: Quote sent
+                  idempotency_key: e5f6a7b8-c9d0-4e1f-8a2b-4c5d6e7f8a9b
+                  approved: true
       responses:
         '200':
           description: The action ran. Read `ok` to learn whether it succeeded.
@@ -227,47 +236,57 @@ paths:
                 required:
                 - ok
                 - request_id
+              examples:
+                Log a call against a contact:
+                  summary: Log a call against a contact
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 00Txx0000012345AAA
+                      subject: Intro call
+                      related_to_id: 003xx000004TmiQAAS
+                      created: true
+                Log the same note against an opportunity instead:
+                  summary: Log the same note against an opportunity instead
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 00Txx0000012346AAA
+                      subject: Quote sent
+                      related_to_id: 006xx000004TmiQAAS
+                      created: true
   /actions/salesforce.create_contact:
     post:
       operationId: salesforce_create_contact
       summary: Create a Salesforce contact
-      description: 'Create a new person record in Salesforce and return its record id.
-
-
-        Use this when: the user has asked for a new contact to be added and you have at least
-        a family name, and a search has shown the person is not already there.
-
-        Do not use this when: you have not searched first, since a duplicate person is the
-        most common damage this connector can do; or the person already exists and you mean
-        to change them, which is the update action; or you want to record an interaction,
-        which is the activity note action.
-
-
-        Failures and what to do:
-
-        - salesforce.conflict: Salesforce duplicate rules matched an existing contact. Do
-        not repeat this call unchanged. The matched record ids are in the error. Use the existing
-        contact, or ask the user whether they really want a second record and only then call
-        again with allow_duplicate=true.
-
-        - connector.invalid_input: A field was missing or malformed; the error names which.
-        Correct the named field and call again with the same idempotency key. If the value
-        is genuinely unknown, ask the user for it.
-
-        - salesforce.record_not_found: The account_id you supplied does not exist. Omit account_id,
-        or find the correct account first. Do not guess an id.
-
-        - salesforce.permission_denied: This Salesforce user may not create contacts. Do not
-        retry. Tell the user their profile lacks Create on Contact and an administrator must
-        grant it.
-
-        - salesforce.rate_limited: The org has spent its API allowance for now. Wait the stated
-        number of seconds, then repeat the call with the same key.
-
-        - salesforce.transport_failed: The request did not complete, so the contact may or
-        may not exist. Repeat the call with the identical idempotency key. If the record was
-        already created, you will get that original result rather than a second contact. Never
-        retry with a new key.'
+      description: "Create a new person record in Salesforce and return its record id.\n\n\
+        Use this when: the user has asked for a new contact to be added and you have at least\
+        \ a family name, and a search has shown the person is not already there.\nDo not use\
+        \ this when: you have not searched first, since a duplicate person is the most common\
+        \ damage this connector can do; or the person already exists and you mean to change\
+        \ them, which is the update action; or you want to record an interaction, which is\
+        \ the activity note action.\n\nExample -- Create a contact after searching and finding\
+        \ nobody\n  call: {\"approved\": true, \"email\": \"ada@example.com\", \"first_name\"\
+        : \"Ada\", \"idempotency_key\": \"8f14e45f-ea11-4b52-9f1a-0c2d3e4f5a6b\", \"last_name\"\
+        : \"Lovelace\"}\n  returns: {\"created\": true, \"id\": \"003xx000004TmiQAAS\", \"\
+        name\": \"Ada Lovelace\"}\n\nFailures and what to do:\n- salesforce.conflict: Salesforce\
+        \ duplicate rules matched an existing contact. Do not repeat this call unchanged.\
+        \ The matched record ids are in the error. Use the existing contact, or ask the user\
+        \ whether they really want a second record and only then call again with allow_duplicate=true.\n\
+        - connector.invalid_input: A field was missing or malformed; the error names which.\
+        \ Correct the named field and call again with the same idempotency key. If the value\
+        \ is genuinely unknown, ask the user for it.\n- salesforce.record_not_found: The account_id\
+        \ you supplied does not exist. Omit account_id, or find the correct account first.\
+        \ Do not guess an id.\n- salesforce.permission_denied: This Salesforce user may not\
+        \ create contacts. Do not retry. Tell the user their profile lacks Create on Contact\
+        \ and an administrator must grant it.\n- salesforce.rate_limited: The org has spent\
+        \ its API allowance for now. Wait the stated number of seconds, then repeat the call\
+        \ with the same key.\n- salesforce.transport_failed: The request did not complete,\
+        \ so the contact may or may not exist. Repeat the call with the identical idempotency\
+        \ key. If the record was already created, you will get that original result rather\
+        \ than a second contact. Never retry with a new key."
       tags:
       - write
       requestBody:
@@ -357,6 +376,23 @@ paths:
               - idempotency_key
               title: CreateContactInput
               type: object
+            examples:
+              Create a contact after searching and finding nobody:
+                summary: Create a contact after searching and finding nobody
+                value:
+                  last_name: Lovelace
+                  first_name: Ada
+                  email: ada@example.com
+                  idempotency_key: 8f14e45f-ea11-4b52-9f1a-0c2d3e4f5a6b
+                  approved: true
+              'The same key sent again after a timeout: no second record':
+                summary: 'The same key sent again after a timeout: no second record'
+                value:
+                  last_name: Lovelace
+                  first_name: Ada
+                  email: ada@example.com
+                  idempotency_key: 8f14e45f-ea11-4b52-9f1a-0c2d3e4f5a6b
+                  approved: true
       responses:
         '200':
           description: The action ran. Read `ok` to learn whether it succeeded.
@@ -409,47 +445,57 @@ paths:
                 required:
                 - ok
                 - request_id
+              examples:
+                Create a contact after searching and finding nobody:
+                  summary: Create a contact after searching and finding nobody
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 003xx000004TmiQAAS
+                      name: Ada Lovelace
+                      created: true
+                'The same key sent again after a timeout: no second record':
+                  summary: 'The same key sent again after a timeout: no second record'
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 003xx000004TmiQAAS
+                      name: Ada Lovelace
+                      created: false
   /actions/salesforce.create_opportunity:
     post:
       operationId: salesforce_create_opportunity
       summary: Create a Salesforce opportunity
-      description: 'Create a sales opportunity in Salesforce, optionally linked to an account
-        and a contact, and return its record id.
-
-
-        Use this when: the user wants to record a new deal, renewal, or piece of pipeline,
-        and you have a name, a stage, and an expected close date.
-
-        Do not use this when: the deal already exists and needs changing; you only want to
-        log a conversation, which is the activity note; or you are missing the stage or close
-        date, in which case ask the user rather than inventing them.
-
-
-        Failures and what to do:
-
-        - connector.invalid_input: A required field was missing, or stage_name is not a stage
-        this org uses. The error lists the exact stages this org accepts. Choose one of them,
-        or ask the user which they meant, then call again with the same idempotency key. Do
-        not invent a stage name.
-
-        - salesforce.record_not_found: The account_id or contact_id does not exist. Search
-        for the right record, or omit the optional id. Never guess an id: a valid-looking
-        one may belong to something else.
-
-        - salesforce.permission_denied: This Salesforce user may not create opportunities.
-        Do not retry. Report that the profile lacks Create on Opportunity and an administrator
-        must grant it.
-
-        - salesforce.conflict: Duplicate rules matched an existing opportunity. Do not repeat
-        unchanged. Show the user the matching deal and ask whether they meant that one.
-
-        - salesforce.rate_limited: The org has spent its API allowance for now. Wait the stated
-        number of seconds, then repeat with the same key.
-
-        - salesforce.transport_failed: The request did not complete, so the opportunity may
-        or may not exist. Repeat with the identical idempotency key, which returns the original
-        result if it was already created. If the result shows contact_linked false, the deal
-        exists and only the link is missing: do not create it again.'
+      description: "Create a sales opportunity in Salesforce, optionally linked to an account\
+        \ and a contact, and return its record id.\n\nUse this when: the user wants to record\
+        \ a new deal, renewal, or piece of pipeline, and you have a name, a stage, and an\
+        \ expected close date.\nDo not use this when: the deal already exists and needs changing;\
+        \ you only want to log a conversation, which is the activity note; or you are missing\
+        \ the stage or close date, in which case ask the user rather than inventing them.\n\
+        \nExample -- Open a deal and link the contact it came from\n  call: {\"account_id\"\
+        : \"001xx000003DGb2AAG\", \"amount\": 45000, \"approved\": true, \"close_date\": \"\
+        2026-12-01\", \"contact_id\": \"003xx000004TmiQAAS\", \"idempotency_key\": \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\"\
+        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Prospecting\"}\n\
+        \  returns: {\"contact_linked\": true, \"created\": true, \"id\": \"006xx000004TmiQAAS\"\
+        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Prospecting\"}\n\n\
+        Failures and what to do:\n- connector.invalid_input: A required field was missing,\
+        \ or stage_name is not a stage this org uses. The error lists the exact stages this\
+        \ org accepts. Choose one of them, or ask the user which they meant, then call again\
+        \ with the same idempotency key. Do not invent a stage name.\n- salesforce.record_not_found:\
+        \ The account_id or contact_id does not exist. Search for the right record, or omit\
+        \ the optional id. Never guess an id: a valid-looking one may belong to something\
+        \ else.\n- salesforce.permission_denied: This Salesforce user may not create opportunities.\
+        \ Do not retry. Report that the profile lacks Create on Opportunity and an administrator\
+        \ must grant it.\n- salesforce.conflict: Duplicate rules matched an existing opportunity.\
+        \ Do not repeat unchanged. Show the user the matching deal and ask whether they meant\
+        \ that one.\n- salesforce.rate_limited: The org has spent its API allowance for now.\
+        \ Wait the stated number of seconds, then repeat with the same key.\n- salesforce.transport_failed:\
+        \ The request did not complete, so the opportunity may or may not exist. Repeat with\
+        \ the identical idempotency key, which returns the original result if it was already\
+        \ created. If the result shows contact_linked false, the deal exists and only the\
+        \ link is missing: do not create it again."
       tags:
       - write
       requestBody:
@@ -541,6 +587,27 @@ paths:
               - idempotency_key
               title: CreateOpportunityInput
               type: object
+            examples:
+              Open a deal and link the contact it came from:
+                summary: Open a deal and link the contact it came from
+                value:
+                  name: Example Corp - annual renewal
+                  stage_name: Prospecting
+                  close_date: '2026-12-01'
+                  amount: 45000
+                  account_id: 001xx000003DGb2AAG
+                  contact_id: 003xx000004TmiQAAS
+                  idempotency_key: c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f
+                  approved: true
+              The opportunity was created but the contact link failed:
+                summary: The opportunity was created but the contact link failed
+                value:
+                  name: Example Corp - annual renewal
+                  stage_name: Prospecting
+                  close_date: '2026-12-01'
+                  contact_id: 003xx000004TmiQAAS
+                  idempotency_key: c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f
+                  approved: true
       responses:
         '200':
           description: The action ran. Read `ok` to learn whether it succeeded.
@@ -607,40 +674,53 @@ paths:
                 required:
                 - ok
                 - request_id
+              examples:
+                Open a deal and link the contact it came from:
+                  summary: Open a deal and link the contact it came from
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 006xx000004TmiQAAS
+                      name: Example Corp - annual renewal
+                      stage_name: Prospecting
+                      created: true
+                      contact_linked: true
+                The opportunity was created but the contact link failed:
+                  summary: The opportunity was created but the contact link failed
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 006xx000004TmiQAAS
+                      name: Example Corp - annual renewal
+                      stage_name: Prospecting
+                      created: true
+                      contact_linked: false
   /actions/salesforce.search_contact:
     post:
       operationId: salesforce_search_contact
       summary: Search Salesforce contacts
-      description: 'Search Salesforce for existing contacts by name, email, phone, or account
-        name, and return the matches with their record ids.
-
-
-        Use this when: you need a contact''s Salesforce id; you want to check whether a person
-        already exists before creating them; or the user named someone and you need to confirm
-        which record they meant.
-
-        Do not use this when: you already hold the contact id, in which case act on it directly;
-        or you want to create, change, or annotate a record, which the write actions do.
-
-
-        Failures and what to do:
-
-        - connector.invalid_input: The search text is shorter than two characters. Ask the
-        user for more of the name or email, then call again.
-
-        - salesforce.permission_denied: This Salesforce user may not read contacts. Do not
-        retry. Tell the user their Salesforce profile lacks read access to Contact and that
-        an administrator must grant it.
-
-        - salesforce.rate_limited: The org has spent its API allowance for now. Wait for the
-        stated number of seconds, then repeat the same call.
-
-        - salesforce.transport_failed: Salesforce did not answer in time. Wait briefly and
-        repeat the same call. Reading again is always safe.
-
-        - salesforce.authentication_failed: The connector''s Salesforce session is invalid
-        or expired. Do not retry. Report that the connector needs to re-authenticate; its
-        credentials may be wrong or expired.'
+      description: "Search Salesforce for existing contacts by name, email, phone, or account\
+        \ name, and return the matches with their record ids.\n\nUse this when: you need a\
+        \ contact's Salesforce id; you want to check whether a person already exists before\
+        \ creating them; or the user named someone and you need to confirm which record they\
+        \ meant.\nDo not use this when: you already hold the contact id, in which case act\
+        \ on it directly; or you want to create, change, or annotate a record, which the write\
+        \ actions do.\n\nExample -- Find someone by name\n  call: {\"query\": \"Ada Lovelace\"\
+        }\n  returns: {\"contacts\": [{\"account_id\": \"001xx000003DGb2AAG\", \"email\":\
+        \ \"ada@example.com\", \"id\": \"003xx000004TmiQAAS\", \"name\": \"Ada Lovelace\"\
+        , \"phone\": \"+973 1234 5678\", \"title\": \"Chief Analyst\"}], \"returned\": 1}\n\
+        \nFailures and what to do:\n- connector.invalid_input: The search text is shorter\
+        \ than two characters. Ask the user for more of the name or email, then call again.\n\
+        - salesforce.permission_denied: This Salesforce user may not read contacts. Do not\
+        \ retry. Tell the user their Salesforce profile lacks read access to Contact and that\
+        \ an administrator must grant it.\n- salesforce.rate_limited: The org has spent its\
+        \ API allowance for now. Wait for the stated number of seconds, then repeat the same\
+        \ call.\n- salesforce.transport_failed: Salesforce did not answer in time. Wait briefly\
+        \ and repeat the same call. Reading again is always safe.\n- salesforce.authentication_failed:\
+        \ The connector's Salesforce session is invalid or expired. Do not retry. Report that\
+        \ the connector needs to re-authenticate; its credentials may be wrong or expired."
       tags:
       - read
       requestBody:
@@ -687,6 +767,17 @@ paths:
               - query
               title: SearchContactInput
               type: object
+            examples:
+              Find someone by name:
+                summary: Find someone by name
+                value:
+                  query: Ada Lovelace
+              Read the second page:
+                summary: Read the second page
+                value:
+                  query: Example Corp
+                  limit: 3
+                  cursor: '3'
       responses:
         '200':
           description: The action ran. Read `ok` to learn whether it succeeded.
@@ -788,46 +879,62 @@ paths:
                 required:
                 - ok
                 - request_id
+              examples:
+                Find someone by name:
+                  summary: Find someone by name
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      contacts:
+                      - id: 003xx000004TmiQAAS
+                        name: Ada Lovelace
+                        email: ada@example.com
+                        phone: +973 1234 5678
+                        account_id: 001xx000003DGb2AAG
+                        title: Chief Analyst
+                      returned: 1
+                Read the second page:
+                  summary: Read the second page
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      contacts:
+                      - id: 003xx000004TmiRAAS
+                        name: Grace Hopper
+                        title: CTO
+                      returned: 1
   /actions/salesforce.update_contact:
     post:
       operationId: salesforce_update_contact
       summary: Update a Salesforce contact
-      description: 'Change one or more fields on an existing Salesforce contact and return
-        the record as it stands afterwards.
-
-
-        Use this when: you hold the contact''s record id and the user has asked for a detail
-        to be corrected or added, such as a new email, phone, title, or account.
-
-        Do not use this when: the person does not exist yet, which is the create action; you
-        do not have the record id, in which case search first; or you want to record something
-        that happened rather than change the person, which is the activity note.
-
-
-        Failures and what to do:
-
-        - salesforce.record_not_found: No contact has that id, or it has been deleted. Do
-        not retry with the same id. Search for the contact by name or email to find the right
-        one, and tell the user if it no longer exists.
-
-        - connector.invalid_input: No changeable field was given, or a value was malformed.
-        Name at least one field to change and correct any malformed value, then call again
-        with the same idempotency key.
-
-        - salesforce.permission_denied: This Salesforce user may not edit this contact or
-        one of these fields. Do not retry. Some fields are read-only for some profiles. Report
-        which field was refused and that an administrator must grant access.
-
-        - salesforce.conflict: The record is locked, in an approval process, or was changed
-        concurrently. Do not retry immediately. Read the contact again to see its current
-        state, and tell the user it is locked if it still is.
-
-        - salesforce.rate_limited: The org has spent its API allowance for now. Wait the stated
-        number of seconds, then repeat the call with the same key.
-
-        - salesforce.transport_failed: The request did not complete, so the change may or
-        may not have applied. Repeat the call with the identical idempotency key. Setting
-        the same fields twice is harmless, and the key prevents any doubt.'
+      description: "Change one or more fields on an existing Salesforce contact and return\
+        \ the record as it stands afterwards.\n\nUse this when: you hold the contact's record\
+        \ id and the user has asked for a detail to be corrected or added, such as a new email,\
+        \ phone, title, or account.\nDo not use this when: the person does not exist yet,\
+        \ which is the create action; you do not have the record id, in which case search\
+        \ first; or you want to record something that happened rather than change the person,\
+        \ which is the activity note.\n\nExample -- Change one field, leaving the rest of\
+        \ the record alone\n  call: {\"approved\": true, \"contact_id\": \"003xx000004TmiQAAS\"\
+        , \"idempotency_key\": \"b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e\", \"title\": \"Chief\
+        \ Analyst\"}\n  returns: {\"changed_fields\": [\"title\"], \"id\": \"003xx000004TmiQAAS\"\
+        , \"name\": \"Ada Lovelace\", \"title\": \"Chief Analyst\"}\n\nFailures and what to\
+        \ do:\n- salesforce.record_not_found: No contact has that id, or it has been deleted.\
+        \ Do not retry with the same id. Search for the contact by name or email to find the\
+        \ right one, and tell the user if it no longer exists.\n- connector.invalid_input:\
+        \ No changeable field was given, or a value was malformed. Name at least one field\
+        \ to change and correct any malformed value, then call again with the same idempotency\
+        \ key.\n- salesforce.permission_denied: This Salesforce user may not edit this contact\
+        \ or one of these fields. Do not retry. Some fields are read-only for some profiles.\
+        \ Report which field was refused and that an administrator must grant access.\n- salesforce.conflict:\
+        \ The record is locked, in an approval process, or was changed concurrently. Do not\
+        \ retry immediately. Read the contact again to see its current state, and tell the\
+        \ user it is locked if it still is.\n- salesforce.rate_limited: The org has spent\
+        \ its API allowance for now. Wait the stated number of seconds, then repeat the call\
+        \ with the same key.\n- salesforce.transport_failed: The request did not complete,\
+        \ so the change may or may not have applied. Repeat the call with the identical idempotency\
+        \ key. Setting the same fields twice is harmless, and the key prevents any doubt."
       tags:
       - write
       requestBody:
@@ -917,6 +1024,14 @@ paths:
               - idempotency_key
               title: UpdateContactInput
               type: object
+            examples:
+              Change one field, leaving the rest of the record alone:
+                summary: Change one field, leaving the rest of the record alone
+                value:
+                  contact_id: 003xx000004TmiQAAS
+                  title: Chief Analyst
+                  idempotency_key: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+                  approved: true
       responses:
         '200':
           description: The action ran. Read `ok` to learn whether it succeeded.
@@ -990,6 +1105,18 @@ paths:
                 required:
                 - ok
                 - request_id
+              examples:
+                Change one field, leaving the rest of the record alone:
+                  summary: Change one field, leaving the rest of the record alone
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 003xx000004TmiQAAS
+                      name: Ada Lovelace
+                      changed_fields:
+                      - title
+                      title: Chief Analyst
 components:
   schemas:
     Pagination:

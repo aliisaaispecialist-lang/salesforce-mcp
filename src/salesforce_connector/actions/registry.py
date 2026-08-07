@@ -50,6 +50,7 @@ def descriptors() -> tuple[ActionDescriptor, ...]:
             requires_approval=action.spec.requires_approval,
             input_schema=action.spec.input_schema,
             output_schema=action.spec.output_schema,
+            examples=action.spec.examples,
         )
         for action in BY_ID.values()
     )

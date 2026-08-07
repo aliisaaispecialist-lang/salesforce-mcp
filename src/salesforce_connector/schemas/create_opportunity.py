@@ -15,7 +15,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from salesforce_connector.contract import ActionKind, RiskLevel
+from salesforce_connector.contract import ActionExample, ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
     APPROVED_DESCRIPTION,
     IDEMPOTENCY_KEY_DESCRIPTION,
@@ -147,6 +147,46 @@ SPEC = ActionSpec(
     requires_approval=True,
     input_schema=schema_of(CreateOpportunityInput),
     output_schema=schema_of(CreateOpportunityOutput),
+    examples=(
+        ActionExample(
+            title="Open a deal and link the contact it came from",
+            arguments={
+                "name": "Example Corp - annual renewal",
+                "stage_name": "Prospecting",
+                "close_date": "2026-12-01",
+                "amount": 45000,
+                "account_id": "001xx000003DGb2AAG",
+                "contact_id": "003xx000004TmiQAAS",
+                "idempotency_key": "c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f",
+                "approved": True,
+            },
+            result={
+                "id": "006xx000004TmiQAAS",
+                "name": "Example Corp - annual renewal",
+                "stage_name": "Prospecting",
+                "created": True,
+                "contact_linked": True,
+            },
+        ),
+        ActionExample(
+            title="The opportunity was created but the contact link failed",
+            arguments={
+                "name": "Example Corp - annual renewal",
+                "stage_name": "Prospecting",
+                "close_date": "2026-12-01",
+                "contact_id": "003xx000004TmiQAAS",
+                "idempotency_key": "c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f",
+                "approved": True,
+            },
+            result={
+                "id": "006xx000004TmiQAAS",
+                "name": "Example Corp - annual renewal",
+                "stage_name": "Prospecting",
+                "created": True,
+                "contact_linked": False,
+            },
+        ),
+    ),
     missing_inputs=(
         MissingInput(field="name", prompt="What should the opportunity be called?"),
         MissingInput(
