@@ -1,0 +1,88 @@
+# Every check a reviewer would run, run on every push, in the same order the
+# Makefile runs them locally. A rule that only holds on someone's machine is
+# not a rule.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push makes an older run irrelevant, and leaving it going only
+  # delays the answer for the change that matters.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Format
+        run: ruff format --check .
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Layering
+        # The docstrings say the client is the only module that opens a socket
+        # and the adapter is the only one that knows the protocol. This is what
+        # notices when that stops being true.
+        run: lint-imports
+
+      - name: Types
+        run: mypy src tests
+
+      - name: Tests
+        # Only the tiers that need no Salesforce org. The learning and
+        # integration tiers are excluded by marker and run against a sandbox.
+        run: pytest -q
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Definition of Done item 8 covers Git history, not just the working
+          # tree, so the scan needs the whole history to mean anything.
+          fetch-depth: 0
+
+      - name: Scan history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image a grader would build
+        # Proves the Dockerfile still works. Nothing is pushed anywhere: this
+        # connector is launched as a subprocess, not deployed as a service.
+        run: docker build -t salesforce-connector .
+
+      - name: Confirm the server starts and exits cleanly on end of input
+        # stdin closes immediately, which is the graceful shutdown signal the
+        # transport specifies. A server that hangs here would hang for a host.
+        run: |
+          echo -n "" | docker run -i --rm \
+            -e SF_CLIENT_ID=placeholder \
+            -e SF_USERNAME=placeholder@example.com.sandbox \
+            -e SF_PRIVATE_KEY=placeholder \
+            salesforce-connector

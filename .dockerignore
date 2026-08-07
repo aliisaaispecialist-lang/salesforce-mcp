@@ -1,0 +1,45 @@
+# Anything that must never be baked into an image comes first. A layer keeps
+# whatever it copied, so a secret copied and then deleted is still in the image.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+
+# History carries every version of every file, including any secret that was
+# ever committed by mistake.
+.git
+.gitignore
+
+# Tests, fixtures, and docs are not needed to run the server, and leaving them
+# out makes the image smaller and its contents easier to account for.
+tests/
+fixtures/
+examples/
+evaluations/
+docs/
+README.md
+CHANGELOG.md
+SECURITY.md
+
+# Build and tool output
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# CI configuration belongs to the pipeline, not the runtime.
+.github/
+Makefile
+Dockerfile
+.dockerignore

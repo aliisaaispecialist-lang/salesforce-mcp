@@ -33,6 +33,8 @@ dev = [
     "pytest-asyncio>=0.24",  # the retry loop is async
     "types-PyYAML>=6.0",  # yaml ships no inline types; mypy --strict needs these
     "respx>=0.21",  # client tests intercept httpx instead of using the network
+    "import-linter>=2.0",  # the layering, enforced rather than described
+    "pre-commit>=3.8",  # the same checks, before a commit exists
 ]
 
 [tool.hatch.build.targets.wheel]
