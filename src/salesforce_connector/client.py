@@ -112,6 +112,10 @@ class SalesforceClient:
         self._token: Token | None = None
         self.ledger = IdempotencyLedger()
         self.metrics = Metrics()
+        # Quota as of the most recent response, so a caller can report it
+        # without spending a request to ask. Salesforce attaches it to every
+        # reply, including the ones that failed.
+        self.last_rate_limit: RateLimit | None = None
         self._log = get_logger()
 
     @classmethod
@@ -192,6 +196,8 @@ class SalesforceClient:
 
     def _interpret(self, raw: httpx.Response, request_id: str) -> Response:
         rate_limit = parse_rate_limit(raw.headers.get(_LIMIT_HEADER))
+        if rate_limit is not None:
+            self.last_rate_limit = rate_limit
         body = self._body_of(raw)
         if raw.is_success:
             return Response(

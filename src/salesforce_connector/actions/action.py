@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Final
 from pydantic import BaseModel, ValidationError
 
 from salesforce_connector.client import SalesforceClient
-from salesforce_connector.contract import ActionRequest, ActionResult
+from salesforce_connector.contract import ActionRequest, ActionResult, Pagination
 from salesforce_connector.errors.model import ConnectorError, ErrorContext, InvalidInputError
 from salesforce_connector.observability import bind_request, clear_request, get_logger
 from salesforce_connector.schemas.envelope import ActionSpec
@@ -125,7 +125,13 @@ class Action(ABC):
         elapsed = (time.monotonic() - started) * _MILLISECONDS
         self._client.metrics.record_call(self.spec.action_id, ok=True, duration_ms=elapsed)
         self._log.info("action.completed", duration_ms=round(elapsed, 1))
-        return ActionResult(ok=True, request_id=request.request_id, data=data)
+        return ActionResult(
+            ok=True,
+            request_id=request.request_id,
+            data=data,
+            pagination=_pagination_of(data),
+            rate_limit=self._client.last_rate_limit,
+        )
 
     def _failed(
         self, request: ActionRequest, failure: ConnectorError, started: float
@@ -137,11 +143,35 @@ class Action(ABC):
         if request.idempotency_key is not None and not failure.retryable:
             self._client.ledger.fail(request.idempotency_key)
         self._log.warning("action.failed", code=error.code, category=error.category.value)
-        return ActionResult(ok=False, request_id=request.request_id, error=error)
+        return ActionResult(
+            ok=False,
+            request_id=request.request_id,
+            error=error,
+            # Quota is reported even when the call failed: a caller deciding
+            # whether to retry wants to know how much allowance is left.
+            rate_limit=self._client.last_rate_limit,
+        )
 
     @abstractmethod
     async def _execute(self, params: Any) -> Mapping[str, Any]:
         """Do the work, given arguments already known to be valid."""
+
+
+def _pagination_of(data: Mapping[str, Any]) -> Pagination | None:
+    """Lift a paged action's position out of its payload into the envelope.
+
+    Only an action that returns pages says how many it returned, so the
+    presence of that field is what marks a result as paged. Whether more exists
+    is not read from the data at all: the envelope derives it from the cursor,
+    since the absence of a cursor is what the end of a walk means.
+    """
+    if "returned" not in data:
+        return None
+    return Pagination(
+        returned=int(data["returned"]),
+        next_cursor=data.get("next_cursor"),
+        total_size=data.get("total_size"),
+    )
 
 
 def _name_of(location: tuple[object, ...]) -> str:

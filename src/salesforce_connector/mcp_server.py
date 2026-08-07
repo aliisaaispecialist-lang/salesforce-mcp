@@ -61,6 +61,10 @@ INSTRUCTIONS: Final = (
 _UNTRUSTED_OPEN: Final = "<salesforce_record_data>"
 _UNTRUSTED_CLOSE: Final = "</salesforce_record_data>"
 
+# Metadata keys carry a vendor prefix. Anything whose second label is
+# `modelcontextprotocol` or `mcp` is reserved by the specification.
+_META_PREFIX: Final = "salesforce-connector"
+
 
 @dataclass
 class AppContext:
@@ -177,13 +181,34 @@ def _as_result(outcome: ActionResult) -> CallToolResult:
         return _refuse(
             f"{outcome.error.reason}\n\nWhat to do: {outcome.error.next_step}",
             code=outcome.error.code,
+            # Quota travels with a failure too. A caller deciding whether to
+            # wait and retry wants to know how much allowance is left, and that
+            # is exactly the call where it matters most.
+            meta=_meta(outcome),
         )
     payload = dict(outcome.data)
     return CallToolResult(
         content=[TextContent(type="text", text=_wrapped(payload))],
         structured_content=payload,
         is_error=False,
+        meta=_meta(outcome),
     )
+
+
+def _meta(outcome: ActionResult) -> dict[str, Any] | None:
+    """Carry paging position and quota beside the answer, not inside it.
+
+    Neither belongs in the payload: the declared output schema describes what
+    the action returns, and a caller validating against it should not find
+    bookkeeping mixed in. The metadata channel exists for exactly this, and its
+    keys carry a prefix as the specification requires.
+    """
+    carried: dict[str, Any] = {}
+    if outcome.pagination is not None:
+        carried[f"{_META_PREFIX}/pagination"] = outcome.pagination.model_dump()
+    if outcome.rate_limit is not None:
+        carried[f"{_META_PREFIX}/rate_limit"] = outcome.rate_limit.model_dump()
+    return carried or None
 
 
 def _wrapped(payload: Mapping[str, Any]) -> str:
@@ -191,10 +216,15 @@ def _wrapped(payload: Mapping[str, Any]) -> str:
     return f"{_UNTRUSTED_OPEN}\n{json.dumps(payload, indent=2, default=str)}\n{_UNTRUSTED_CLOSE}"
 
 
-def _refuse(message: str, code: str = "connector.unknown_tool") -> CallToolResult:
+def _refuse(
+    message: str,
+    code: str = "connector.unknown_tool",
+    meta: dict[str, Any] | None = None,
+) -> CallToolResult:
     return CallToolResult(
         content=[TextContent(type="text", text=f"[{code}] {message}")],
         is_error=True,
+        meta=meta,
     )
 
 
