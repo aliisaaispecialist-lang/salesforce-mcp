@@ -2,7 +2,7 @@
 # cannot judge it, so the entry points are named rather than described.
 
 .DEFAULT_GOAL := help
-.PHONY: help setup format lint types test check docker run clean
+.PHONY: help setup format lint types test check docker run clean check-connection live
 
 PYTHON ?= python
 IMAGE  ?= salesforce-connector
@@ -28,6 +28,23 @@ test:  ## Run the tests that need no Salesforce org
 	$(PYTHON) -m pytest
 
 check: format lint types test  ## Everything CI runs, in the same order
+
+check-connection:  ## Ask a real org whether the credentials work (writes nothing)
+	@PYTHONPATH=src $(PYTHON) -c \
+	 "import asyncio; \
+	  from salesforce_connector.auth.jwt_bearer import JwtBearerAuth; \
+	  from salesforce_connector.client import SalesforceClient; \
+	  from salesforce_connector.config import load_settings; \
+	  from salesforce_connector.connector import SalesforceConnector, load_manifest; \
+	  async def main(): \
+	      s = load_settings(); \
+	      c = SalesforceClient.open(s, JwtBearerAuth()); \
+	      print(await SalesforceConnector(c, load_manifest(s)).test_connection(s)); \
+	      await c.aclose(); \
+	  asyncio.run(main())"
+
+live:  ## Run the suites that need a real org (see docs/GO-LIVE.md)
+	$(PYTHON) -m pytest -m "integration or learning" -v
 
 openapi:  ## Regenerate openapi.yaml from the action schemas
 	@SF_CLIENT_ID=placeholder SF_USERNAME=placeholder@example.com \

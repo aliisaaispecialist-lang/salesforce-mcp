@@ -15,6 +15,9 @@
 # stray one in a diff invites the question of where its key went.
 *.crt
 secrets/
+# Unscrubbed recordings. Put anything straight from an org here and it cannot
+# be committed by accident.
+fixtures/raw/
 credentials.json
 
 # Recorded traffic that has not been scrubbed yet

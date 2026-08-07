@@ -1237,13 +1237,21 @@ from a transitive dependency (`python-multipart`), and one test misusing the
   and security tests (`tests/security/`) — all against mocked HTTP (`respx`),
   no network and no credentials required. The two skips are the read action
   sitting out a test about idempotency keys, which only writes have.
-- **`learning`** — "pins real Salesforce behaviour (needs an org)." No test
-  file in this repository currently carries this marker.
-- **`integration`** — "end to end against a live sandbox (needs an org)." No
-  test file in this repository currently carries this marker either. This is
-  not "the live tier failed" or "was skipped" — no test written against a
-  real org exists yet, because no org has been available. See
-  [Known limitations](#known-limitations-and-access-blockers).
+- **`integration`** — "end to end against a live sandbox (needs an org)."
+  22 tests in `tests/integration/`: the connection, the four writes with their
+  cleanup, and the pagination walk. **Written but never run.** They skip when
+  `SF_CLIENT_ID`, `SF_USERNAME`, and `SF_PRIVATE_KEY` are absent, which is the
+  state of this machine — so the count above reads 2 skipped and 30 deselected
+  rather than 30 failures. That is honest, not green: a skipped test has
+  proved nothing.
+- **`learning`** — "pins real Salesforce behaviour (needs an org)." 8 tests in
+  `tests/learning/`, each naming one assumption this connector was built on
+  from documentation, and the code that leans on it. A failure there is not a
+  bug report; it is a correction to something believed about Salesforce.
+
+Both tiers run with `make live`, and `docs/GO-LIVE.md` is the ordered runbook
+for the first time an org exists — including which single test is most likely
+to fail and what it would mean.
 
 **A real bug this process caught, and how.** While assembling the
 evaluation questions in `evaluations/` (ten Q&A pairs for testing whether a

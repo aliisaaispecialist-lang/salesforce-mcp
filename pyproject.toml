@@ -77,6 +77,8 @@ ignore = [
     "ARG002",   # a fixture requested for its side effect is not "unused"
     "PLR2004",  # expected values are literals on purpose
 ]
+# A script run by hand reports what it did. Printing is the interface.
+"scripts/**/*.py" = ["T201"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 8
