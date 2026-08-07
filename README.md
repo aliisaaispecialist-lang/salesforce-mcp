@@ -313,7 +313,7 @@ commit already in this repository — nothing here is aspirational.
 ### ADR-001: Python, not TypeScript
 
 **Context.** The programme's own repository template
-(`research/06-doo-assignment.md` §3, and slide 11 of the kickoff deck) uses
+(`docs/research/06-doo-assignment.md` §3, and slide 11 of the kickoff deck) uses
 `.ts` extensions throughout (`connector.ts`, `client.ts`, `mcp/server.ts`),
 and slide 10 presents the shared `DooConnector` contract as a literal
 TypeScript `interface`. No page or slide states "you must use TypeScript" in
@@ -333,8 +333,8 @@ equivalent to the template (`.py` in place of `.ts`).
 
 **Trade-offs accepted.** A grader skimming the repository tree before reading
 anything sees a deviation from the implied convention. This is a known,
-accepted risk (recorded in `research/06-doo-assignment.md` §5 and
-`OPEN-QUESTIONS.md` D3), not an oversight — mitigated by matching the
+accepted risk (recorded in `docs/research/06-doo-assignment.md` §5 and
+`docs/OPEN-QUESTIONS.md` D3), not an oversight — mitigated by matching the
 template's structure exactly everywhere it is not language-specific.
 
 **Consequences.** Every packaging, typing, and tooling decision downstream
@@ -345,9 +345,9 @@ would be a separate implementation, not a port.
 
 ### ADR-002: Five actions, not the ~90-endpoint Salesforce surface
 
-**Context.** `research/03-salesforce-api-map.md` catalogues roughly 90
+**Context.** `docs/research/03-salesforce-api-map.md` catalogues roughly 90
 distinct Salesforce REST endpoints. The programme assigns exactly five action
-IDs to this connector (`research/06-doo-assignment.md` §7) and slide 6 of the
+IDs to this connector (`docs/research/06-doo-assignment.md` §7) and slide 6 of the
 deck explicitly permits going further only "after the assigned five work."
 
 **Options considered.**
@@ -367,7 +367,7 @@ arbitrary query has no tool for it in v1. That gap is explicit, not silent —
 close it.
 
 **Consequences.** Every action added later must justify itself against the
-grouping problem `research/03-salesforce-api-map.md` §4 describes: a flat
+grouping problem `docs/research/03-salesforce-api-map.md` §4 describes: a flat
 90-tool manifest measurably degrades tool-selection accuracy. Expansion
 should follow that document's tiered/gated shape, not a flat dump.
 
@@ -407,7 +407,7 @@ if ever added, needs its own explicit, reviewed justification.
 
 **Context.** Salesforce announced retirement of the username-password OAuth
 flow starting with production rollout weekends beginning **29 August 2026**
-(`research/03-salesforce-api-map.md` §6 item 1) — inside the programme's own
+(`docs/research/03-salesforce-api-map.md` §6 item 1) — inside the programme's own
 build window.
 
 **Options considered.**
@@ -438,7 +438,7 @@ rejection.
 ### ADR-005: `add_activity_note` as a Task, not a Note or ContentNote
 
 **Context.** The action name is not disambiguated anywhere in the programme's
-materials (confirmed by `research/08-doo-presentation.md` §5: no slide names
+materials (confirmed by `docs/research/08-doo-presentation.md` §5: no slide names
 the target object). Salesforce offers three candidates for "logging an
 interaction": `Task`, the classic `Note` object, and `ContentNote`.
 
@@ -604,7 +604,7 @@ that framing. The `/submit` page's own copy, by contrast, describes the
 deployed URL field as optional — "Include the deployed HTTPS MCP URL **when
 it is ready**" — and the MCP specification itself says a server intended to
 run locally **should** use stdio specifically to limit access to the
-connecting client (`research/09-mcp-spec-compliance.md` §8).
+connecting client (`docs/research/09-mcp-spec-compliance.md` §8).
 
 **Options considered.**
 1. Deploy a hosted streamable-HTTP MCP endpoint, in line with the deck's
@@ -666,7 +666,7 @@ without touching the types every consumer depends on.
 
 **Context.** The MCP specification is explicit: "Clients **SHOULD** provide
 tool execution errors to language models to enable self-correction"
-(`research/09-mcp-spec-compliance.md` §6). A JSON-RPC protocol error (an
+(`docs/research/09-mcp-spec-compliance.md` §6). A JSON-RPC protocol error (an
 `-32xxx` code) is not routed to the model the same way — it is a transport-
 level failure, not something an agent loop can read and act on.
 
@@ -757,7 +757,7 @@ failing.
 ### ADR-015: Rate limiting our own invocations, refusing rather than queuing
 
 **Context.** The MCP specification states servers **MUST** "Rate limit tool
-invocations" (`research/09-mcp-spec-compliance.md` §6). The concrete failure
+invocations" (`docs/research/09-mcp-spec-compliance.md` §6). The concrete failure
 mode: a model in a retry or exploration loop can exhaust a Salesforce org's
 entire daily API allowance in minutes, breaking every other integration on
 that org until the daily window resets — damage that lands on people who
@@ -963,7 +963,7 @@ cursor), though no other action currently uses it.
 writes" without specifying a mechanism. The MCP specification (draft, read
 2026-08-07) describes one: elicitation, with a signed, time-limited,
 request-bound state carried across the round trip
-(`research/09-mcp-spec-compliance.md` §5). It also states plainly that a
+(`docs/research/09-mcp-spec-compliance.md` §5). It also states plainly that a
 server must not send a request whose capability the client did not declare,
 which means no single mechanism can cover every client.
 
@@ -1285,7 +1285,7 @@ than the gaps themselves.
 
 ## Roadmap
 
-`research/03-salesforce-api-map.md` catalogues roughly 90 Salesforce REST
+`docs/research/03-salesforce-api-map.md` catalogues roughly 90 Salesforce REST
 endpoints; this connector implements five. That document's own tiering is
 the plan for what comes next, in priority order:
 
@@ -1315,7 +1315,7 @@ objects, Lightning usage-metrics objects, and similar — these are, in
 substance, `soql_query` against a named object with no real behavioural
 divergence from the generic pattern; adding them as individually-named tools
 would grow the tool list without growing capability, which
-`research/03-salesforce-api-map.md` §4 argues directly degrades tool-
+`docs/research/03-salesforce-api-map.md` §4 argues directly degrades tool-
 selection accuracy once a manifest exceeds roughly 20-25 tools. If genuine
 demand appears, the answer is `soql_query` plus documentation, not a new
 action per object.
