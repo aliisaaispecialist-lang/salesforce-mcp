@@ -39,6 +39,14 @@ of this entry.
   arguments, expires after ten minutes by default, and is generated fresh
   per process. Any write action refuses to run without an approved request.
   (`approval.py`, `actions/action.py`)
+- **The server asks before it writes.** Every write goes through an MCP
+  elicitation — a single-boolean confirmation quoting the action and the
+  caller's own values — before the connector is called at all, whether or not
+  the caller sent `approved: true`. `decline`, `cancel`, an unchecked box, and
+  content the SDK cannot validate all refuse and write nothing. A client that
+  declares no `elicitation` capability is never asked, per the specification,
+  and falls back to the `approved` parameter. (`mcp_approval.py`,
+  `mcp_server.py`)
 - **A leaky-bucket rate limiter** (60 calls/minute by default) that refuses
   calls over budget rather than queuing them, and tells the caller how long
   to wait. (`ratelimit.py`)
@@ -116,27 +124,16 @@ of this entry.
   `addopts = "-m 'not learning and not integration'"`), because no
   Salesforce sandbox has been provisioned yet. Every test that has run
   against this connector runs against `respx`-mocked HTTP, not a live org.
-- **Approval is a boolean, not an authenticated elicitation response.** The
-  MCP specification's `InputRequiredResult` / `requestState` flow is not
-  implemented; the shipped server reads a plain `approved: true` out of the
-  tool call's own arguments. `ApprovalGate`'s signed, TTL-bound,
-  call-bound token machinery exists and is unit-tested
-  (`tests/unit/test_connector.py::TestApproval`), but nothing in
-  `mcp_server.py` or `connector.execute()` currently calls
-  `approval_for`/`approves` — an MCP host that lets the calling model set
-  `approved` itself, rather than surfacing it to a human, gets no
-  resistance from this connector. Wiring the signed-state path into the
-  adapter is the highest-value piece of unfinished work here.
-- **`_censor_value` in `observability.py` does not recurse into lists.** A
-  secret nested inside a list of dicts (for example
-  `{"records": [{"access_token": "..."}]}`) is not masked; only dict-nested
-  and top-level secrets are. The existing test only exercises dict nesting.
-- **The bearer-token log pattern stops at `!`.** Salesforce session ids
-  contain `!` (`00D5g000004abc!AQEAQ...`); `censor_secrets` masks the prefix
-  up to and including the `!` and leaves the suffix in the log line. The
-  existing test passes because it checks the full original token string is
-  not a contiguous substring of the output, which remains true — but part
-  of the session id is still visible.
+- **A client that declares no elicitation capability is never asked about a
+  write.** The specification forbids sending a request whose capability the
+  client did not declare, so those callers still fall back to setting
+  `approved: true` themselves, and there this connector cannot tell a human's
+  confirmation from a model setting a boolean. Nothing on the server side can
+  close that gap.
+- **Even a client that is asked may answer on its own.** The specification
+  says clients SHOULD put an elicitation to a person, not MUST. What this
+  server guarantees is that it asked, that it refused every non-answer, and
+  that the write it executed is the one it described in the question.
 - **Two-step writes are not transactional.** Creating an opportunity and
   attaching a note or contact to it is two calls; the second can fail after
   the first has taken effect, and the result reports that partial state
@@ -157,15 +154,14 @@ of this entry.
 ### Handoff notes
 
 What exists: a reusable core (`connector.py`) behind one door, five actions,
-JWT Bearer and Client Credentials auth, a signed approval mechanism (built but
-not wired into the shipped server — see Known limitations), process-scoped
-idempotency, rate limiting, a censoring logger (with two known gaps, above), a
-generated OpenAPI document, a thin MCP adapter, and a security test suite that
-already found and fixed one real vulnerability before release.
+JWT Bearer and Client Credentials auth, an elicitation-based approval flow
+bound to a signed, expiring ticket, process-scoped idempotency, rate limiting,
+a censoring logger, a generated OpenAPI document, a thin MCP adapter, and a
+security test suite that has already found and fixed three real defects before
+release.
 
-What is deliberately not built: HTTP/SSE transport, elicitation-based
-approval, durable cross-restart idempotency, and anything beyond the five
-assigned actions.
+What is deliberately not built: HTTP/SSE transport, durable cross-restart
+idempotency, and anything beyond the five assigned actions.
 
 What is blocked: everything under "Blocked" above needs either a decision
 (when to bump the version and tag) or an asset this project does not

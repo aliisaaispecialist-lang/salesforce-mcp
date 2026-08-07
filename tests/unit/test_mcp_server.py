@@ -9,11 +9,12 @@ import inspect
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from mcp.types import CallToolResult, TextContent
 
-from salesforce_connector import mcp_server, mcp_translate
+from salesforce_connector import mcp_approval, mcp_server, mcp_translate
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionError, ActionKind, ActionResult
 from salesforce_connector.errors.model import RateLimitError
@@ -31,11 +32,14 @@ def descriptors() -> tuple[ActionDescriptor, ...]:
 
 
 class TestTheAdapterKnowsNothingAboutSalesforce:
-    def test_no_endpoint_or_field_name_appears_in_it(self) -> None:
-        source = inspect.getsource(mcp_server)
+    @pytest.mark.parametrize(
+        "module", [mcp_server, mcp_approval, mcp_translate], ids=lambda m: m.__name__
+    )
+    def test_no_endpoint_or_field_name_appears_in_it(self, module: ModuleType) -> None:
+        source = inspect.getsource(module)
 
         for forbidden in ("sobjects/", "parameterizedSearch", "LastName", "StageName", "WhoId"):
-            assert forbidden not in source, f"{forbidden} leaked into the adapter"
+            assert forbidden not in source, f"{forbidden} leaked into {module.__name__}"
 
     def test_it_does_not_import_an_action_or_the_client_directly(self) -> None:
         source = inspect.getsource(mcp_server)

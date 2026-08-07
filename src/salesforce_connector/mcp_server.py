@@ -27,11 +27,13 @@ from mcp.server import Server, ServerRequestContext
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, PaginatedRequestParams
 
 from salesforce_connector import __version__
+from salesforce_connector.approval import ApprovalGate
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
 from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionDescriptor, ActionRequest
+from salesforce_connector.mcp_approval import WriteApproval
 from salesforce_connector.mcp_translate import as_result, as_tool, refuse
 from salesforce_connector.observability import configure_logging, get_logger
 
@@ -55,6 +57,7 @@ class AppContext:
     """What the server holds for as long as the process lives."""
 
     connector: SalesforceConnector
+    approval: WriteApproval
 
 
 @asynccontextmanager
@@ -72,7 +75,12 @@ async def lifespan(_: Server[AppContext]) -> AsyncIterator[AppContext]:
     client = SalesforceClient.open(settings, JwtBearerAuth())
     try:
         log.info("server.started", name=SERVER_NAME, org=settings.redacted())
-        yield AppContext(connector=SalesforceConnector(client, load_manifest(settings)))
+        yield AppContext(
+            connector=SalesforceConnector(client, load_manifest(settings)),
+            # One gate per process. Its signing key dies with the process, so a
+            # restart invalidates every approval in flight, which is correct.
+            approval=WriteApproval(ApprovalGate()),
+        )
     finally:
         await client.aclose()
         log.info("server.stopped", name=SERVER_NAME)
@@ -91,29 +99,39 @@ async def call_tool(
     ctx: ServerRequestContext[AppContext],
     params: CallToolRequestParams,
 ) -> CallToolResult:
-    """Run one tool and answer, whatever happened."""
-    connector = ctx.lifespan_context.connector
-    request = _as_request(params, connector.list_actions())
-    if request is None:
+    """Run one tool and answer, whatever happened.
+
+    Approval comes before execution, never inside it: a write the user turns
+    down must not reach the connector at all.
+    """
+    context = ctx.lifespan_context
+    described = _descriptor(params.name, context.connector.list_actions())
+    if described is None:
         return refuse(f"{params.name!r} is not a tool this server offers.")
-    return as_result(await connector.execute(request))
+    settled = await context.approval.granted(ctx, described, _as_request(params, described))
+    if isinstance(settled, CallToolResult):
+        return settled
+    return as_result(await context.connector.execute(settled))
 
 
-def _as_request(
-    params: CallToolRequestParams,
+def _descriptor(
+    tool_name: str,
     described: tuple[ActionDescriptor, ...],
-) -> ActionRequest | None:
-    """Translate a tool call into an action call, or refuse an unknown name."""
-    action_id = next((d.action_id for d in described if d.tool_name == params.name), None)
-    if action_id is None:
-        return None
+) -> ActionDescriptor | None:
+    """Find the action a tool name stands for, if this server offers one."""
+    return next((d for d in described if d.tool_name == tool_name), None)
+
+
+def _as_request(params: CallToolRequestParams, described: ActionDescriptor) -> ActionRequest:
+    """Translate a tool call into an action call."""
     arguments: Mapping[str, Any] = params.arguments or {}
     return ActionRequest(
-        action_id=action_id,
+        action_id=described.action_id,
         params=arguments,
         idempotency_key=_string_or_none(arguments.get("idempotency_key")),
         # A host that surfaced the write to a person sets this. Absent, the
-        # action refuses and says how to proceed.
+        # server asks the client to ask, and if it cannot be asked the action
+        # refuses and says how to proceed.
         approved=bool(arguments.get("approved", False)),
     )
 

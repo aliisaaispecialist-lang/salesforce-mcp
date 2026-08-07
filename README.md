@@ -126,7 +126,7 @@ All five share one envelope (`ActionResult`): `ok`, `request_id`, `data`,
 requires `idempotency_key` (min 8 characters) and `approved` (boolean,
 default `false`) in its own input schema — see
 [ADR-006](#adr-006-idempotency-key-required-on-every-write-enforced-structurally)
-and [ADR-022](#adr-022-approval-today-is-a-parameter-and-a-refusal-elicitation-is-built-but-not-wired).
+and [ADR-022](#adr-022-the-server-asks-the-client-to-ask-a-person-and-falls-back-to-a-parameter).
 
 | Action | Kind | Risk | Naturally idempotent | Needs approval |
 |---|---|---|---|---|
@@ -281,7 +281,9 @@ kept:
 **Why the MCP adapter is deliberately thin.** `mcp_server.py` opens the
 connector at startup, lists what it offers, forwards a call, and closes on
 the way out; `mcp_translate.py` turns the connector's own types into the
-protocol's and back. Neither file contains an endpoint, an object name, or a
+protocol's and back; `mcp_approval.py` asks the client to put a write to a
+person before the connector ever sees it. None of the three contains an
+endpoint, an object name, or a
 query — `tests/unit/test_mcp_server.py::TestTheAdapterKnowsNothingAboutSalesforce`
 asserts this directly, by searching the adapter's own source for strings like
 `sobjects/`, `parameterizedSearch`, `LastName`, `StageName`, and `WhoId` and
@@ -295,7 +297,8 @@ reaching past `connector` into `actions`, `client`, or `auth` directly.
 - Only `client.py` may import `httpx` — every other layer reaches the network
   only through the client, so its timeouts, retries, and error mapping cannot
   be bypassed by an action that decides to make its own request.
-- Only `mcp_server.py`/`mcp_translate.py` may import the `mcp` package — so
+- Only `mcp_server.py`/`mcp_approval.py`/`mcp_translate.py` may import the
+  `mcp` package — so
   swapping the protocol layer, or adding a second adapter (a CLI, a batch
   runner), never requires touching `connector.py` or anything below it.
 
@@ -954,54 +957,68 @@ multi-step write or resumable multi-page read (the module's docstring notes
 the same idea covers an interrupted page walk resuming from its last
 cursor), though no other action currently uses it.
 
-### ADR-022: Approval today is a parameter and a refusal; elicitation is built but not wired
+### ADR-022: The server asks the client to ask a person, and falls back to a parameter
 
 **Context.** The programme requires "explicit approval for consequential
 writes" without specifying a mechanism. The MCP specification (draft, read
-2026-08-07) describes a formal mechanism for this — elicitation via an
-`InputRequiredResult` on the `tools/call` response, with a signed,
-time-limited, request-bound `requestState` carried across the round trip
-(`research/09-mcp-spec-compliance.md` §5) — and states server-initiated
-approval requests (the pre-elicitation model) no longer exist in the current
-draft.
+2026-08-07) describes one: elicitation, with a signed, time-limited,
+request-bound state carried across the round trip
+(`research/09-mcp-spec-compliance.md` §5). It also states plainly that a
+server must not send a request whose capability the client did not declare,
+which means no single mechanism can cover every client.
 
 **Options considered.**
 1. An `approved: bool` parameter, declared in each write's own input schema,
    defaulting to `false`; a write arriving without it is refused with a
    message telling the caller how to proceed.
-2. Full elicitation: the server responds to a write with an
-   `InputRequiredResult`, the host collects a person's confirmation, and the
-   retry carries a signed `requestState`.
+2. Elicitation: before executing a write, the server asks the client to put
+   the question to a person and waits for the answer.
+3. Both, chosen by what the client declared.
 
-**Decision, honestly.** Both were built, but only option 1 is wired to the
-live call path today. Every write schema declares `approved` (option 1,
-live — enforced in `action.py::Action._require_approval`, and exercised
-end-to-end by `tests/unit/test_approval_path.py` through the actual MCP
-argument path, not just by constructing an `ActionRequest` directly).
-Separately, `SalesforceConnector.approval_for`/`approves`
-(`connector.py`) and `approval.py::ApprovalGate` implement exactly the
-signed, TTL-bound, call-bound token the specification describes for
-`requestState` — `itsdangerous`-signed, salted to this purpose, verified
-against a digest of the exact action id and arguments it was issued for
-(ADR from `approval.py`'s own docstring) — but **`mcp_server.py` never calls
-`approval_for` or `approves`**. No route from `call_tool` reaches the gate.
+**Decision.** Option 3. `mcp_server.call_tool` runs every write through
+`WriteApproval.granted` (`mcp_approval.py`) *before* the connector sees it.
+If the client declared the `elicitation` capability, the SDK's
+`elicit_with_validation` puts a single-boolean form to it, quoting the
+action's title and the caller's own field values with `idempotency_key` and
+`approved` left out — neither is the caller's intent, and neither helps a
+person decide. Only `accept` with `confirm: true` proceeds. If the client
+declared nothing, it is not asked, and the write falls through to option 1:
+`Action._require_approval` refuses it and says how to proceed.
 
-**Trade-offs accepted.** The live approval flow is simpler than the
-specification's own preferred mechanism: a caller must already know, from
-the tool's description or a prior error, that `approved: true` and the same
-`idempotency_key` are required — there is no server-initiated round trip
-that surfaces this automatically via `InputRequiredResult`.
+**An `approved: true` in the arguments does not skip the question.** It was
+tempting to treat it as "already handled" and return early, and that would
+have quietly reopened the exact hole this exists to close: a model can set
+that flag as easily as a host can, and short-circuiting on it means the one
+caller you most want to stop is the one who never gets asked. A client that
+declared elicitation never needs to send it anyway, because the answer comes
+back inside the same call. The flag's only job is the fallback path.
 
-**Consequences.** This is listed plainly in
-[Known limitations](#known-limitations-and-access-blockers) rather than
-implied to be finished. Wiring elicitation is additive: `ApprovalGate`
-already exists, tested, at the connector layer
-(`tests/unit/test_connector.py::TestApproval`); the remaining work is in
-`mcp_server.py::call_tool`, calling `approval_for` to mint an
-`InputRequiredResult` when a write arrives unapproved, and `approves` to
-verify the retried `requestState`, only for clients that declare the
-capability (the specification forbids sending an elicitation a client did
-not declare support for).
+`ApprovalGate` is what makes the yes specific. A ticket is minted *before*
+the question, against the action id and a SHA-256 digest of the arguments,
+and re-derived and checked immediately before the write runs.
+
+**Trade-offs accepted.** Two, both stated rather than hidden. First,
+`elicit_with_validation` resolves the round trip inside the tool call, so
+the ticket never actually leaves the process — its cross-call binding is
+belt-and-braces here, and what earns its keep in this shape is the
+time-to-live, which turns a dialog left open too long into a refusal. It is
+kept rather than simplified away because the binding becomes load-bearing
+the moment an answer arrives over a separate request. Second, a client that
+declares elicitation may still answer however it likes; the specification
+says clients SHOULD surface it to a person, not MUST. What the server
+guarantees is that it asked, that it refused every non-answer, and that the
+write it executed is the one it described in the question.
+
+**Consequences.** Four different non-answers — `decline`, `cancel`, an
+accepted form with the box unchecked, and content the SDK cannot validate —
+all end the same way: nothing written, and a refusal that tells the model to
+report it rather than retry. That last case matters more than it looks. The
+SDK *raises* on malformed accepted content, and an exception escaping into a
+tool result reads as "something went wrong", which is exactly the shape a
+model retries. Caught and turned into a plain refusal, it does not.
+`tests/unit/test_mcp_approval.py` covers all sixteen paths, including the
+two ends of the wiring: that a declined write never reaches `execute`, and
+that an accepted one arrives there already marked approved.
 
 ---
 
@@ -1085,7 +1102,7 @@ scoring (20%). Controls, and where each lives:
 | Secret leakage into logs | A structlog processor censors known secret keys and bearer/PEM-shaped patterns in every log line, at any nesting depth, before rendering | `observability.py::censor_secrets` |
 | Secret leakage via `repr`/`str` | Credentials are `pydantic.SecretStr`; printing `Settings` shows a mask, never the value | `config.py::Settings` |
 | Token exposure | Access tokens live only in memory, for the life of the process; never written to disk or logged | `client.py`, `auth/strategy.py::Token` |
-| Unapproved writes | Every write requires `approved: true` in its own schema; refused otherwise, with the refusal explaining how to retry | `actions/action.py::_require_approval` — [ADR-022](#adr-022-approval-today-is-a-parameter-and-a-refusal-elicitation-is-built-but-not-wired) |
+| Unapproved writes | The server asks the client to put the write to a person and refuses on anything but an explicit yes; a client that cannot be asked falls back to `approved: true` in the tool's own schema, refused otherwise with an explanation of how to retry | `mcp_approval.py::WriteApproval`, `actions/action.py::_require_approval` — [ADR-022](#adr-022-the-server-asks-the-client-to-ask-a-person-and-falls-back-to-a-parameter) |
 | Over-broad OAuth scope | Manifest requests only `api` and `refresh_token` — nothing beyond what the five actions need | `connector.yaml` |
 | Over-broad data access | The connector runs as one Salesforce user; that user's own profile, not the connector, is the real ceiling on what any action can reach | `connector.yaml` `risks` |
 | Accidental production use | Refused at startup unless `SF_ALLOW_PRODUCTION=true` is set alongside a production `SF_LOGIN_URL` | `config.py::_production_needs_saying_so` — [ADR-016](#adr-016-sandbox-by-default-production-requires-explicit-opt-in) |
@@ -1112,16 +1129,16 @@ machine:
 
 ```
 $ python -m pytest -q
-352 passed, 2 warnings in 18.90s
+370 passed, 2 warnings in 15.43s
 
 $ python -m ruff check .
 All checks passed!
 
 $ python -m mypy src tests
-Success: no issues found in 55 source files
+Success: no issues found in 57 source files
 
 $ PYTHONPATH=src lint-imports
-Analyzed 69 files, 209 dependencies.
+Analyzed 70 files, 218 dependencies.
 Contracts: 4 kept, 0 broken.
 
 $ docker build -t salesforce-connector .
@@ -1142,7 +1159,7 @@ from a transitive dependency (`python-multipart`), and one test misusing the
 **Test tiers** (`pyproject.toml` markers):
 
 - **Default** (`addopts = "-m 'not learning and not integration'"`, what the
-  334-pass run above covers): unit tests (`tests/unit/`, schema validation,
+  370-pass run above covers): unit tests (`tests/unit/`, schema validation,
   error mapping, retry classification, idempotency ledger, approval path,
   OpenAPI generation, MCP adapter thinness) and security/fixture tests
   (`tests/security/`), all against mocked HTTP (`respx`) — no network, no
@@ -1231,10 +1248,13 @@ than the gaps themselves.
   concurrent calls sharing a fresh, not-yet-completed key are not currently
   detected as in-flight; only the sequential retry-after-timeout case is
   covered. See [Reliability](#reliability).
-- **Approval is a parameter and a refusal, not the specification's own
-  preferred elicitation flow.** The signed, TTL-bound `ApprovalGate` exists
-  and is unit-tested at the connector layer, but `mcp_server.py` never calls
-  it. See [ADR-022](#adr-022-approval-today-is-a-parameter-and-a-refusal-elicitation-is-built-but-not-wired).
+- **A client that declares no elicitation capability is never asked about a
+  write.** The specification forbids sending a request whose capability the
+  client did not declare, so those callers fall back to setting `approved:
+  true` themselves, and there this connector cannot tell a human's
+  confirmation from a model setting a boolean. Nothing on the server side
+  can close that gap. See
+  [ADR-022](#adr-022-the-server-asks-the-client-to-ask-a-person-and-falls-back-to-a-parameter).
 - **`search_contact`'s `account_name` output field is always `null`.** The
   action's own `_FIELDS` tuple never requests `AccountName` from Salesforce,
   and `_as_summary` never populates it. The field is real in the schema and
@@ -1301,11 +1321,6 @@ demand appears, the answer is `soql_query` plus documentation, not a new
 action per object.
 
 **Also on the list, not yet started:**
-- Wire `ApprovalGate` into `mcp_server.py` as a real `InputRequiredResult`
-  elicitation flow, gated on client capability declaration, with the
-  `approved` parameter kept as the fallback for clients that do not declare
-  elicitation support — see
-  [ADR-022](#adr-022-approval-today-is-a-parameter-and-a-refusal-elicitation-is-built-but-not-wired).
 - Populate `search_contact`'s `account_name` field, or remove it from the
   schema if it stays unpopulated.
 - Run `evaluations/questions.xml` for real against a live Developer Edition

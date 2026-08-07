@@ -41,7 +41,7 @@ merge on this machine before code review.
 | 7 | A Salesforce error response leaks a stack trace or an oversized body back into the model's context | `to_connector_error` caps the reported reason to 300 characters and only ever forwards the message and code Salesforce reported, never a raw response body or a Python traceback | `errors/mapping.py` | Yes — `test_a_salesforce_failure_never_carries_a_stack_trace_to_the_model`, `test_a_provider_message_is_capped_so_a_body_cannot_be_dumped` |
 | 8 | The connector is pointed at a production org by accident (typo, careless config) instead of the sandbox it is built and tested against | `Settings` refuses to construct if `login_url` is the production host unless `SF_ALLOW_PRODUCTION=true` is set explicitly | `config.py::_production_needs_saying_so` | Yes — `tests/unit/test_config.py::TestProductionGuard`, 4 tests including a trailing-slash bypass attempt |
 | 9 | A consequential write (create, update) executes without a human ever approving it | Every write's `ActionSpec` declares `requires_approval=True`; `Action._require_approval` refuses to run the write unless the request's `approved` field is true, before the client is ever asked to send anything | `actions/action.py::_require_approval`, `schemas/*.py` | Yes — `test_a_write_without_approval_reaches_no_endpoint` |
-| 10 | A tampered, replayed, or mismatched approval is honoured (approving one call with the token issued for another, an expired token, a forged token) | `ApprovalGate` (itsdangerous) signs a token binding an action id and a SHA-256 digest of its arguments, with a time-to-live; every failure mode — bad signature, expired, wrong action, changed arguments — is rejected identically | `approval.py` | Yes, at the connector's Python API — `tests/unit/test_connector.py::TestApproval` (7 tests: exact-call match, different arguments, different action, tampered token, expired token, token from another process's key, argument-order independence of the digest). **Not wired into the shipped MCP server** — see limitations below |
+| 10 | A tampered, replayed, or mismatched approval is honoured (approving one call with the token issued for another, an expired token, a forged token) | `ApprovalGate` (itsdangerous) signs a token binding an action id and a SHA-256 digest of its arguments, with a time-to-live; every failure mode — bad signature, expired, wrong action, changed arguments — is rejected identically. `WriteApproval` mints that token before the person is asked and re-checks it against the request about to run, so a yes that arrives after the TTL does not write | `approval.py`, `mcp_approval.py` | Yes — `tests/unit/test_connector.py::TestApproval` (7 tests: exact-call match, different arguments, different action, tampered token, expired token, token from another process's key, argument-order independence of the digest) and `tests/unit/test_mcp_approval.py::TestTheApprovalIsBoundToTheCall` |
 | 11 | A write retried after a timeout creates a duplicate record | `IdempotencyLedger` remembers, for the life of the process, what each caller-supplied key has already achieved; a repeated key returns the original result instead of writing again | `idempotency.py`, `actions/action.py::_already_done` | Yes — `test_a_repeated_key_writes_once_however_many_times_it_is_called`, `tests/unit/test_durability.py::TestTheLedger` |
 | 12 | A write action ships without ever requiring an idempotency key, making the retry-duplicate problem unfixable by any caller | A write cannot be registered, described, or called unless `idempotency_key` is in its input schema's required fields — this is a structural property of every `ActionSpec` marked as a write, not a convention | `schemas/envelope.py`, `actions/registry.py` | Yes — `test_a_write_cannot_be_declared_without_demanding_a_key` |
 | 13 | One caller (a model in a loop) exhausts the org's daily API allowance, breaking every other integration on that org | `CallBudget`, a leaky-bucket limiter shared across all five actions, refuses a call over budget rather than queuing it, and states how long to wait | `ratelimit.py`, `connector.py` (one budget per connector instance) | Yes — `tests/unit/test_connector.py::TestTheCallBudget`, 4 tests |
@@ -50,6 +50,7 @@ merge on this machine before code review.
 | 16 | A secret (private key, client secret, `.env` file) is committed to source or to Git history | `.gitignore` and `.dockerignore` exclude `.env*`, `*.pem`, `*.key`, `*.p12`, `secrets/`, and raw fixture recordings; pre-commit runs `detect-private-key` and `gitleaks` before a commit exists; a dedicated CI job runs `gitleaks` over the full history (`fetch-depth: 0`) | `.gitignore`, `.dockerignore`, `.pre-commit-config.yaml`, `.github/workflows/ci.yml` | Enforced, not pytest-tested. A manual `git log -p` search of this repository's history for PEM headers and `SF_PRIVATE_KEY=`/`SF_CLIENT_SECRET=` assignments found only test-fixture placeholder values (e.g. `MIIEvQIBADxx`), never a real key. The CI gitleaks job has not yet run, because this repository has no remote to push to yet |
 | 17 | A Salesforce credential is baked into the Docker image layer | A multi-stage build copies only `src/`, `mcp/`, and `connector.yaml` into the final image; `.dockerignore` excludes `.env*`, `*.pem`, `*.key`, and `.git`; the process runs as a non-root user (uid 10001) | `Dockerfile`, `.dockerignore` | No dedicated test. CI's `image` job builds the image and confirms the server starts and exits cleanly on stdin EOF, but does not scan the built layers for secrets |
 | 18 | The connector's OAuth scope grants more than its five actions need | `connector.yaml` declares only `api` (REST access) and `refresh_token` (session renewal) — nothing broader | `connector.yaml` | Partially — `tests/unit/test_connector.py::test_it_asks_for_no_more_scope_than_the_actions_need` is a regression pin asserting the declared scope set stays exactly `{api, refresh_token}`. Whether the Salesforce Connected App itself grants only that scope is configured on the Salesforce side and cannot be verified from this repository |
+| 19 | A model sets `approved: true` itself, and a write no human ever saw is executed | When the client declares the `elicitation` capability, `mcp_server.call_tool` asks it — before the connector is called at all — to put the write to a person, and only a returned `accept` with `confirm: true` proceeds. The question is asked **whether or not the caller sent `approved: true`**: that flag is precisely the thing that cannot be trusted, and a client that declared elicitation never needs it, because the answer resolves inside the same call. Decline, cancel, an unchecked box, and content the SDK cannot validate all refuse and write nothing | `mcp_approval.py`, `mcp_server.py::call_tool` | Yes — `tests/unit/test_mcp_approval.py` (16 tests), including `test_a_caller_that_asserts_approval_is_asked_anyway`. **Bounded by the client**: a client that declares no elicitation capability is never asked, and falls back to the caller-asserted `approved` flag — see limitations below |
 
 ## What this deliberately does not defend against
 
@@ -62,19 +63,29 @@ merge on this machine before code review.
   rejects the second write; that requires schema access to the org that
   this project does not have. `connector.yaml`'s `risks` section states
   this as a declared, not hidden, limitation.
-- **Approval is not wired into the shipped MCP server.** `ApprovalGate`'s
-  signed, time-limited, call-bound token is implemented and unit-tested
-  (`tests/unit/test_connector.py::TestApproval`), and `connector.py` exposes
-  `approval_for`/`approves` to mint and check it. But `mcp_server.py` never
-  calls either — the bundled stdio server reads a plain `approved: true`
-  out of the tool call's own arguments (`_as_request` in `mcp_server.py`).
-  This connector cannot distinguish a human who actually confirmed a write
-  from a model that decided to set the boolean itself. The specification's
-  `InputRequiredResult`/elicitation flow, which would let a client surface
-  the confirmation to an actual person and carry the signed state through
-  that round trip, is not implemented; `approved` exists as the fallback
-  path the specification describes for clients without that capability, but
-  it is currently the *only* path.
+- **Approval is only as real as the client makes it.** The server now asks:
+  `WriteApproval` sends an elicitation for every write the caller has not
+  already marked approved, and refuses on anything short of an explicit yes
+  (`mcp_approval.py`). Two limits remain, both outside this repository's
+  reach. First, a client that does not declare the `elicitation` capability
+  is never asked — the specification forbids sending a request whose
+  capability was not declared — so those callers fall back to asserting
+  `approved: true` themselves, and there this connector still cannot
+  distinguish a human's confirmation from a model setting the boolean.
+  Second, even a client that does declare it may answer however it likes:
+  the specification's own guidance is that clients SHOULD put the question
+  to a person, not that they MUST, and nothing on the server side can verify
+  that a human was in the room. What the server can guarantee is that it
+  asked, that it refused every non-answer, and that the write it executed is
+  the write it described in the question.
+- **The approval never leaves the process.** `elicit_with_validation`
+  resolves the round trip inside the tool call, so the signed ticket is
+  minted and checked within one `call_tool`. Its cross-call binding — the
+  action id and argument digest — is therefore belt-and-braces here rather
+  than load-bearing; what earns its keep in this shape is the time-to-live,
+  which turns an approval dialog left open too long into a refusal. The
+  binding would become load-bearing if the answer ever came back over a
+  separate request, which is why it is kept rather than simplified away.
 Two censoring gaps were found while this document was being written, and both
 are now **fixed** in commit `602a392`, with `tests/security/test_censoring_depth.py`
 as regression coverage. They are recorded here rather than deleted, because how

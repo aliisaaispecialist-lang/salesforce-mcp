@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionKind
-from salesforce_connector.mcp_server import _as_request
+from salesforce_connector.mcp_server import _as_request, _descriptor
 from salesforce_connector.schemas import (
     add_activity_note,
     create_contact,
@@ -61,6 +61,12 @@ def described() -> tuple[ActionDescriptor, ...]:
     return registry.descriptors()
 
 
+def for_tool(tool_name: str) -> ActionDescriptor:
+    found = _descriptor(tool_name, described())
+    assert found is not None
+    return found
+
+
 class TestApprovalIsDeclaredWhereItIsAskedFor:
     @pytest.mark.parametrize("tool_name", sorted(WRITE_ARGUMENTS))
     def test_the_schema_offers_the_field_the_error_text_demands(self, tool_name: str) -> None:
@@ -88,10 +94,9 @@ class TestTheClientsPath:
         arguments = {**WRITE_ARGUMENTS[tool_name], "approved": True}
 
         request = _as_request(
-            CallToolRequestParams(name=tool_name, arguments=arguments), described()
+            CallToolRequestParams(name=tool_name, arguments=arguments), for_tool(tool_name)
         )
 
-        assert request is not None
         assert request.approved is True
         # The step that used to fail: the action validates what the client sent.
         WRITE_MODELS[tool_name].model_validate(dict(request.params))
@@ -102,10 +107,9 @@ class TestTheClientsPath:
     ) -> None:
         request = _as_request(
             CallToolRequestParams(name=tool_name, arguments=WRITE_ARGUMENTS[tool_name]),
-            described(),
+            for_tool(tool_name),
         )
 
-        assert request is not None
         assert request.approved is False
         WRITE_MODELS[tool_name].model_validate(dict(request.params))
 
@@ -114,16 +118,13 @@ class TestTheClientsPath:
 
         request = _as_request(
             CallToolRequestParams(name="salesforce_create_contact", arguments=arguments),
-            described(),
+            for_tool("salesforce_create_contact"),
         )
 
-        assert request is not None
         assert request.idempotency_key == "key-12345678"
 
-    def test_an_unknown_tool_produces_no_request_at_all(self) -> None:
-        assert (
-            _as_request(CallToolRequestParams(name="nonsense", arguments={}), described()) is None
-        )
+    def test_an_unknown_tool_is_recognised_before_a_request_is_built(self) -> None:
+        assert _descriptor("nonsense", described()) is None
 
 
 class TestEveryWriteAgrees:
