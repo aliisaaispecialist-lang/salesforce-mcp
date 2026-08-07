@@ -23,7 +23,7 @@ import logging
 import re
 import sys
 from collections import Counter, defaultdict
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
 from statistics import median
 from typing import Any, Final
 
@@ -48,8 +48,13 @@ _SECRET_KEYS: Final = frozenset(
 )
 
 # Censored inside string values, for secrets that arrive embedded in a message.
+#
+# The token pattern runs to the next whitespace or delimiter rather than to the
+# end of a word. A Salesforce session id looks like 00D5g000004abc!AQEAQPgt...,
+# and a word-character class stops dead at the exclamation mark, masking the
+# first half and printing the rest.
 _SECRET_PATTERNS: Final = (
-    re.compile(r"(?i)(bearer\s+)[\w.\-]+"),
+    re.compile(r"""(?i)(bearer\s+)[^\s"',;}\]]+"""),
     re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----", re.DOTALL),
 )
 
@@ -67,12 +72,20 @@ def _censor_text(value: str) -> str:
 
 
 def _censor_value(key: str, value: object) -> object:
+    """Mask a value, following it into whatever is holding it.
+
+    Lists matter as much as dictionaries here. A Salesforce reply is very often
+    a list of records, so a secret at records[0].access_token is exactly where
+    one would land, and stopping at dictionaries would walk straight past it.
+    """
     if key.lower() in _SECRET_KEYS:
         return _REDACTED
     if isinstance(value, str):
         return _censor_text(value)
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {inner: _censor_value(str(inner), held) for inner, held in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_censor_value(key, item) for item in value]
     return value
 
 
