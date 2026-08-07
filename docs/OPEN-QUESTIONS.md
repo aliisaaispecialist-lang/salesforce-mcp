@@ -24,6 +24,8 @@ Your original brief asked for a client accepting any LLM provider's API. The pro
 ### A3. Project name and location on disk
 Currently everything sits in `C:\Users\Admin\salesforce-mcp\`. The program template says `connector-name/`, and this is a *connector* whose MCP server is one thin adapter — so `salesforce-connector` reads more accurately. Rename, or keep?
 
+**Answered.** Renamed to `salesforce-connector`, then back to `salesforce-mcp` when these research notes were merged into the repository as `docs/` — one folder rather than two, so the sources an ADR cites are in the checkout that cites them. The Python package stays `salesforce_connector`, and the Docker image tag stays `salesforce-connector`; only the folder moved.
+
 ---
 
 ## B. External access — we cannot answer these ourselves

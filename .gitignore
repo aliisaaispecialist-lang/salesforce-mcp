@@ -10,7 +10,10 @@
 *.p12
 *.pfx
 *.jks
-server.crt
+# A certificate is the public half and leaking one is not a breach, but it
+# arrives in the same `openssl req` command as the key it belongs to, and a
+# stray one in a diff invites the question of where its key went.
+*.crt
 secrets/
 credentials.json
 

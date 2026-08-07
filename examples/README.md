@@ -63,5 +63,5 @@ both) into your host's `mcpServers` object, for example
   variables from `.env.example` are passed through the config's `env` block
   instead.
 
-Replace every `/absolute/path/to/salesforce-connector` placeholder with the
+Replace every `/absolute/path/to/salesforce-mcp` placeholder with the
 real path on your machine before pasting.

@@ -19,7 +19,8 @@ See also [`SECURITY.md`](SECURITY.md) for the full threat model and
 
 ## Contents
 
-- [Quick start](#quick-start)
+- [Quick start](#quick-start) — or [QUICKSTART.md](QUICKSTART.md) for the
+  full walkthrough from an empty folder
 - [Configuration](#configuration)
 - [The five actions](#the-five-actions)
 - [Architecture](#architecture)
@@ -34,6 +35,11 @@ See also [`SECURITY.md`](SECURITY.md) for the full threat model and
 ---
 
 ## Quick start
+
+**Never set this up before?** [QUICKSTART.md](QUICKSTART.md) walks the whole
+thing end to end, including the Connected App and certificate on the
+Salesforce side, which is the part that actually takes time. What follows here
+assumes you already have credentials.
 
 Both paths below were run against this repository while writing this document:
 `docker build`, a container start/stop on closed stdin, `pytest -q`, `ruff
