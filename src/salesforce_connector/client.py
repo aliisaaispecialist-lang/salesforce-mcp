@@ -1,24 +1,24 @@
-"""The only module that reaches Salesforce.
+"""The only module that opens a socket.
 
-Everything network-shaped lives here: the token, the connection pool, timeouts,
-the retry loop, the quota header, and the translation of any non-2xx into a
-typed failure. Actions above this line describe what they want; none of them
-knows that HTTP exists.
+Everything network-shaped lives here: the token, the connection pool, the
+timeouts, the retry loop, and the translation of any non-2xx into a typed
+failure. Actions above this line describe what they want; none of them knows
+that HTTP exists, and an import contract enforces that rather than trusting it.
 
-The client is created once, when the MCP server starts, and closed when it
-stops. One connection pool is reused for the life of the process, because
-opening a fresh TLS connection per call is the single largest avoidable cost
-against a remote API.
+The shape of a request and its answer lives next door in `exchange`, so this
+file is about sending and that one is about form.
+
+One client is created when the server starts and closed when it stops. A single
+connection pool is reused for the life of the process, because opening a fresh
+TLS connection per call is the largest avoidable cost against a remote API.
 """
 
 import uuid
-from collections.abc import Mapping
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Any, Final, Self
+from typing import Final, Self
 
 import httpx
-from pydantic import BaseModel, ConfigDict
 from tenacity import RetryCallState
 
 from salesforce_connector.auth.strategy import AuthStrategy, Token
@@ -26,80 +26,22 @@ from salesforce_connector.config import Settings
 from salesforce_connector.contract import RateLimit
 from salesforce_connector.errors.mapping import to_connector_error
 from salesforce_connector.errors.model import AuthenticationError, ConnectorError, TransportError
-from salesforce_connector.errors.retry import CallShape, RetryPolicy, build_retrying
+from salesforce_connector.errors.retry import RetryPolicy, build_retrying
+from salesforce_connector.exchange import (
+    LIMIT_HEADER,
+    NO_CONTENT,
+    RequestSpec,
+    Response,
+    parse_rate_limit,
+    retry_after_of,
+)
 from salesforce_connector.idempotency import IdempotencyLedger
 from salesforce_connector.immutable import freeze
 from salesforce_connector.observability import Metrics, get_logger
 
-_LIMIT_HEADER: Final = "Sforce-Limit-Info"
-_RETRY_AFTER_HEADER: Final = "Retry-After"
-_NO_CONTENT: Final = 204
 _MAX_KEEPALIVE: Final = 5
 _MAX_CONNECTIONS: Final = 10
-
-
-class RequestSpec(BaseModel):
-    """One call an action wants made.
-
-    An argument object rather than six parameters, so a caller cannot pass the
-    write flag in the wrong position and quietly make a create retryable.
-    """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    method: str
-    path: str = ""  # relative to /services/data/<version>
-    absolute_url: str | None = None  # for an opaque cursor, used verbatim
-    params: Mapping[str, str] = {}
-    json_body: Mapping[str, Any] | None = None
-    # Salesforce turns a few behaviours on through headers rather than fields,
-    # such as permitting a save that duplicate rules would otherwise refuse.
-    headers: Mapping[str, str] = {}
-    is_write: bool = False
-    idempotency_key: str | None = None
-
-    @property
-    def shape(self) -> CallShape:
-        """Describe this call to the retry policy."""
-        return CallShape(
-            is_write=self.is_write,
-            has_idempotency_key=self.idempotency_key is not None,
-        )
-
-
-class Response(BaseModel):
-    """What came back, in a form nobody can alter afterwards."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    status: int
-    body: Any = None
-    rate_limit: RateLimit | None = None
-    request_id: str
-
-
-def parse_rate_limit(header: str | None) -> RateLimit | None:
-    """Read quota from the header Salesforce attaches to every response.
-
-    Free telemetry: knowing the org's remaining quota costs nothing here, where
-    polling the limits endpoint would spend a call to learn the same thing.
-    Format is `api-usage=18/5000`.
-    """
-    if not header or "api-usage=" not in header:
-        return None
-    used, _, allowed = header.split("api-usage=", 1)[1].partition("/")
-    try:
-        return RateLimit(used=int(used.strip()), limit=int(allowed.split(",")[0].strip()))
-    except ValueError:
-        return None
-
-
-def _retry_after(headers: httpx.Headers) -> float | None:
-    raw = headers.get(_RETRY_AFTER_HEADER)
-    try:
-        return float(raw) if raw else None
-    except ValueError:
-        return None
+_CONNECT_TIMEOUT: Final = 5.0
 
 
 class SalesforceClient:
@@ -131,7 +73,7 @@ class SalesforceClient:
                 max_keepalive_connections=_MAX_KEEPALIVE,
                 max_connections=_MAX_CONNECTIONS,
             ),
-            timeout=httpx.Timeout(settings.read_timeout_seconds, connect=5.0),
+            timeout=httpx.Timeout(settings.read_timeout_seconds, connect=_CONNECT_TIMEOUT),
             follow_redirects=False,
         )
         return cls(settings, strategy, http)
@@ -195,7 +137,7 @@ class SalesforceClient:
         return self._interpret(raw, request_id)
 
     def _interpret(self, raw: httpx.Response, request_id: str) -> Response:
-        rate_limit = parse_rate_limit(raw.headers.get(_LIMIT_HEADER))
+        rate_limit = parse_rate_limit(raw.headers.get(LIMIT_HEADER))
         if rate_limit is not None:
             self.last_rate_limit = rate_limit
         body = self._body_of(raw)
@@ -206,14 +148,14 @@ class SalesforceClient:
                 rate_limit=rate_limit,
                 request_id=request_id,
             )
-        failure = to_connector_error(raw.status_code, body, _retry_after(raw.headers))
+        failure = to_connector_error(raw.status_code, body, retry_after_of(raw.headers))
         if isinstance(failure, AuthenticationError):
             self._token = None  # the next attempt authenticates again
         raise failure
 
     def _body_of(self, raw: httpx.Response) -> object:
         """Parse the body, tolerating the empty one a PATCH returns."""
-        if raw.status_code == _NO_CONTENT or not raw.content:
+        if raw.status_code == NO_CONTENT or not raw.content:
             return None
         try:
             return raw.json()
@@ -253,7 +195,7 @@ class SalesforceClient:
 
         body = self._body_of(raw)
         if not raw.is_success:
-            raise to_connector_error(raw.status_code, body, _retry_after(raw.headers))
+            raise to_connector_error(raw.status_code, body, retry_after_of(raw.headers))
         token = self._strategy.parse_token(body, datetime.now(UTC))
         self._log.info("auth.token_issued", flow=self._strategy.name, host=token.instance_url)
         return token

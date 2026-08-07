@@ -15,6 +15,7 @@ name = A layer may use what is below it, never what is above
 type = layers
 layers =
     salesforce_connector.mcp_server
+    salesforce_connector.mcp_translate
     salesforce_connector.connector
     salesforce_connector.actions
     salesforce_connector.client

@@ -16,8 +16,9 @@ from typing import Any, ClassVar, Final
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.checkpoint import Journal
-from salesforce_connector.client import RequestSpec, SalesforceClient
+from salesforce_connector.client import SalesforceClient
 from salesforce_connector.errors.model import ConnectorError, ErrorContext, InvalidInputError
+from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import create_opportunity as schema
 
 _PATH: Final = "sobjects/Opportunity"

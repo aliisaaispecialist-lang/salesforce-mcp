@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from mcp.types import CallToolResult, TextContent
 
-from salesforce_connector import mcp_server
+from salesforce_connector import mcp_server, mcp_translate
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionError, ActionKind, ActionResult
 from salesforce_connector.errors.model import RateLimitError
@@ -54,7 +54,7 @@ class TestTheAdapterKnowsNothingAboutSalesforce:
 
 class TestPublishedTools:
     def test_every_action_is_published_with_its_own_schema(self) -> None:
-        published = [mcp_server.as_tool(d) for d in descriptors()]
+        published = [mcp_translate.as_tool(d) for d in descriptors()]
 
         assert len(published) == 5
         for tool, described in zip(published, descriptors(), strict=True):
@@ -62,13 +62,13 @@ class TestPublishedTools:
             assert tool.output_schema == dict(described.output_schema)
 
     def test_arguments_are_flat_rather_than_nested_under_a_wrapper(self) -> None:
-        for tool in (mcp_server.as_tool(d) for d in descriptors()):
+        for tool in (mcp_translate.as_tool(d) for d in descriptors()):
             properties = tool.input_schema["properties"]
 
             assert "params" not in properties, f"{tool.name} nests its arguments"
 
     def test_names_are_the_provider_safe_ones(self) -> None:
-        assert {tool.name for tool in (mcp_server.as_tool(d) for d in descriptors())} == {
+        assert {tool.name for tool in (mcp_translate.as_tool(d) for d in descriptors())} == {
             "salesforce_search_contact",
             "salesforce_create_contact",
             "salesforce_update_contact",
@@ -77,7 +77,7 @@ class TestPublishedTools:
         }
 
     def test_a_read_is_marked_read_only_and_a_write_is_not(self) -> None:
-        by_name = {d.tool_name: mcp_server.as_tool(d) for d in descriptors()}
+        by_name = {d.tool_name: mcp_translate.as_tool(d) for d in descriptors()}
 
         search = by_name["salesforce_search_contact"].annotations
         create = by_name["salesforce_create_contact"].annotations
@@ -89,7 +89,7 @@ class TestPublishedTools:
         assert create.destructive_hint is True
 
     def test_the_description_a_model_reads_carries_the_failures(self) -> None:
-        tool = mcp_server.as_tool(descriptors()[0])
+        tool = mcp_translate.as_tool(descriptors()[0])
 
         assert tool.description is not None
         assert "Do not use this when:" in tool.description
@@ -98,7 +98,7 @@ class TestPublishedTools:
 
 class TestResults:
     def test_a_success_carries_both_representations(self) -> None:
-        result = mcp_server._as_result(
+        result = mcp_translate.as_result(
             ActionResult(ok=True, request_id="req-1", data={"id": "003xx"})
         )
 
@@ -107,7 +107,7 @@ class TestResults:
         assert isinstance(text_of(result), str)
 
     def test_record_content_is_marked_as_data_not_instruction(self) -> None:
-        result = mcp_server._as_result(
+        result = mcp_translate.as_result(
             ActionResult(
                 ok=True,
                 request_id="req-1",
@@ -123,7 +123,7 @@ class TestResults:
     def test_a_failure_is_a_result_with_is_error_not_a_protocol_error(self) -> None:
         failure = RateLimitError("quota spent").to_action_error()
 
-        result = mcp_server._as_result(ActionResult(ok=False, request_id="req-1", error=failure))
+        result = mcp_translate.as_result(ActionResult(ok=False, request_id="req-1", error=failure))
 
         assert result.is_error is True
         assert "quota spent" in text_of(result)
@@ -137,12 +137,12 @@ class TestResults:
             next_step="use the existing record",
         )
 
-        result = mcp_server._as_result(ActionResult(ok=False, request_id="r", error=failure))
+        result = mcp_translate.as_result(ActionResult(ok=False, request_id="r", error=failure))
 
         assert "salesforce.conflict" in text_of(result)
 
     def test_a_payload_that_is_not_json_serialisable_still_renders(self) -> None:
-        result = mcp_server._as_result(
+        result = mcp_translate.as_result(
             ActionResult(ok=True, request_id="r", data={"when": datetime.now(UTC)})
         )
 
@@ -167,4 +167,4 @@ class TestServerIdentity:
         matching = [d for d in descriptors() if d.kind is kind]
 
         assert matching
-        assert all(mcp_server.as_tool(d).annotations is not None for d in matching)
+        assert all(mcp_translate.as_tool(d).annotations is not None for d in matching)

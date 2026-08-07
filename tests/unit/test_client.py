@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import RequestSpec, SalesforceClient, parse_rate_limit
+from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import Settings
 from salesforce_connector.errors.model import (
     AuthenticationError,
@@ -21,6 +21,7 @@ from salesforce_connector.errors.model import (
     TransportError,
 )
 from salesforce_connector.errors.retry import RetryPolicy
+from salesforce_connector.exchange import RequestSpec, parse_rate_limit
 
 INSTANCE = "https://mycompany--dev.sandbox.my.salesforce.com"
 TOKEN_URL = "https://test.salesforce.com/services/oauth2/token"

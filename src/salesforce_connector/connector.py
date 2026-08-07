@@ -17,7 +17,7 @@ import yaml
 
 from salesforce_connector.actions import registry
 from salesforce_connector.approval import ApprovalGate, PendingWrite
-from salesforce_connector.client import RequestSpec, SalesforceClient
+from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import (
     ActionDescriptor,
@@ -28,6 +28,7 @@ from salesforce_connector.contract import (
     Credentials,
 )
 from salesforce_connector.errors.model import ConfigurationError, ConnectorError
+from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.observability import get_logger
 from salesforce_connector.ratelimit import CallBudget
 

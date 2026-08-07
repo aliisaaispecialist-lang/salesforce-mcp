@@ -29,6 +29,16 @@ test:  ## Run the tests that need no Salesforce org
 
 check: format lint types test  ## Everything CI runs, in the same order
 
+openapi:  ## Regenerate openapi.yaml from the action schemas
+	@SF_CLIENT_ID=placeholder SF_USERNAME=placeholder@example.com \
+	 SF_PRIVATE_KEY=placeholder PYTHONPATH=src $(PYTHON) -c \
+	 "from pathlib import Path; \
+	  from salesforce_connector.config import load_settings; \
+	  from salesforce_connector.connector import load_manifest; \
+	  from salesforce_connector.openapi import to_yaml; \
+	  Path('openapi.yaml').write_text(to_yaml(load_manifest(load_settings())), encoding='utf-8')"
+	@echo "openapi.yaml regenerated"
+
 docker:  ## Build the image
 	docker build -t $(IMAGE) .
 

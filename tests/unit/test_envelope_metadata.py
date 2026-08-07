@@ -11,7 +11,7 @@ import respx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from salesforce_connector import mcp_server
+from salesforce_connector import mcp_translate
 from salesforce_connector.actions import registry
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
 from salesforce_connector.client import SalesforceClient
@@ -169,7 +169,7 @@ class TestTheAdapterCarriesItBesideThePayload:
             rate_limit=RateLimit(used=42, limit=5000),
         )
 
-        result = mcp_server._as_result(outcome)
+        result = mcp_translate.as_result(outcome)
 
         assert result.meta is not None
         assert result.meta["salesforce-connector/pagination"]["next_cursor"] == "20"
@@ -179,14 +179,14 @@ class TestTheAdapterCarriesItBesideThePayload:
     def test_a_result_with_neither_carries_no_metadata(self) -> None:
         outcome = ActionResult(ok=True, request_id="req-1", data={"id": "003xx"})
 
-        assert mcp_server._as_result(outcome).meta is None
+        assert mcp_translate.as_result(outcome).meta is None
 
     def test_the_metadata_keys_carry_a_vendor_prefix(self) -> None:
         outcome = ActionResult(
             ok=True, request_id="r", data={}, rate_limit=RateLimit(used=1, limit=2)
         )
 
-        keys = (mcp_server._as_result(outcome).meta or {}).keys()
+        keys = (mcp_translate.as_result(outcome).meta or {}).keys()
 
         # Anything whose second label is mcp or modelcontextprotocol is reserved.
         assert all("/" in key for key in keys)
@@ -198,7 +198,7 @@ class TestTheAdapterCarriesItBesideThePayload:
             ok=False, request_id="r", error=failure, rate_limit=RateLimit(used=5000, limit=5000)
         )
 
-        result = mcp_server._as_result(outcome)
+        result = mcp_translate.as_result(outcome)
 
         assert result.is_error is True
         assert result.meta is not None
