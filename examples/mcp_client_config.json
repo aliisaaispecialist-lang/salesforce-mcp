@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "salesforce-docker": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--env-file",
+        "/absolute/path/to/salesforce-connector/.env",
+        "salesforce-connector"
+      ]
+    },
+    "salesforce-python": {
+      "command": "python",
+      "args": ["/absolute/path/to/salesforce-connector/mcp/server.py"],
+      "env": {
+        "PYTHONPATH": "/absolute/path/to/salesforce-connector/src",
+        "SF_CLIENT_ID": "<consumer key of the Connected App>",
+        "SF_USERNAME": "integration.user@example.com.sandbox",
+        "SF_PRIVATE_KEY": "<PEM private key, \\n between lines>",
+        "SF_LOGIN_URL": "https://test.salesforce.com",
+        "SF_ALLOW_PRODUCTION": "false",
+        "SF_API_VERSION": "v67.0"
+      }
+    }
+  }
+}
