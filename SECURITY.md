@@ -36,7 +36,7 @@ merge on this machine before code review.
 | 2 | A record-id argument is used to reach an object it was never meant to (e.g. a path-traversal-shaped id pointed at a `User` record) | `add_activity_note` accepts only ids whose first three characters are the Contact prefix (`003`) or the Opportunity prefix (`006`); anything else is refused before a request is built | `actions/add_activity_note.py::_attachment` | Yes — `TestQueryInjection::test_a_record_id_that_is_not_one_is_refused_before_a_request` |
 | 3 | The model reads record text (a Contact's notes, an Opportunity's description) as an instruction rather than as data | Every tool result is wrapped in `<salesforce_record_data-NONCE>` … `</salesforce_record_data-NONCE>` before it reaches the model | `mcp_translate.py::wrapped` | Yes — `TestPromptInjectionThroughRecords::test_instructions_inside_a_record_arrive_fenced_as_data` |
 | 4 | A record forges the fence's own closing tag to escape it and have text after it read as though it came from the connector | The nonce is generated fresh per response with `secrets.token_hex`; a record's author cannot know the value needed to close the fence early, because the fence markers are prefixes, not complete strings, until the nonce is appended | `mcp_translate.py` (`UNTRUSTED_OPEN`/`UNTRUSTED_CLOSE`, `wrapped`) | Yes — `test_a_record_cannot_close_the_fence_and_speak_outside_it`, `test_two_responses_do_not_share_a_fence`. **This was a real vulnerability, not a hypothetical one**: the fence originally used a fixed marker with no nonce, and writing this exact test against that implementation is what found it. Fixed before release, in commit `2dcc0d4` — see `CHANGELOG.md` |
-| 5 | A credential (access token, assertion, private key, client secret) reaches a log line | `censor_secrets`, a structlog processor, masks by key name at any depth of a dict, and by regex over string values (bearer tokens, PEM private-key blocks), before a line is rendered | `observability.py` | Yes, with a known gap — see "What this deliberately does not defend against" below. `tests/security/test_injection_and_leaks.py::TestNothingLeaks`, plus `tests/unit/test_observability.py` |
+| 5 | A credential (access token, assertion, private key, client secret) reaches a log line | `censor_secrets`, a structlog processor, masks by key name at any depth of a dict, and by regex over string values (bearer tokens, PEM private-key blocks), before a line is rendered | `observability.py` | Yes — `tests/security/test_injection_and_leaks.py::TestNothingLeaks` and `tests/security/test_censoring_depth.py`, which covers secrets nested inside lists and session ids containing `!` |
 | 6 | A credential reaches a printed, `repr`'d, or logged `Settings` object, or a traceback | Secrets are typed `SecretStr`; printing or logging `Settings` shows a mask, not the value | `config.py` | Yes — `tests/unit/test_config.py::TestSecretsAreNotPrintable`, `test_injection_and_leaks.py::test_settings_cannot_be_printed_into_a_log` |
 | 7 | A Salesforce error response leaks a stack trace or an oversized body back into the model's context | `to_connector_error` caps the reported reason to 300 characters and only ever forwards the message and code Salesforce reported, never a raw response body or a Python traceback | `errors/mapping.py` | Yes — `test_a_salesforce_failure_never_carries_a_stack_trace_to_the_model`, `test_a_provider_message_is_capped_so_a_body_cannot_be_dumped` |
 | 8 | The connector is pointed at a production org by accident (typo, careless config) instead of the sandbox it is built and tested against | `Settings` refuses to construct if `login_url` is the production host unless `SF_ALLOW_PRODUCTION=true` is set explicitly | `config.py::_production_needs_saying_so` | Yes — `tests/unit/test_config.py::TestProductionGuard`, 4 tests including a trailing-slash bypass attempt |
@@ -75,24 +75,24 @@ merge on this machine before code review.
   that round trip, is not implemented; `approved` exists as the fallback
   path the specification describes for clients without that capability, but
   it is currently the *only* path.
-- **Two nesting gaps in the log censor**, found while writing this document
-  and left unfixed per the instructions for this task (only `SECURITY.md`,
-  `LICENSE`, and `CHANGELOG.md` were to be written):
-  - `_censor_value` in `observability.py` recurses into `dict` values but
-    not into `list`/`tuple` values. A secret nested inside a list of dicts —
-    for example `{"records": [{"access_token": "..."}]}` — passes through
-    unmasked. Every existing test nests secrets inside dicts only.
-  - The bearer-token pattern (`(?i)(bearer\s+)[\w.\-]+`) stops matching at
-    the first character outside `[\w.\-]`. A Salesforce session id contains
-    `!` (for example `00D5g000004abc!AQEAQPgtNhpFCVwt`), so the mask covers
-    only the prefix up to and including the `!`, and the suffix after it is
-    still written to the log. The existing test
-    (`test_a_provider_error_echoing_a_token_is_masked_before_it_is_logged`)
-    passes because it checks that the *complete original token string* is
-    not a contiguous substring of the output, which remains true even
-    though part of the token is visible.
-  See `CHANGELOG.md` for both, listed as known limitations rather than
-  silently left out.
+Two censoring gaps were found while this document was being written, and both
+are now **fixed** in commit `602a392`, with `tests/security/test_censoring_depth.py`
+as regression coverage. They are recorded here rather than deleted, because how
+they survived is more instructive than the fix:
+
+- `_censor_value` recursed into `dict` values but not into `list` or `tuple`
+  values. A Salesforce reply is very often a *list* of records, so a secret at
+  `{"records": [{"access_token": "…"}]}` is exactly where one lands, and it was
+  written out unmasked. It now follows lists as well.
+- The bearer pattern matched `[\w.\-]+`, and a Salesforce session id contains
+  `!` — `00D5g000004abc!AQEAQPgtNhpFCVwt`. The mask stopped at the mark and the
+  remainder was printed. It now runs to the next whitespace or delimiter.
+
+The existing test passed throughout, and passed honestly by its own terms: it
+asked whether the *complete* token appeared as one contiguous substring, which
+stays true when half of it leaks. An assertion can be correct and still measure
+the wrong thing. The new tests assert on the tail specifically, and on secrets
+one and two containers deep.
 - **A capped provider error is not fenced.** `refuse()` in `mcp_translate.py`
   returns error text directly, without the untrusted-content fence that
   wraps successful results. Salesforce error messages can echo submitted

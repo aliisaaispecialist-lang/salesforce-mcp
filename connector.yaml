@@ -64,8 +64,10 @@ limitations:
   - stdio transport only. There is no deployed HTTPS endpoint.
   - Idempotency memory is process-scoped, not durable.
 
+# The variables that must be set. SF_LOGIN_URL is deliberately absent: it has a
+# default, the sandbox host, and listing it here would claim the connector
+# refuses to start without it, which it does not.
 required_env:
   - SF_CLIENT_ID
   - SF_USERNAME
   - SF_PRIVATE_KEY
-  - SF_LOGIN_URL

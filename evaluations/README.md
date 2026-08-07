@@ -50,6 +50,13 @@ answer. Of the five tools, only `salesforce_search_contact` is read-only and
 approval-free. The four writes are all `requires_approval: true` in their
 `ActionSpec`.
 
+**Now fixed.** What follows is the finding as it stood while these questions
+were written, kept because it is why no question exercises a write, and because
+how it survived is worth recording. `approved` is now declared on all four
+write schemas, and `tests/unit/test_approval_path.py` walks the client's real
+path — raw tool arguments through to model validation — for every write in both
+states. Fixed in commit `2dcc0d4`.
+
 While reading `mcp_server.py` for this task, the approval path looked broken:
 `_as_request` puts the full raw MCP `arguments` mapping (including `approved`
 and `idempotency_key`) into `ActionRequest.params`, and `Action._validated`
@@ -69,8 +76,8 @@ approved
   Extra inputs are not permitted [type=extra_forbidden, input_value=True, input_type=bool]
 ```
 
-I did not change `src/`; this is flagged here and in the task report so it
-can be fixed and re-verified, and it's the reason this evaluation makes no attempt to exercise
+That was reported rather than fixed here, and has since been fixed in `src/`.
+It remains the reason this evaluation makes no attempt to exercise
 any of the four write tools, even in a way meant to fail safely (e.g.
 deliberately sending an unknown `stage_name` to read back the org's picklist
 from the error, which the code otherwise supports safely — see
