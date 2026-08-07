@@ -40,6 +40,15 @@ class Settings(BaseSettings):
         env_prefix=_ENV_PREFIX,
         frozen=True,
         extra="ignore",  # the environment always holds variables that are not ours
+        # `.env.example` tells a reader to copy it to `.env` and fill it in.
+        # Without this line that instruction was false: the file was written,
+        # ignored, and the connector refused to start over a value sitting
+        # right there. Resolved against the working directory, so it helps the
+        # person running from the repository and is silently absent otherwise
+        # -- which is correct, because a client-launched server is given its
+        # environment by the client and should not be reading stray files.
+        env_file=".env",
+        env_file_encoding="utf-8",
     )
 
     client_id: SecretStr

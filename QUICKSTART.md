@@ -143,6 +143,11 @@ put `\n` between the lines — the connector repairs that on the way in.
 Pointing it at production additionally requires `SF_ALLOW_PRODUCTION=true`, so
 a typo cannot send writes somewhere real.
 
+The connector reads `.env` from whatever directory it is started in, so the
+next step works with nothing exported. An environment variable of the same
+name wins over the file — that is what lets an MCP client hand the server its
+credentials without a `.env` in some unrelated folder overriding them.
+
 ---
 
 ## 5. Check it works before wiring any client
@@ -188,7 +193,20 @@ folder. It contains both variants; keep the one you want.
 - macOS: `~/Library/Application Support/Claude/`
 - Windows: `%APPDATA%\Claude\`
 
-**Claude Code** — `claude mcp add`, or the same JSON in your MCP settings.
+**Claude Code** — one command, run from the project folder:
+
+```bash
+claude mcp add salesforce \
+  -e SF_CLIENT_ID=<your consumer key> \
+  -e SF_USERNAME=<your integration user> \
+  -e SF_PRIVATE_KEY="<PEM, \n between lines>" \
+  -e PYTHONPATH=src \
+  -- python mcp/server.py
+```
+
+Check it with `claude mcp list`. The `-e` flags matter: Claude Code launches
+the server with its own environment, not yours, so the credentials have to be
+handed over here rather than left in `.env`.
 
 Anything else that speaks MCP over stdio works the same way: it launches
 `mcp/server.py` as a subprocess and talks JSON-RPC to it. Restart the client
