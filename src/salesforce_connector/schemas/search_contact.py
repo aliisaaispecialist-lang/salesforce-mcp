@@ -82,9 +82,6 @@ class ContactSummary(BaseModel):
     account_id: Annotated[
         str | None, Field(default=None, description="Owning account id, if the contact has one.")
     ] = None
-    account_name: Annotated[
-        str | None, Field(default=None, description="Owning account name, if any.")
-    ] = None
     title: Annotated[str | None, Field(default=None, description="Job title, if set.")] = None
 
 

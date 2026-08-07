@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from salesforce_connector.contract import ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
+    APPROVED_DESCRIPTION,
     IDEMPOTENCY_KEY_DESCRIPTION,
     ActionSpec,
     ErrorGuidance,
@@ -44,6 +45,7 @@ class UpdateContactInput(BaseModel):
         ),
     ]
     idempotency_key: Annotated[str, Field(min_length=8, description=IDEMPOTENCY_KEY_DESCRIPTION)]
+    approved: Annotated[bool, Field(default=False, description=APPROVED_DESCRIPTION)] = False
     first_name: Annotated[
         str | None, Field(default=None, max_length=40, description="Optional. New given name.")
     ] = None

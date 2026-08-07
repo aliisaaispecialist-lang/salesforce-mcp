@@ -10,6 +10,7 @@ stopped being reusable.
 """
 
 import json
+import secrets
 from collections.abc import Mapping
 from typing import Any, Final
 
@@ -19,8 +20,11 @@ from salesforce_connector.contract import ActionDescriptor, ActionKind, ActionRe
 
 # Salesforce records hold text other people wrote. It is data, and marking it
 # plainly is what stops a description field from reading as an instruction.
-UNTRUSTED_OPEN: Final = "<salesforce_record_data>"
-UNTRUSTED_CLOSE: Final = "</salesforce_record_data>"
+# Each response closes its own fence with a nonce, so the markers are prefixes
+# rather than complete tags.
+UNTRUSTED_OPEN: Final = "<salesforce_record_data"
+UNTRUSTED_CLOSE: Final = "</salesforce_record_data"
+_NONCE_BYTES: Final = 6
 
 # Metadata keys carry a vendor prefix. Anything whose second label is
 # `modelcontextprotocol` or `mcp` is reserved by the specification.
@@ -101,8 +105,18 @@ def meta_of(outcome: ActionResult) -> dict[str, Any] | None:
 
 
 def wrapped(payload: Mapping[str, Any]) -> str:
-    """Mark record content as data before a model ever reads it."""
-    return f"{UNTRUSTED_OPEN}\n{json.dumps(payload, indent=2, default=str)}\n{UNTRUSTED_CLOSE}"
+    """Mark record content as data before a model ever reads it.
+
+    The fence carries a nonce, and that is not decoration. A fixed marker can
+    be written into a Salesforce field: a contact whose description contains
+    the closing tag would end the fence early and have everything after it read
+    as though it came from us rather than from the record. The nonce is
+    generated per response and cannot be guessed by whoever wrote the record,
+    so the fence cannot be closed from the inside.
+    """
+    nonce = secrets.token_hex(_NONCE_BYTES)
+    body = json.dumps(payload, indent=2, default=str)
+    return f"{UNTRUSTED_OPEN}-{nonce}>\n{body}\n{UNTRUSTED_CLOSE}-{nonce}>"
 
 
 def refuse(

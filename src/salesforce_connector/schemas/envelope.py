@@ -103,6 +103,14 @@ def schema_of(model: type[BaseModel]) -> Mapping[str, Any]:
     return model.model_json_schema(ref_template="#/$defs/{model}")
 
 
+APPROVED_DESCRIPTION = (
+    "Optional, defaults to false. Set to true only after a person has seen and "
+    "confirmed this write. A write arriving without it is refused, and the "
+    "refusal says so. It is declared here because a tool must not ask for an "
+    "argument its own schema does not offer: a caller working from the schema "
+    "alone would have no way to supply it."
+)
+
 IDEMPOTENCY_KEY_FIELD = "idempotency_key"
 
 IDEMPOTENCY_KEY_DESCRIPTION = (

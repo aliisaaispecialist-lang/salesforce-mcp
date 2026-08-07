@@ -116,8 +116,8 @@ class TestResults:
         )
 
         text = text_of(result)
-        assert text.startswith("<salesforce_record_data>")
-        assert text.rstrip().endswith("</salesforce_record_data>")
+        assert text.startswith("<salesforce_record_data-")
+        assert "</salesforce_record_data-" in text
         assert "Ignore previous instructions" in text  # present, but plainly fenced
 
     def test_a_failure_is_a_result_with_is_error_not_a_protocol_error(self) -> None:
@@ -146,12 +146,7 @@ class TestResults:
             ActionResult(ok=True, request_id="r", data={"when": datetime.now(UTC)})
         )
 
-        assert json.loads(
-            text_of(result)
-            .removeprefix("<salesforce_record_data>")
-            .removesuffix("</salesforce_record_data>")
-            .strip()
-        )
+        assert json.loads(text_of(result).split(">", 1)[1].rsplit("<", 1)[0])
 
 
 class TestServerIdentity:

@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from salesforce_connector.contract import ActionKind, RiskLevel
 from salesforce_connector.schemas.envelope import (
+    APPROVED_DESCRIPTION,
     IDEMPOTENCY_KEY_DESCRIPTION,
     ActionSpec,
     ErrorGuidance,
@@ -65,6 +66,7 @@ class CreateOpportunityInput(BaseModel):
         ),
     ]
     idempotency_key: Annotated[str, Field(min_length=8, description=IDEMPOTENCY_KEY_DESCRIPTION)]
+    approved: Annotated[bool, Field(default=False, description=APPROVED_DESCRIPTION)] = False
     account_id: Annotated[
         str | None,
         Field(

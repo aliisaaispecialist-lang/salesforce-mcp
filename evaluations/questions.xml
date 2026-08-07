@@ -1,0 +1,42 @@
+<evaluation>
+   <qa_pair>
+      <question>A colleague asks you to add two new Salesforce contacts: one for "Tomas Varga" and one for "Amara Chen". Before creating either, check Salesforce for a person who might already be there under each name. Exactly one of the two already exists. What is that person's stored email address?</question>
+      <answer>tomas.varga@example.com</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Someone asks you to set up new Salesforce contact records for "Grace Okafor" and "Youssef Haddad". Check first whether either already exists rather than creating them outright. Exactly one of the two is already in Salesforce. What is that person's stored phone number, exactly as Salesforce holds it?</question>
+      <answer>+973 1700 2003</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Search Salesforce contacts for the single word "Alex", using a page size of 2. Keep requesting the next page with the cursor you get back until a response comes back without one. How many contacts in total match "Alex"?</question>
+      <answer>3</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Search Salesforce for "Priya Narayanan" and, separately, for "Hassan Al-Fardan". One of the two holds the job title "IT Director" on file. Give that person's full name exactly as Salesforce stores it.</question>
+      <answer>Hassan Al-Fardan</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Search Salesforce for "Grace Okafor" and, separately, for "Tomas Varga". One of the two holds the job title "Procurement Lead" on file. Give that person's full name exactly as Salesforce stores it.</question>
+      <answer>Tomas Varga</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>A request comes in to create Salesforce contacts for "Alex Petrossian" and "Noor Sabbagh". Check Salesforce first: exactly one of the two already exists. What is that person's stored job title?</question>
+      <answer>Regional Sales Manager</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>You call salesforce_create_contact to add a new person and set idempotency_key to "contact-create-central-eu-0091". The request times out and you get no response, so you don't know whether the contact was created. Per the tool's own field description, what exact idempotency_key value should your retry call use?</question>
+      <answer>contact-create-central-eu-0091</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>True or false: in salesforce_create_opportunity's published input schema, the stage_name field is restricted to a fixed enum of allowed Salesforce stage names. Answer True or False.</question>
+      <answer>False</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Of this connector's five tools, exactly one has no idempotency_key field anywhere in its input schema. Give that tool's exact name.</question>
+      <answer>salesforce_search_contact</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>According to salesforce_add_activity_note's own description of its related_to_id field, what three characters must a Salesforce Opportunity record id begin with for a note to attach to it correctly?</question>
+      <answer>006</answer>
+   </qa_pair>
+</evaluation>

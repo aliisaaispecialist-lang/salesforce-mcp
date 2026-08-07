@@ -103,6 +103,12 @@ enable_error_code = [
 asyncio_mode = "strict"
 testpaths = ["tests"]
 pythonpath = ["src"]  # the package is imported from source, not installed
+markers = [
+    "security: an attack this connector should be immune to",
+    "learning: pins real Salesforce behaviour (needs an org)",
+    "integration: end to end against a live sandbox (needs an org)",
+]
+addopts = "-m 'not learning and not integration'"
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

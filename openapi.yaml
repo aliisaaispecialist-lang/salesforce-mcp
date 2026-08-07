@@ -97,6 +97,15 @@ paths:
                   minLength: 8
                   title: Idempotency Key
                   type: string
+                approved:
+                  default: false
+                  description: 'Optional, defaults to false. Set to true only after a person
+                    has seen and confirmed this write. A write arriving without it is refused,
+                    and the refusal says so. It is declared here because a tool must not ask
+                    for an argument its own schema does not offer: a caller working from the
+                    schema alone would have no way to supply it.'
+                  title: Approved
+                  type: boolean
                 body:
                   anyOf:
                   - maxLength: 32000
@@ -286,6 +295,15 @@ paths:
                   minLength: 8
                   title: Idempotency Key
                   type: string
+                approved:
+                  default: false
+                  description: 'Optional, defaults to false. Set to true only after a person
+                    has seen and confirmed this write. A write arriving without it is refused,
+                    and the refusal says so. It is declared here because a tool must not ask
+                    for an argument its own schema does not offer: a caller working from the
+                    schema alone would have no way to supply it.'
+                  title: Approved
+                  type: boolean
                 first_name:
                   anyOf:
                   - maxLength: 40
@@ -474,6 +492,15 @@ paths:
                   minLength: 8
                   title: Idempotency Key
                   type: string
+                approved:
+                  default: false
+                  description: 'Optional, defaults to false. Set to true only after a person
+                    has seen and confirmed this write. A write arriving without it is refused,
+                    and the refusal says so. It is declared here because a tool must not ask
+                    for an argument its own schema does not offer: a caller working from the
+                    schema alone would have no way to supply it.'
+                  title: Approved
+                  type: boolean
                 account_id:
                   anyOf:
                   - type: string
@@ -708,13 +735,6 @@ paths:
                             default: null
                             description: Owning account id, if the contact has one.
                             title: Account Id
-                          account_name:
-                            anyOf:
-                            - type: string
-                            - type: 'null'
-                            default: null
-                            description: Owning account name, if any.
-                            title: Account Name
                           title:
                             anyOf:
                             - type: string
@@ -836,6 +856,15 @@ paths:
                   minLength: 8
                   title: Idempotency Key
                   type: string
+                approved:
+                  default: false
+                  description: 'Optional, defaults to false. Set to true only after a person
+                    has seen and confirmed this write. A write arriving without it is refused,
+                    and the refusal says so. It is declared here because a tool must not ask
+                    for an argument its own schema does not offer: a caller working from the
+                    schema alone would have no way to supply it.'
+                  title: Approved
+                  type: boolean
                 first_name:
                   anyOf:
                   - maxLength: 40
