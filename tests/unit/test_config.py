@@ -149,8 +149,8 @@ class TestOptionalValues:
     def test_timeouts_fall_back_when_unset(self, configured: pytest.MonkeyPatch) -> None:
         settings = load_settings()
 
-        assert settings.read_timeout_seconds == 5.0
-        assert settings.write_timeout_seconds == 15.0
+        assert settings.read_timeout_seconds == 10.0
+        assert settings.write_timeout_seconds == 22.0
 
     def test_a_timeout_that_is_not_a_number_is_rejected_by_name(
         self, configured: pytest.MonkeyPatch

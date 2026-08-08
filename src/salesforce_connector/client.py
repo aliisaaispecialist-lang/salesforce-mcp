@@ -144,7 +144,7 @@ class SalesforceClient:
                 timeout=self._timeout(spec),
             )
         except httpx.HTTPError as exc:
-            raise TransportError(f"the request to Salesforce did not complete: {exc}") from exc
+            raise TransportError(_transport_reason(spec, exc, self._timeout(spec))) from exc
 
         return self._interpret(raw, request_id)
 
@@ -256,4 +256,29 @@ def _escalated(failure: ConnectorError, attempted: int, allowed: int) -> Connect
             ),
             invalid_fields=original.invalid_fields,
         ),
+    )
+
+
+def _transport_reason(spec: RequestSpec, failure: Exception, waited: float) -> str:
+    """Say what a failed call means, and a timeout differently from the rest.
+
+    Every other transport failure is unambiguous: the request did not arrive.
+    A timeout is the one case where nobody knows. Salesforce may have applied
+    the write and been slow to answer, or never received it at all, and the
+    difference matters enormously to whoever reads this next.
+
+    So the message says which of those two situations it is in, rather than
+    reporting the exception and leaving the reader to work it out.
+    """
+    if not isinstance(failure, httpx.TimeoutException):
+        return f"the request to Salesforce did not complete: {failure}"
+    if spec.is_write:
+        return (
+            f"Salesforce did not answer within {waited:.0f} seconds. This was a write, "
+            f"so it may already have been applied and the answer lost, or it may never "
+            f"have arrived. Nobody knows which from here."
+        )
+    return (
+        f"Salesforce did not answer within {waited:.0f} seconds. This was a read, "
+        f"so nothing was changed and asking again is safe."
     )

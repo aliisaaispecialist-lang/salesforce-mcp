@@ -57,8 +57,12 @@ class Settings(BaseSettings):
     client_secret: SecretStr | None = None  # only the client credentials flow needs one
     login_url: str = SANDBOX_LOGIN_URL
     api_version: str = "v67.0"
-    read_timeout_seconds: float = Field(default=5.0, gt=0)
-    write_timeout_seconds: float = Field(default=15.0, gt=0)
+    # A read waits 10 seconds and a write 22. Reads are cheap to abandon: no
+    # state changed, and a caller can simply ask again. A write is abandoned
+    # reluctantly, because the request may already have been applied and
+    # giving up early makes that ambiguity more likely rather than less.
+    read_timeout_seconds: float = Field(default=10.0, gt=0)
+    write_timeout_seconds: float = Field(default=22.0, gt=0)
     allow_production: bool = False
 
     @field_validator("private_key", mode="before")
