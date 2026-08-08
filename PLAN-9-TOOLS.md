@@ -308,6 +308,69 @@ Every tool that leaves work unfinished says so **in its result**, names the tool
 that finishes it, and names the argument to carry across. Chaining lives in
 what tools say, never in hidden parameters.
 
+
+## The rule: multi-step work is multiple tools, chained by results
+
+Generalised from the `create_opportunity` split, and it applies to every tool
+in this connector and every endpoint added later.
+
+**When an operation touches more than one record, it is more than one tool.**
+Not one tool with an optional parameter, not one tool with a `mode`, and not
+one tool that quietly makes two calls. One tool, one record, one approval
+prompt describing one change.
+
+**The tools are joined by what they return, not by hidden control flow.** A
+tool that leaves work unfinished says so in its result: what is still
+incomplete, which tool finishes it, and which value to carry across.
+
+```json
+"next_action": "<what is unfinished>. Call <tool> with <field>=<value>."
+```
+
+Three things it must always contain, because a model missing any one of them
+guesses at that part:
+
+| | |
+|---|---|
+| **what is unfinished** | so it is not read as a plain success |
+| **which tool** | by name, not "another tool" |
+| **which value** | the id to carry, spelled out |
+
+**It appears only when work is genuinely unfinished.** A field present on every
+response becomes noise a model stops reading, and then it is absent exactly
+when it matters.
+
+### How to tell whether to split
+
+| Ask | Split? |
+|---|---|
+| Does it write to more than one record type? | **yes** |
+| Can one half succeed while the other fails? | **yes** |
+| Is a parameter optional *and* does supplying it cause an extra write? | **yes** |
+| Is the second call a read that reports the first call's result? | no, keep together |
+| Is the whole point that they apply atomically? | no, that is Pattern 4 |
+
+### Applied across what exists and what is planned
+
+| Tool | Verdict |
+|---|---|
+| `create_opportunity` | **split into three.** Two record types, either can fail alone |
+| `update_contact` | keep. The re-read reports the write, Salesforce answers PATCH with an empty 204 |
+| `search_contact`, `create_contact`, `add_activity_note` | keep. One record each |
+| `save_together` | keep. Atomicity is the request, not a side effect |
+| `soql_query` | keep. Clauses of one question |
+
+### Why this beats doing it inside the tool
+
+The orchestration becomes visible. A failed second step is a failed tool call
+in the trace that the model can see and retry, rather than a `false` buried
+inside a result the caller reads as success. Chapter 6's phrasing: doing it in
+the open is what makes an agent's behaviour auditable and correctable.
+
+It also fixes approval. One prompt per tool means one prompt per change. Today
+approving `create_opportunity` approves two writes, and the person confirming
+only sees one described.
+
 ## Naming
 
 Name the action and what it works from, not the noun alone. A model picks
