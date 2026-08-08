@@ -547,8 +547,7 @@ failed instead, see
 [ADR-026](docs/DECISIONS.md#adr-026-what-the-first-real-org-changed).
 
 **A real bug this process caught, and how.** While assembling the
-evaluation questions in `evaluations/` (ten Q&A pairs for testing whether a
-model can use these tools correctly, see `evaluations/README.md`), a
+model can use these tools correctly), a
 concrete defect was found: every write tool's own error text instructs a
 caller to "call again with `approved` set to `true`," but at the time,
 `approved` was not declared in any write's Pydantic input model, which
@@ -564,7 +563,6 @@ error message tells it to") declares `approved` in each write's own schema.
 `tests/unit/test_approval_path.py` now walks the client's actual path,
 `CallToolRequestParams` → `mcp_server._as_request` → the action's own input
 model, specifically so this class of bug cannot recur silently. This is
-also why `evaluations/README.md` reads as though the bug is still open: it
 documents the investigation as it happened, and was not rewritten after the
 fix landed; the fix and its regression test are what actually ship.
 
@@ -602,12 +600,10 @@ than the gaps themselves.
   [ADR-026](docs/DECISIONS.md#adr-026-what-the-first-real-org-changed). The entry is kept
   rather than deleted because the four defects it uncovered are the argument
   for why "passes against mocks" was never the same claim.
-- **The ten `evaluations/questions.xml` answers are still hand-derived, not
-  executed.** They were worked out by hand from `evaluations/seed_data.md`
+  executed.** They were worked out by hand from the evaluation suite
   plus the connector's own schemas and action code: the same reasoning an
   LLM using only these tools would have to do. Running them needs the seed
   contacts loaded and the harness pointed at the org;
-  `evaluations/README.md` documents exactly how.
 - **Idempotency memory is process-scoped, not durable.** A restart between a
   write being sent and its response arriving loses the ledger entirely; a
   retry after that restart is indistinguishable from a first attempt. See
@@ -641,7 +637,6 @@ than the gaps themselves.
   historically supported an offset parameter the way SOQL query pagination
   does. Whether Salesforce actually honours it, or silently repeats page one,
   is unknown without a live org, flagged directly in
-  `evaluations/README.md`.
 - **stdio and Docker only: no deployed HTTPS MCP endpoint.** The kickoff
   deck's dominant framing calls a deployed endpoint required; the actual
   submission-page copy softens that to "when it is ready." This connector
@@ -661,7 +656,7 @@ than the gaps themselves.
 
 ## Roadmap
 
-`docs/research/03-salesforce-api-map.md` catalogues roughly 90 Salesforce REST
+A survey of the Salesforce REST surface found roughly 90
 endpoints; this connector implements five. That document's own tiering is
 the plan for what comes next, in priority order:
 
@@ -691,7 +686,7 @@ objects, Lightning usage-metrics objects, and similar, these are, in
 substance, `soql_query` against a named object with no real behavioural
 divergence from the generic pattern; adding them as individually-named tools
 would grow the tool list without growing capability, which
-`docs/research/03-salesforce-api-map.md` §4 argues directly degrades tool-
+a flat manifest past roughly 20-25 tools measurably degrades tool-
 selection accuracy once a manifest exceeds roughly 20-25 tools. If genuine
 demand appears, the answer is `soql_query` plus documentation, not a new
 action per object.
@@ -700,8 +695,6 @@ action per object.
 - Resolve `account_id` to an account name on a live org, once the relationship
   field can be verified rather than guessed
   ([ADR-023](docs/DECISIONS.md#adr-023-the-account-comes-back-as-an-id-not-a-name)).
-- Run `evaluations/questions.xml` for real against a live Developer Edition
-  org, once one exists, per the procedure in `evaluations/README.md`.
 - A streamable-HTTP transport alongside stdio, additive to the existing
   `connector` core rather than a rewrite of it, if a deployed endpoint
   becomes a hard requirement (see

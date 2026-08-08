@@ -1,114 +1,278 @@
-# Download it, set it up, use it
+# Set it up
 
-Written for someone who has never seen this repository.
+Copy each block into your terminal, in order. Nothing here needs editing except
+where it says so.
 
-There are two ways to run it, Python directly, or Docker. Both speak the same
-protocol over the same transport. Docker is here for reproducibility: it is
-still a local subprocess reading stdin and writing stdout, not a server you
-deploy and point clients at.
+Windows blocks are PowerShell. macOS and Linux blocks are bash. Pick your side
+and ignore the other.
+
+## What you need first
+
+| | Version | Check with | If missing |
+|---|---|---|---|
+| **Python** | 3.12 or newer | `python --version` | [python.org/downloads](https://www.python.org/downloads/) |
+| **Docker** | any recent | `docker --version` | Only if you choose the Docker route |
+| **Salesforce org** | Developer Edition or sandbox | you can log in | [developer.salesforce.com/signup](https://developer.salesforce.com/signup), free |
+| **OpenSSL** | 1.1 or newer | `openssl version` | Ships with Git Bash on Windows |
+| **Node.js** | 18 or newer | `node --version` | Only for `sf`, the Salesforce CLI |
+
+You do not need all of these. Python alone is enough to run and review
+everything. Docker is an alternative to Python, not an addition. Node is only
+if you want to script the Salesforce side instead of clicking through it.
 
 ---
 
-## The whole thing, before the detail
+## 1. Unpack it
 
-Seven steps, one of them in four parts. Only one is slow, and it is not any of
-the code.
+**If you downloaded the ZIP**, PowerShell:
 
-| # | What you do | What you end up holding | How long |
-|---|---|---|---|
-| **1** | Unzip or clone the repository | The project folder | 1 min |
-| **2** | `pip install .` (or `docker build`) | A working install | 3 min |
-| **3a** | Generate a certificate and private key with `openssl` | `salesforce.key` (yours) + `salesforce.crt` (Salesforce's) | 2 min |
-| **3b** | Create an **External Client App** in your org, uploading `salesforce.crt` | An app that trusts your key | 10 min |
-| **3c** | Pre-authorise your user for that app | Permission to log in without a browser | 5 min |
-| **3d** | Copy the **Consumer Key** from the app | `SF_CLIENT_ID` | 1 min |
-| **4** | Put three values in `.env` | A configured connector | 3 min |
-| **5** | Run the connection check | Proof it works, before any client | 1 min |
-| **6** | `python scripts/install_client.py <your app>` | Five Salesforce tools in your app | 2 min |
-| **7** | Ask it something in plain language | A working assistant |, |
+```powershell
+cd $HOME\Downloads
+Expand-Archive -Path .\salesforce-mcp-v1.0.0.zip -DestinationPath $HOME\salesforce-mcp -Force
+cd $HOME\salesforce-mcp\salesforce-mcp
+dir
+```
 
-### The three values everything comes down to
-
-There is no single "API key" in Salesforce. You collect three things, and only
-one of them is a secret:
-
-| Value | Secret? | Comes from | Goes to |
-|---|---|---|---|
-| **Consumer Key** (`SF_CLIENT_ID`) | No: it only identifies the app | Step 3d | `.env` |
-| **Username** (`SF_USERNAME`) | No | Your org's user record | `.env` |
-| **Private key** (`SF_PRIVATE_KEY`) | **Yes** | Step 3a, `openssl`, on your machine | `.env`, and nowhere else |
-
-The private key never leaves your machine and never travels to Salesforce.
-Salesforce holds only the *certificate*, its public half, and uses it to
-check a signature the connector makes. That is what "no password, no secret in
-transit" means here, and it is why step 3a comes before everything else.
-
-> **Nothing in this repository contains a credential, and nothing you download
-> from anyone else should.** `.env`, `*.key`, `*.pem`, `*.crt` and `secrets/`
-> are all gitignored and excluded from the Docker image, and `gitleaks` runs
-> over the full history in CI. You bring your own org and your own key.
-
-### What if you only want to review it?
-
-Steps 1 and 2 are enough. `pytest` runs 443 tests with **no credentials, no
-org, and no network**: they are mocked end to end. You can read
-`openapi.yaml`, inspect the five tool schemas, and build the Docker image
-without ever touching Salesforce. Credentials are needed only from step 5
-onward, the moment you want to touch a real org.
-
-**Time:** about ten minutes for steps 1 to 2, twenty to forty for step 3 the
-first time you ever configure an External Client App. Step 3 is the only part
-that genuinely takes time, and none of it is this connector's fault.
-
----
-
-## 1. Get the code
-
-**From the ZIP:** unzip it anywhere. The folder you get is the project root,
-the one containing `connector.yaml` and `pyproject.toml`.
-
-**From a clone:**
+bash:
 
 ```bash
-git clone <repository-url> salesforce-mcp
+cd ~/Downloads
+unzip salesforce-mcp-v1.0.0.zip -d ~/
+cd ~/salesforce-mcp
+ls
+```
+
+**If you are cloning instead:**
+
+```bash
+git clone https://github.com/aliisaaispecialist-lang/salesforce-mcp.git
 cd salesforce-mcp
 ```
 
-Everything below runs from that folder.
+You are in the right folder when `dir` or `ls` shows `connector.yaml` and
+`pyproject.toml`.
 
 ---
 
-## 2. Install
+## 2. Install it
 
-You need **Python 3.12 or newer**. Check with `python --version`.
+Two routes. Pick one.
 
-```bash
+### Route A: Python
+
+PowerShell:
+
+```powershell
 python -m venv .venv
-
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-# macOS, Linux, Git Bash
-source .venv/bin/activate
-
+.\.venv\Scripts\Activate.ps1
 pip install .
 ```
 
-That is the whole install. If you plan to run the tests or change anything,
-use `pip install -e ".[dev]"` instead.
-
-**Or use Docker and skip the virtualenv:**
+bash:
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install .
+```
+
+### Route B: Docker
+
+Needs Docker running. Check it first:
+
+```powershell
+docker --version
+docker ps
+```
+
+If `docker ps` errors, Docker Desktop is not started. Start it and try again.
+
+Then build:
+
+```powershell
 docker build -t salesforce-connector .
 ```
 
-The image is named `salesforce-connector` because that is what the connector
-is; the folder is named `salesforce-mcp`. Both are correct and they refer to
-the same thing.
+Takes about a minute the first time. You want to see
+`naming to docker.io/library/salesforce-connector` at the end.
+
+### Prove the install before going further
+
+```powershell
+python -m pytest -q
+```
+
+**443 tests should pass**, with no Salesforce account, no credentials, and no
+internet. If they pass, the code is fine and anything that goes wrong later is
+configuration.
 
 ---
 
-## 3. Set up Salesforce
+## 3. Salesforce: three values
+
+This is the slow part, and none of it is this connector's code. Full detail is
+in the section after this one. The short version:
+
+1. Generate a certificate and a private key on your machine
+2. Create an **External Client App** in Salesforce, upload the certificate
+3. Pre-authorise your user for that app
+4. Copy the **Consumer Key**
+
+You end up with three values. Only one is secret:
+
+| Value | Secret | Where it comes from |
+|---|---|---|
+| Consumer Key | no | the app you just created |
+| Username | no | your Salesforce login |
+| Private key | **yes** | `openssl`, on your machine, never sent anywhere |
+
+Generate the key pair now, PowerShell:
+
+```powershell
+mkdir secrets -Force; cd secrets
+openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout salesforce.key -out salesforce.crt -subj "/CN=salesforce-mcp"
+cd ..
+```
+
+Git Bash on Windows needs `MSYS_NO_PATHCONV=1` in front of `openssl`, because
+it rewrites `/CN=...` into a Windows path and OpenSSL then rejects it.
+
+Upload `secrets\salesforce.crt` to Salesforce. Keep `secrets\salesforce.key`.
+Both are gitignored.
+
+---
+
+## 4. Put your key in .env without pasting it anywhere
+
+**Do not open `.env` in an editor and paste your key in.** It is long, it must
+be on one line, and a key that has been through a text editor is a key that has
+been in a clipboard.
+
+This builds the file for you. It prompts for the Consumer Key with the input
+hidden, reads the private key straight off disk, and never prints either.
+
+PowerShell:
+
+```powershell
+python scripts/make_env.py
+```
+
+bash:
+
+```bash
+python scripts/make_env.py
+```
+
+It asks for two things, your Consumer Key and your Salesforce username, then
+writes `.env` itself. Nothing is echoed to the screen and nothing goes into
+your shell history.
+
+If you would rather do it by hand, `.env.example` shows every field, and the
+private key goes on one line in double quotes with `\n` between the PEM lines.
+
+---
+
+## 5. Check it reaches Salesforce
+
+```powershell
+python scripts/check_connection.py
+```
+
+This reads the org's limits endpoint and writes nothing, so it is safe to run
+as often as you like.
+
+**Success looks like:**
+
+```
+ok=True  reached Salesforce as you@example.com
+```
+
+**If it fails**, the message names which of the three things is wrong. The
+table at the end of this document maps each error to its cause.
+
+Nothing after this point will work until this passes.
+
+---
+
+## 6. Connect it to your app
+
+One command per app. Run it from the project folder.
+
+| Your app | Command | Config it writes |
+|---|---|---|
+| **Claude Desktop** | `python scripts/install_client.py claude-desktop` | `claude_desktop_config.json` |
+| **Claude Code** | `claude mcp add salesforce -e PYTHONPATH=src -- python mcp/server.py` | its own store |
+| **Cursor** | `python scripts/install_client.py cursor` | `~/.cursor/mcp.json` |
+| **VS Code** (Copilot) | `python scripts/install_client.py vscode` | `.vscode/mcp.json` |
+| **Windsurf** | `python scripts/install_client.py windsurf` | `~/.codeium/windsurf/mcp_config.json` |
+| **Zed** | `python scripts/install_client.py zed` | `settings.json` |
+| **Gemini CLI** | `python scripts/install_client.py gemini` | `~/.gemini/settings.json` |
+| **Qwen Code** | `python scripts/install_client.py qwen` | `~/.qwen/settings.json` |
+| **OpenAI Codex CLI** | `python scripts/install_client.py codex` | `~/.codex/config.toml` |
+
+See everything it knows, and preview without writing:
+
+```powershell
+python scripts/install_client.py --list
+python scripts/install_client.py cursor --dry-run
+```
+
+It backs up the existing file first and keeps every other server already in it.
+
+**Then restart the app completely.** On Windows, closing the window is not
+enough for Claude Desktop: quit it from the tray icon near the clock.
+
+Only `claude-desktop` has been verified end to end from this repository. The
+others are written from each app's documented format, and the script tells you
+so when it writes one.
+
+---
+
+## 7. Verify it actually works
+
+Three checks, cheapest first.
+
+### The server starts and offers five tools
+
+```powershell
+python scripts/verify_server.py
+```
+
+Launches the server the way an app does and asks it for its tools. You want:
+
+```
+tools: 5
+  salesforce_add_activity_note
+  salesforce_create_contact
+  salesforce_create_opportunity
+  salesforce_search_contact
+  salesforce_update_contact
+live search ran: ok
+unapproved write refused: ok
+```
+
+### Your app can see it
+
+Open the app and look for the tools icon near the message box, usually a hammer
+or a slider. Five `salesforce_*` entries should be listed.
+
+If they are not there, the app was not fully restarted. That is the cause
+almost every time.
+
+### Ask it something
+
+> Is there a contact called Ada Lovelace in Salesforce?
+
+> Add Grace Hopper as a contact, grace@example.com
+
+> Log a call against Ada: discussed pricing, wants a quote Friday
+
+The first is read-only and safe. The second and third will ask you to confirm
+before anything is written.
+
+---
+
+## Salesforce setup in detail
 
 This connector authenticates with the **OAuth 2.0 JWT Bearer flow**: it signs
 an assertion with a private key and exchanges it for an access token. No

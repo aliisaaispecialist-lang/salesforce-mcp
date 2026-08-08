@@ -106,7 +106,7 @@ needs revisiting.
 **The learning tier's failures are information, not bugs.** Each test names an
 assumption and where the code leans on it. A red one means something believed
 about Salesforce is untrue; record what actually happened in
-`docs/research/03-salesforce-api-map.md`, and write an ADR if it changes a
+the research notes, and write an ADR if it changes a
 decision.
 
 **`records left behind in the org`** means cleanup failed. The message lists
@@ -117,13 +117,11 @@ assertions about "the contact we just made" will find two.
 
 ## 4. Run the evaluation for real
 
-The ten question/answer pairs in `evaluations/questions.xml` were worked out by
-hand from `evaluations/seed_data.md`. They have never been run against an org.
+hand from the evaluation suite. They have never been run against an org.
 
 1. Load the seed contacts (see the setup notes at the bottom of
    `seed_data.md`).
 2. Run the harness from the mcp-builder skill: the command is in
-   `evaluations/README.md`.
 3. A mismatch is either a bad answer in that file **or** a real gap in a tool's
    schema or description. Fix whichever it actually is; the guide's own
    verification process says to prefer fixing the tool.
@@ -153,7 +151,6 @@ Three things say "never run against a real org" and will be untrue afterwards:
 
 - `README.md`: the Testing section, and the `learning`/`integration` tier
   notes that currently say no test carries those markers
-- `evaluations/README.md`: the honest caveat at the top
 - `CHANGELOG.md`: the Blocked section
 
 Definition of Done item 9, *"one real sandbox test where access permits"*,
