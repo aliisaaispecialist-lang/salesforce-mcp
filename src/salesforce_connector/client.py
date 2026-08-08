@@ -25,7 +25,13 @@ from salesforce_connector.auth.strategy import AuthStrategy, Token
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import RateLimit
 from salesforce_connector.errors.mapping import to_connector_error
-from salesforce_connector.errors.model import AuthenticationError, ConnectorError, TransportError
+from salesforce_connector.errors.model import (
+    AuthenticationError,
+    ConnectorError,
+    ErrorContext,
+    EscalationError,
+    TransportError,
+)
 from salesforce_connector.errors.retry import RetryPolicy, build_retrying
 from salesforce_connector.exchange import (
     LIMIT_HEADER,
@@ -114,9 +120,15 @@ class SalesforceClient:
         Raises:
             ConnectorError: The call failed in a way no further attempt fixes.
         """
-        async for attempt in build_retrying(RetryPolicy(), spec.shape, self._log_before_sleep):
-            with attempt:
-                return await self._attempt(spec)
+        policy = RetryPolicy()
+        attempted = 0
+        try:
+            async for attempt in build_retrying(policy, spec.shape, self._log_before_sleep):
+                with attempt:
+                    attempted += 1
+                    return await self._attempt(spec)
+        except ConnectorError as exhausted:
+            raise _escalated(exhausted, attempted, policy.max_attempts) from exhausted
         raise TransportError("the retry loop ended without a result")  # pragma: no cover
 
     async def _attempt(self, spec: RequestSpec) -> Response:
@@ -210,3 +222,38 @@ class SalesforceClient:
             because=type(failure).__name__ if failure else None,
             detail=failure.reason if isinstance(failure, ConnectorError) else None,
         )
+
+
+def _escalated(failure: ConnectorError, attempted: int, allowed: int) -> ConnectorError:
+    """Say plainly when something failed every time it was tried.
+
+    The retry loop reraises the original Salesforce error, which is right: the
+    caller should see what actually went wrong. But it leaves out the fact that
+    it went wrong three times, and that changes what a caller should do. An
+    error a model reads as "retry this" after it has already been retried to
+    exhaustion produces a fourth attempt, then a fifth.
+
+    So a call that used every attempt stops being a retry suggestion and
+    becomes an escalation: tell the user, by name, that it failed N times and
+    needs doing by hand. Chapter 6's fatal category -- stop, report, escalate.
+
+    A failure on the first attempt is left exactly as it was. Only exhaustion
+    changes the advice.
+    """
+    if attempted < allowed:
+        return failure
+
+    original = failure.to_action_error()
+    return EscalationError(
+        f"{original.reason} This failed {attempted} times in a row.",
+        ErrorContext(
+            next_step=(
+                f"Stop retrying. This has now failed {attempted} times with the same "
+                f"internal error, so another attempt will fail too. Tell the user "
+                f"plainly that the operation could not be completed automatically and "
+                f"that they need to do it manually in Salesforce. Give them the error "
+                f"({original.code}) so they can pass it on if they need support."
+            ),
+            invalid_fields=original.invalid_fields,
+        ),
+    )

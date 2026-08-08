@@ -167,3 +167,22 @@ class TransportError(ConnectorError):
         "idempotency_key, so a write that already succeeded is not repeated. "
         "If a cursor was returned, resume from it rather than starting over."
     )
+
+
+class EscalationError(ConnectorError):
+    """A retryable failure that has stopped being retryable.
+
+    The retry loop tried this the full number of times allowed and got the same
+    error each time. The underlying failure may still be categorised as
+    transient -- a timeout, a 503 -- but after exhaustion that classification
+    is misleading. A model reading "wait and retry" for the fourth time will
+    wait and retry.
+
+    So exhaustion changes the category to FATAL, which means stop, report, and
+    escalate to a person. It is the one place in this taxonomy where the same
+    provider error maps to two different categories depending on history rather
+    than on the error itself.
+    """
+
+    category = ErrorCategory.FATAL
+    code = "connector.escalate_to_human"

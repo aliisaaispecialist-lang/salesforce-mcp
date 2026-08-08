@@ -13,9 +13,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
 from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import Settings
+from salesforce_connector.contract import ErrorCategory
 from salesforce_connector.errors.model import (
     AuthenticationError,
     ConflictError,
+    EscalationError,
     PermissionDeniedError,
     RateLimitError,
     TransportError,
@@ -175,8 +177,15 @@ class TestFailuresBecomeTypedErrors:
                     )
                 )
 
-                with pytest.raises(RateLimitError):
+                # Recognised as a rate limit, then retried to exhaustion, so what
+                # finally surfaces is the escalation. The original is kept as the
+                # cause, because a caller debugging this needs to know it was a
+                # quota problem and not something else.
+                with pytest.raises(EscalationError) as raised:
                     await client.request(RequestSpec(method="GET", path="sobjects/Contact"))
+
+                assert isinstance(raised.value.__cause__, RateLimitError)
+                assert "3 times" in raised.value.to_action_error().next_step
 
     async def test_a_permission_failure_is_not_retried(self, client: SalesforceClient) -> None:
         async with client:
@@ -222,7 +231,9 @@ class TestFailuresBecomeTypedErrors:
                 token_route()
                 respx.get(CONTACT_URL).mock(side_effect=httpx.ConnectError("refused"))
 
-                with pytest.raises(TransportError):
+                # Every attempt failed the same way, so the caller is told to
+                # stop rather than to try again.
+                with pytest.raises(EscalationError):
                     await client.request(RequestSpec(method="GET", path="sobjects/Contact"))
 
     async def test_a_rejected_token_is_discarded_so_the_next_call_reauthenticates(
@@ -301,3 +312,44 @@ class TestRetryBehaviour:
 
                 assert response.status == 201
                 assert route.call_count == 2
+
+
+@pytest.mark.asyncio
+class TestExhaustionEscalates:
+    """Three failures stop being a retry suggestion and become an escalation.
+
+    The retry loop reraises the original Salesforce error, which is correct as
+    far as it goes: a caller should see what actually failed. But it says
+    nothing about the failure having happened three times, and a transient
+    error still reads as "wait and try again" no matter how many times it has
+    already been tried. A model following that advice makes a fourth attempt.
+    """
+
+    async def test_a_failure_on_every_attempt_becomes_fatal(self, client: SalesforceClient) -> None:
+        async with client:
+            with respx.mock:
+                token_route()
+                route = respx.get(CONTACT_URL).mock(side_effect=httpx.ConnectError("down"))
+
+                with pytest.raises(EscalationError) as raised:
+                    await client.request(RequestSpec(method="GET", path="sobjects/Contact"))
+
+                error = raised.value.to_action_error()
+                assert error.category is ErrorCategory.FATAL
+                assert error.code == "connector.escalate_to_human"
+                assert route.call_count == RetryPolicy().max_attempts
+
+    async def test_it_tells_the_user_to_do_it_by_hand(self, client: SalesforceClient) -> None:
+        async with client:
+            with respx.mock:
+                token_route()
+                respx.get(CONTACT_URL).mock(side_effect=httpx.ConnectError("down"))
+
+                with pytest.raises(EscalationError) as raised:
+                    await client.request(RequestSpec(method="GET", path="sobjects/Contact"))
+
+                advice = raised.value.to_action_error().next_step
+                # The three things a person needs: stop, why, and what to do.
+                assert "Stop retrying" in advice
+                assert "3 times" in advice
+                assert "manually" in advice
