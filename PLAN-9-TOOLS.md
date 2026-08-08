@@ -3,18 +3,70 @@
 Written at the end of a long session, from decisions made in it. The work is
 not started. This exists so none of the reasoning has to be rediscovered.
 
-## Step 0, before any code
+## The reference, and what it changes
 
-Read `C:\Users\Admin\Desktop\The Agentic AI Bible - PDF\Part 2 - Core
-Capabilities\Chapter 06 - Tool Use and Function Calling\Chapter 06 - Tool Use
-and Function Calling.pdf`.
+Chapter 6, *Tool Use and Function Calling*, has now been read. Four things in
+it change this plan, and one of them is a number I had wrong.
 
-It is the reference for this design and it has **not** been read yet. Nothing
-below should be treated as final until it has been, because the whole point of
-this plan is tool design and that chapter is about tool design.
+**The inflection point is 10 to 12 tools, not 20 to 25.** The chapter is
+explicit: three to five tools gives high-nineties first-call accuracy, fifteen
+to twenty produces systematic errors, and the practical inflection for current
+frontier models is around ten to twelve. Ten tools is *at* that line, which
+makes the router not an optimisation but a requirement.
 
-Also re-read the existing `docs/` decisions, which are inside
-`ALL-DOCS-ARCHIVE.md` until the README rewrite lands.
+**Domain prefixes in the tool name.** The chapter's convention is
+`order_search`, `order_fetch`, `billing_query`, `hr_leave_request` -- the
+domain visible at a glance, which increases the similarity distance between
+tools in different domains. Applied here: `record_get`, `record_create`,
+`record_save`, `record_update`, `query_run`, `query_count`, `schema_describe`.
+The chapter also says apply it from the start, because retrofitting means
+updating every caller.
+
+**A `side_effects` sentence in every write description.** Not just that a tool
+is non-idempotent, but what to do instead of retrying: *"This tool creates a
+record and is not idempotent. Do not retry on timeout; call `record_get` to
+check whether it succeeded first."*
+
+**Compensating actions, which we have none of.** The chapter's rule is that
+for every write tool that creates or modifies state, there is either a
+rollback tool or a documented manual recovery procedure. `create_opportunity`
+is exactly the case it describes: create a thing, then fail on the second
+step. We report that honestly as `contact_linked: false`, which is better than
+hiding it, but there is no way to undo it and no documented recovery. Either
+`save_together` makes it atomic, or the description names the recovery.
+
+## What this connector already does right
+
+Worth knowing before changing anything, because the chapter's contract is
+mostly already implemented:
+
+| Chapter requires | Here |
+|---|---|
+| Typed result, not a raw string | `ActionResult` with `ok`, `data`, `error` |
+| Error distinguishable by category | four categories: transient, input, resource, fatal |
+| Errors legible enough to recover from | every error carries a `next_step` |
+| Idempotency key on non-idempotent writes | required on all four writes, min 8 chars |
+| Timeout enforced by the caller | `SF_READ_TIMEOUT_SECONDS=5`, `SF_WRITE_TIMEOUT_SECONDS=15` -- the chapter's exact recommendation |
+| Backoff with jitter in the loop, not the model | `errors/retry.py`, on tenacity |
+| Enums over free text where bounded | `ActivityKind`; `stage_name` is deliberately free text because it is per-org |
+| A description saying when *not* to use it | every `ActionSpec` has `when_not_to_use` |
+| Recovery when a required input is missing | `MissingInput` exists on `ActionSpec`, underused |
+
+**The gap is not the contract. It is coverage.** The nine tools apply an
+existing, correct contract to more of Salesforce.
+
+## The opening bug, checked here
+
+The chapter opens with a required field whose description says what it is but
+not what to do when the value cannot be determined -- so the model fills it
+with the description string. The test is: *for every required field, if the
+value is unavailable at call time, does the description say what to do?*
+
+Ours partly pass. `MissingInput` carries the question to ask, but it is
+populated for some fields and not others, and the guidance is not in the field
+description where the model reads it. **Fix: every required field on all ten
+tools gets an explicit fallback sentence in its own description**, not only in
+`missing_inputs`.
 
 ## What exists today
 
@@ -98,9 +150,15 @@ describe_domain(name)   -> that domain's tools, with full guidance
 Domains for the nine: **Read** (1, 2, 3, 4, 8), **Write** (6, 7, 9),
 **Schema** (5).
 
-The reason is measured, not aesthetic: tool-selection accuracy degrades past
-roughly 20 to 25 visible tools. The router keeps the visible set at three or
-four.
+The reason is measured, not aesthetic. The chapter puts the inflection at ten
+to twelve tools, and ten is what this plan produces. The router keeps the
+visible set at three or four, which is inside the high-nineties band.
+
+The chapter calls this a meta-tool: `get_available_tools` takes a task
+description and returns the relevant subset, moving routing into the model's
+own reasoning rather than pre-processing code. The cost is one extra round
+trip before any work begins. Worth it here, because rule-based keyword routing
+would misclassify anything novel.
 
 ## What every tool description must contain
 
