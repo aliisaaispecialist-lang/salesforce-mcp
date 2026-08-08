@@ -160,3 +160,23 @@ class TestWhatReachesTheModel:
 
         assert len(reason) < 400
         assert "Salesforce code INVALID_FIELD" in reason
+
+
+def test_an_ambiguous_upsert_is_a_conflict_rather_than_a_surprise() -> None:
+    """The one failure Salesforce reports with a 3xx and no error code.
+
+    An external id matching several records answers 300 with a list of their
+    URLs. Every other rule here reads a code, and there is none, so without a
+    status entry this arrives as connector.unexpected -- carrying no remedy,
+    under a code upsert_record does not document.
+    """
+    failure = to_connector_error(
+        300,
+        [
+            "/services/data/v67.0/sobjects/Contact/003xx000004TmiQAAS",
+            "/services/data/v67.0/sobjects/Contact/003xx000004TmiRAAS",
+        ],
+    )
+
+    assert failure.code == "salesforce.conflict"
+    assert not failure.to_action_error().retryable

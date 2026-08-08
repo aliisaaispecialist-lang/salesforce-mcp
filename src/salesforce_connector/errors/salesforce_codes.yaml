@@ -84,6 +84,12 @@ patterns:
       - "*_OUT_OF_RANGE"
 
 status:
+  # An upsert whose external id matches more than one record. Salesforce
+  # answers 300 with a list of the record URLs and no error code at all, so
+  # nothing above can classify it. It is a conflict only a person can settle,
+  # which is what upsert_record's guidance promises, and without this line it
+  # arrives as connector.unexpected with no remedy attached.
+  300: conflict
   400: input
   401: auth
   403: permission
