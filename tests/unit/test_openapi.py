@@ -96,5 +96,5 @@ class TestTheCommittedFile:
         regenerated = to_yaml(load_manifest(settings))
 
         assert COMMITTED.read_text(encoding="utf-8") == regenerated, (
-            "openapi.yaml is stale. Run `make openapi`."
+            "openapi.yaml is stale. Regenerate it with scripts/regenerate_openapi.py."
         )

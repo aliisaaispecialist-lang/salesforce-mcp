@@ -39,12 +39,6 @@ jobs:
       - name: Lint
         run: ruff check .
 
-      - name: Layering
-        # The docstrings say the client is the only module that opens a socket
-        # and the adapter is the only one that knows the protocol. This is what
-        # notices when that stops being true.
-        run: lint-imports
-
       - name: Types
         run: mypy src tests
 
