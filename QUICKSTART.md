@@ -24,7 +24,7 @@ the code.
 | **3d** | Copy the **Consumer Key** from the app | `SF_CLIENT_ID` | 1 min |
 | **4** | Put three values in `.env` | A configured connector | 3 min |
 | **5** | Run the connection check | Proof it works, before any client | 1 min |
-| **6** | Point Claude (or any MCP client) at it | Five Salesforce tools | 2 min |
+| **6** | `python scripts/install_client.py <your app>` | Five Salesforce tools in your app | 2 min |
 | **7** | Ask it something in plain language | A working assistant | — |
 
 ### The three values everything comes down to
@@ -315,8 +315,52 @@ library, and no assumption about the host: `mcp_server.py` is 139 lines that
 open the connector, list what it offers, forward a call, and close. Point
 anything that speaks MCP at it and it works.
 
-Every client below is configured the same way, because every client wants the
-same three things: **a command, its arguments, and some environment**.
+### One command does it
+
+You do not have to find any of these files by hand. From the project folder:
+
+```bash
+python scripts/install_client.py --list          # every host it knows
+python scripts/install_client.py claude-desktop  # register with one
+python scripts/install_client.py cursor --dry-run   # see it first, write nothing
+```
+
+It reads your `.env`, finds that host's config file on this operating system,
+**backs it up**, adds one entry, and leaves everything else in the file
+untouched — those files usually hold other servers and a lot of unrelated
+settings. It prints where it wrote and what it kept, so undoing it is one file
+copy.
+
+| Command | Host |
+|---|---|
+| `claude-desktop` | Claude Desktop |
+| `cursor` | Cursor |
+| `vscode` (or `code`, `copilot`) | VS Code, Copilot agent mode |
+| `windsurf` | Windsurf |
+| `zed` | Zed |
+| `gemini` | Gemini CLI |
+| `qwen` | Qwen Code |
+| `codex` (or `openai`) | OpenAI Codex CLI |
+
+**Claude Code** takes its own command rather than a file:
+
+```bash
+claude mcp add salesforce -e PYTHONPATH=src -- python mcp/server.py
+```
+
+Run it from the project folder, then `claude mcp list` to confirm. Claude Code
+launches the server with the project as its working directory, so it finds
+`.env` on its own and no credentials go in the command.
+
+Only `claude-desktop` has been end-to-end verified from this repository — the
+config it writes was launched, listed five tools, and ran a live search. The
+rest are written from each host's documented format, and the script says so
+when it writes one.
+
+### Or do it by hand
+
+Every client wants the same three things: **a command, its arguments, and some
+environment**.
 
 ```
 command:  python
