@@ -221,6 +221,93 @@ a deal **and** links a contact, and the second half can fail after the first
 succeeded. That is exactly the cost of two actions in one tool, and it is why
 `save_together` has to be explicitly atomic rather than merely convenient.
 
+
+## Splitting create_opportunity into three chained tools
+
+The current tool does three things: reads the org's stages, creates the deal,
+and, if a `contact_id` was passed, links the contact. The third is a second
+write hidden behind an optional parameter, which is the pitfall Chapter 6 names
+directly: *"Tools should do one thing. The orchestration of multiple things is
+the agent's job, and doing it in the open, via multiple tool calls the model
+chooses to make, is what makes the agent's behavior auditable and
+correctable."*
+
+Three tools, chained by what each one says rather than by hidden control flow.
+
+### 1. `describe_object` (read, no approval)
+
+Returns the org's picklists for an object. Cacheable, changes nothing, cannot
+half-fail.
+
+> **Use this before creating an opportunity**, to learn which sales stages this
+> org accepts. Stage lists are configured per org and no universal list is
+> correct. Once you have a valid stage, call `create_opportunity`.
+
+### 2. `create_opportunity` (write, approval, one record)
+
+Creates the deal and nothing else. `contact_id` is **removed from its schema**:
+a parameter that silently triggers a second write is the thing being fixed.
+
+> Creates one opportunity and returns its id. This tool does not attach a
+> contact. **If the user named a person the deal is for, call
+> `link_contact_to_opportunity` next**, passing the `opportunity_id` returned
+> here and that person's contact id.
+>
+> Do not use this when the deal already exists. If `describe_object` has not
+> been called and you are unsure of the stage, send your best guess: an invalid
+> stage is rejected before anything is created and the error lists the valid
+> values.
+
+The **result** carries the handover, not just the description, because that is
+what the model reads at the moment the decision is due:
+
+```json
+{
+  "id": "006...", "name": "...", "stage_name": "...", "created": true,
+  "next_action": "The deal exists but has no contact attached. If this deal is
+                  for a specific person, call link_contact_to_opportunity with
+                  opportunity_id=006... and their contact id."
+}
+```
+
+`next_action` is present only when the caller has not yet linked anyone. A
+field that always appears becomes noise the model stops reading.
+
+### 3. `link_contact_to_opportunity` (write, approval, one record)
+
+The optional parameter becomes this tool's **required** one, which is the whole
+point of the split: what was hidden and optional is now named and mandatory.
+
+> Attaches a contact to an existing opportunity, creating a contact role.
+> Requires both ids. Call this after `create_opportunity`, or on any
+> opportunity that already exists.
+>
+> Do not call this to create an opportunity; it only links to one that exists.
+> **If you do not have the opportunity id**, call `create_opportunity` first, or
+> `search_records` if the deal already exists.
+
+### What this buys, and what it costs
+
+**Buys:** every step visible in the trace. A failed link is a failed tool call
+the model can see and retry, rather than a `contact_linked: false` buried in a
+successful result. Each tool has one approval prompt describing one change,
+instead of one prompt for a write that turns out to be two.
+
+**Costs:** the two writes are no longer atomic, and were never truly atomic
+anyway. Today an opportunity can exist without its link; after the split the
+same thing can happen, but the model is told so directly and can act.
+
+`save_together` via `/composite` remains a separate tool for a caller who
+explicitly wants atomicity. That is Pattern 4 territory: there the operation
+genuinely is "apply these together", which is a different request from "create
+a deal".
+
+### The rule this establishes
+
+Every tool that leaves work unfinished says so **in its result**, names the tool
+that finishes it, and names the argument to carry across. Chaining lives in
+what tools say, never in hidden parameters.
+
 ## Naming
 
 Name the action and what it works from, not the noun alone. A model picks
