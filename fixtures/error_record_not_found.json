@@ -1,0 +1,7 @@
+{
+  "category": "resource",
+  "code": "salesforce.record_not_found",
+  "name": "error_record_not_found",
+  "outcome": "error",
+  "reason": "The requested resource does not exist (Salesforce code NOT_FOUND, HTTP 404)"
+}

@@ -10,7 +10,7 @@ still a local subprocess reading stdin and writing stdout, not a server you
 deploy and point clients at.
 
 **Time:** about ten minutes for steps 1–2, twenty to forty for step 3 the
-first time you ever configure a Connected App.
+first time you ever configure an External Client App.
 
 ---
 
@@ -100,39 +100,88 @@ openssl x509 -in salesforce.crt -noout -pubkey | openssl md5
 openssl pkey -in salesforce.key -pubout | openssl md5   # same hash = a pair
 ```
 
-### 3b. Create the Connected App
+### 3b. Create an External Client App — not a Connected App
 
-In your Salesforce org: **Setup → App Manager → New Connected App**
-(on newer orgs this may appear as **External Client App**).
+> **This changed under us, and it will catch you out.** Salesforce disabled
+> connected app creation in all new orgs in Winter '26, and from Spring '26
+> will not re-enable it without a support request. A new org answers
+> *"You can't create a connected app. To enable connected app creation,
+> contact Salesforce Customer Support."* — to the API as well as the UI. This
+> guide originally said Connected App and was wrong for anyone starting today.
+> **External Client Apps** are the replacement and support the same JWT bearer
+> flow.
 
-- **Connected App Name:** anything, e.g. `Salesforce MCP`
+**Setup → App Manager → New External Client App**
+
+- **External Client App Name:** anything, e.g. `Salesforce MCP`
 - **Contact Email:** your own
-- Tick **Enable OAuth Settings**
+- **Distribution State:** `Local`
+- Under **API (Enable OAuth Settings)**, tick **Enable OAuth**
 - **Callback URL:** `http://localhost/callback` — unused by this flow, but the
   form requires one
-- Tick **Use digital signatures** and upload `salesforce.crt`
-- **Selected OAuth Scopes:** add exactly two — **Manage user data via APIs
-  (api)** and **Perform requests at any time (refresh_token, offline_access)**.
-  Nothing more. `connector.yaml` declares only these two, and a reviewer will
-  compare.
-- Save. Salesforce warns that changes take **2–10 minutes** to take effect.
-  It means it.
+- **Enable JWT Bearer Flow**, then **Upload Files** and choose `salesforce.crt`
+- **Scopes:** exactly two — **Manage user data via APIs (api)** and **Perform
+  requests at any time (refresh_token, offline_access)**. Nothing more.
+  `connector.yaml` declares only these two and a reviewer will compare.
+- Save, then wait **2–10 minutes**. Salesforce says so and means it; trying
+  immediately gives `invalid_grant`, which reads like a wrong key.
 
 ### 3c. Pre-authorise the user
 
-Still in Setup: **App Manager → your app → Manage → Edit Policies**
+**Setup → External Client App Manager → your app → Policies → Edit → OAuth
+Policies**
 
 - **Permitted Users:** `Admin approved users are pre-authorized`
-- Save, then **Manage Profiles** or **Manage Permission Sets** and add the
-  profile of the user the connector will act as.
+- Save, then assign the app to a profile or permission set that includes the
+  user the connector acts as.
 
-This step is what makes JWT Bearer work without any interactive login. Skip it
-and you get `user hasn't approved this consumer`.
+This is what lets JWT Bearer work with no interactive login. Skip it and you
+get `user hasn't approved this consumer`. Do it but assign nobody, and you get
+`user is not admin approved to access this app` — two different messages for
+the two halves of the same step.
 
 ### 3d. Collect the Consumer Key
 
-**App Manager → your app → View → Manage Consumer Details.** Copy the
-**Consumer Key**. That is your `SF_CLIENT_ID`.
+**External Client App Manager → your app → Settings → OAuth → Consumer Key and
+Secret.** Copy the **Consumer Key**. That is your `SF_CLIENT_ID`.
+
+### 3e. Or do all of 3b–3d from the CLI
+
+Every step above is scriptable, and this is how the org this connector was
+verified against was actually built. It needs the Salesforce CLI
+(`npm install -g @salesforce/cli`) and one browser login:
+
+```bash
+sf org login web --alias myorg --set-default
+```
+
+Then deploy an External Client App as metadata — three components, in
+`externalClientApps/`, `extlClntAppGlobalOauthSets/`, and
+`extlClntAppOauthSettings/`. Two things to know before you try:
+
+- **Omit `consumerKey` from the deploy.** Salesforce generates it and rejects a
+  deploy that carries one. Retrieve the component afterwards to read it back.
+- **Deploy the OAuth policy separately, after retrieving the key.** The
+  pre-authorisation policy is a fourth component
+  (`ExtlClntAppOauthConfigurablePolicies`, `permittedUsersPolicyType` set to
+  `AdminApprovedPreAuthorized`).
+
+Assigning the user is not expressible in PermissionSet metadata. Create the
+permission set, grant it the app, and assign it — three records:
+
+```bash
+sf data query --query "SELECT Id, DeveloperName FROM ExternalClientApplication"
+sf data create record --sobject PermissionSet \
+  --values "Name=Salesforce_MCP_Access Label='Salesforce MCP Access'"
+sf data create record --sobject SetupEntityAccess \
+  --values "ParentId=<permission set id> SetupEntityId=<app id>"
+sf data create record --sobject PermissionSetAssignment \
+  --values "AssigneeId=<user id> PermissionSetId=<permission set id>"
+```
+
+`SetupEntityAccess` is on the standard API, not the Tooling API — asking
+Tooling for it returns *"The requested resource does not exist"*, which sounds
+like the record is wrong when it is the endpoint.
 
 ---
 
@@ -202,7 +251,7 @@ On Windows PowerShell, set the variable first: `$env:PYTHONPATH="src"`.
 
 `test_connection` reads the org's limits endpoint and writes nothing, so it is
 safe to run as often as you like. A success tells you the credentials, the
-Connected App, and the pre-authorisation are all correct — which is the part
+External Client App, and the pre-authorisation are all correct — which is the part
 worth knowing before a client is involved.
 
 If it fails, the error says which of the three it was.
@@ -297,8 +346,10 @@ git history.
 
 | What you see | What it means |
 |---|---|
-| `user hasn't approved this consumer` | Step 3c was skipped, or the profile was not added |
-| `invalid_grant` right after setup | The Connected App's 2–10 minute wait has not elapsed |
+| `user hasn't approved this consumer` | Step 3c's Permitted Users setting was skipped |
+| `user is not admin approved to access this app` | Permitted Users is set, but nobody was assigned |
+| `You can't create a connected app` | You are creating the wrong kind of app — see step 3b |
+| `invalid_grant` right after setup | The app's 2–10 minute propagation has not elapsed |
 | `invalid_grant` later | The username, the Consumer Key, or the key/certificate pair do not match |
 | Refuses to start, mentions production | `SF_LOGIN_URL` points at `login.salesforce.com`; set `SF_ALLOW_PRODUCTION=true` only if you mean it |
 | Client shows no tools | Wrong path in the config, or the client was not restarted |

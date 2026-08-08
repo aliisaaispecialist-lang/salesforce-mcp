@@ -22,6 +22,7 @@ does not belong in `fixtures/`.
 import asyncio
 import json
 import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -77,12 +78,21 @@ RECORDINGS: tuple[tuple[str, RequestSpec], ...] = (
 
 
 def scrub(value: Any) -> Any:
-    """Remove anything that identifies one org, one record, or one session."""
-    if isinstance(value, dict):
+    """Remove anything that identifies one org, one record, or one session.
+
+    Matched on `Mapping` and `Sequence` rather than `dict` and `list`, because
+    a response reaching here has already been through `freeze()`: its
+    dictionaries are `MappingProxyType` and its lists are tuples, and neither
+    is an instance of the concrete type. Checking for `dict` walked straight
+    past every nested record without descending -- so nothing was scrubbed and
+    nothing said so. The JSON encoder refusing a `mappingproxy` is the only
+    reason it surfaced at all.
+    """
+    if isinstance(value, Mapping):
         return {
             key: "REDACTED" if key in SECRET_KEYS else scrub(inner) for key, inner in value.items()
         }
-    if isinstance(value, list):
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes):
         return [scrub(item) for item in value]
     if isinstance(value, str):
         return RECORD_ID.sub("0" * 18, INSTANCE.sub("https://example.my.salesforce.com", value))

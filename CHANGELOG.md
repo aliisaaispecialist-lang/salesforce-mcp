@@ -151,12 +151,35 @@ of this entry.
   the first has taken effect, and the result reports that partial state
   rather than a clean success or failure.
 
-### Blocked
+### Verified against a real org
 
-- **A provisioned sandbox org.** No Salesforce sandbox credentials exist yet
-  for this project. Nothing beyond mocked HTTP has been exercised, and the
-  Definition of Done's "one real sandbox test where access permits" item is
-  unmet, not by choice but by lack of access.
+A Salesforce Developer Edition org now exists, and the Definition of Done's
+"one real sandbox test where access permits" item is met: all 30 tests in
+`tests/integration/` and `tests/learning/` pass against it, as does a full
+stdio round trip in which a client listed the five tools, searched, and had an
+unapproved write refused.
+
+That run found four defects no mocked test could have, all fixed:
+
+- a replayed idempotency key reported `created: true`, because the ledger
+  returned the stored result verbatim — invisible to every mocked test, since
+  each calls a key exactly once
+- `changed_fields` came back in Salesforce's casing rather than the caller's
+- a missing record was classified as invalid input rather than not-found,
+  so the code every write tool documents for that case was never produced
+- an activity note supplied its own `TaskSubtype` default, which a restricted
+  per-org picklist rejected — the same reasoning as ADR-008, not carried across
+
+The org needed an **External Client App**: Salesforce disabled connected app
+creation in new orgs in Winter '26. Nothing in `src/` changed for that — the
+flow, the assertion, and the scopes are identical; only where the certificate
+is registered moved.
+
+### Still blocked
+
+- **Nothing by access.** The remaining gaps are decisions: whether to add an
+  External Id field to the org for provider-side deduplication, and running
+  the ten evaluation questions live, which needs the seed contacts loaded.
 
 ### Handoff notes
 

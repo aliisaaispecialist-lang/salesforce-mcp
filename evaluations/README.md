@@ -8,12 +8,14 @@ answers were derived from.
 
 ## The honest caveat
 
-**These answers have not been run against a live Salesforce org.** There is
-no org, no credentials, and no sandbox available in this environment. Every
-answer in `questions.xml` was worked out by hand from `seed_data.md` plus the
+**These answers have still not been run against a live Salesforce org.** An
+org now exists, and the connector is verified against it — 30 live tests pass
+— but that verifies the *tools*, not these answers. Every answer in
+`questions.xml` was worked out by hand from `seed_data.md` plus the
 connector's schemas and action code — the same reasoning an LLM using only
 these tools would have to do — not by actually calling the tools against
-Salesforce.
+Salesforce. Running them needs the seed contacts loaded first, which is the
+remaining step.
 
 To verify this suite for real:
 
@@ -125,11 +127,16 @@ tool name, an id prefix, an idempotency key) are still met.
   name, so nothing here changes — but a question about one still cannot be
   answered, because the connector returns the id and offers no action that
   resolves it to a name.
-- The pagination question (question 3) assumes Salesforce's
-  `parameterizedSearch` endpoint honors the `offset` field the way
-  `actions/search_contact.py` sends it. SOSL search results have not
-  historically supported an offset parameter the way SOQL queries do; if the
-  live API ignores `offset`, page two would repeat page one's three records
-  instead of returning the rest, and a live run of that question would need
-  investigation before trusting a failure as the tool's fault rather than the
-  question's.
+- **Answered.** The pagination question (question 3) assumed
+  `parameterizedSearch` honours the `offset` that `actions/search_contact.py`
+  sends, which SOSL-backed search has not historically done. It does:
+  `tests/integration/test_live_read.py::test_the_second_page_is_not_the_first_page_again`
+  creates five contacts, reads three at a time, and confirms no id repeats
+  across pages. The question stands as written.
+- **`stage_name` values differ per org, and question 3's premise depends on
+  it.** The org this was verified against offers `Qualify, Meet & Present,
+  Propose, Negotiate, Closed Won, Closed Lost` — not `Prospecting`, which most
+  Salesforce documentation uses as its example. Any question quoting a
+  specific stage must be checked against the org it will run on. This is
+  ADR-008's whole point and it caught a hard-coded value in the live tests
+  themselves.

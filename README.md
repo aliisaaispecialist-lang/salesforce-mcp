@@ -37,15 +37,16 @@ See also [`SECURITY.md`](SECURITY.md) for the full threat model and
 ## Quick start
 
 **Never set this up before?** [QUICKSTART.md](QUICKSTART.md) walks the whole
-thing end to end, including the Connected App and certificate on the
+thing end to end, including the External Client App and certificate on the
 Salesforce side, which is the part that actually takes time. What follows here
 assumes you already have credentials.
 
-Both paths below were run against this repository while writing this document:
-`docker build`, a container start/stop on closed stdin, `pytest -q`, `ruff
-check .`, `mypy src tests`, and `lint-imports` all pass. Neither path was
-exercised against a real Salesforce org — see
-[Known limitations](#known-limitations-and-access-blockers).
+Both paths below were run against this repository: `docker build`, a container
+start/stop on closed stdin, `pytest -q`, `ruff check .`, `mypy src tests`, and
+`lint-imports` all pass. The Python path has also been run **against a real
+Salesforce Developer Edition org** — 30 live tests, and a full stdio round trip
+in which a client listed the five tools, searched, and had an unapproved write
+refused. See [Testing](#testing).
 
 ### Docker
 
@@ -93,9 +94,9 @@ code.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SF_CLIENT_ID` | yes | — | Consumer Key of the Connected App / External Client App. |
-| `SF_USERNAME` | yes | — | The user the connector acts as. Must be pre-authorised for the Connected App; that user's profile is the real ceiling on what any action can do. |
-| `SF_PRIVATE_KEY` | yes | — | PEM private key matching the certificate uploaded to the Connected App. `\n` between lines is accepted and restored, since most container runtimes and CI secret stores cannot hold a literal multi-line value. |
+| `SF_CLIENT_ID` | yes | — | Consumer Key of the External Client App. Connected apps can no longer be created in new orgs — see [ADR-025](#adr-025-external-client-apps-because-salesforce-closed-connected-apps). |
+| `SF_USERNAME` | yes | — | The user the connector acts as. Must be pre-authorised for the app; that user's profile is the real ceiling on what any action can do. |
+| `SF_PRIVATE_KEY` | yes | — | PEM private key matching the certificate uploaded to the app. `\n` between lines is accepted and restored, since most container runtimes and CI secret stores cannot hold a literal multi-line value. |
 | `SF_CLIENT_SECRET` | no | none | Only used by the Client Credentials fallback flow (ADR-020). Leave blank when using JWT Bearer, which transmits no secret at all. |
 | `SF_LOGIN_URL` | no | `https://test.salesforce.com` | Login host. Sandbox by default and deliberately so (ADR-016). |
 | `SF_ALLOW_PRODUCTION` | no | `false` | Must be explicitly `true` before `SF_LOGIN_URL` is allowed to point at `https://login.salesforce.com`. A typo cannot silently point this connector at production. |
@@ -430,7 +431,7 @@ fallback (ADR-020). Username-password is not implemented at all — not
 disabled, absent.
 
 **Trade-offs accepted.** JWT Bearer requires uploading a certificate to the
-Connected App and pre-authorising the running-as user — more setup than a
+External Client App and pre-authorising the running-as user — more setup than a
 username-password flow would have been, in exchange for a flow that will
 still work in September 2026.
 
@@ -906,7 +907,7 @@ a code change requiring a redeploy.
 ### ADR-020: Client Credentials retained as a fallback auth flow
 
 **Context.** JWT Bearer (ADR-004) requires generating a certificate,
-uploading it to the Connected App, and getting the signing math right — real
+uploading it to the app, and getting the signing math right — real
 friction for a first-time setup, even though it is the right long-term
 default.
 
@@ -1090,6 +1091,89 @@ of shipping. That test earned its place immediately: it caught
 `activity_kind: "call"` where the enum requires `"Call"`, in an example
 written minutes earlier.
 
+### ADR-025: External Client Apps, because Salesforce closed Connected Apps
+
+**Context.** This connector's auth is the OAuth 2.0 JWT Bearer flow, which
+needs an app registration in the org holding the signing certificate. Every
+version of this document said "Connected App", because that was the only
+answer for a decade. In Winter '26 Salesforce disabled connected app creation
+in all new orgs, and from Spring '26 will not re-enable it without a support
+request. A new org refuses through the API as well as the UI:
+*"You can't create a connected app. To enable connected app creation, contact
+Salesforce Customer Support."*
+
+This was discovered by trying it, not by reading a release note.
+
+**Options considered.**
+1. Ask Salesforce Support to re-enable connected apps for the org.
+2. Use **External Client Apps**, the replacement, which support the same JWT
+   bearer flow.
+3. Fall back to the Client Credentials flow, which needs no certificate.
+
+**Decision.** Option 2. Option 1 makes setup depend on a support ticket, which
+is not a setup instruction anyone can follow. Option 3 would trade a
+documented, certificate-signed flow for a shared secret in order to dodge a
+provisioning problem — the wrong thing to give up.
+
+Nothing in `src/` changed. The flow, the assertion, the token exchange, and
+every scope are identical; only where the certificate is registered moved. That
+the connector needed no change is the layering working: `auth/jwt_bearer.py`
+knows about a signed assertion and a token endpoint, and never about which
+Setup page issued the key.
+
+**Trade-offs accepted.** An External Client App is three metadata components
+rather than one, plus a fourth for the policy, and the setup instructions are
+correspondingly longer. `connector.yaml` still says `auth_type:
+oauth2_jwt_bearer`, which remains exactly true.
+
+**Consequences.** QUICKSTART §3b now leads with the change and why, because a
+reader following the old instructions reaches a dead end with an error that
+sounds like a permissions problem. §3e records the CLI route, including three
+things that cost real time to find: `consumerKey` must be omitted from the
+deploy and retrieved afterwards; the pre-authorisation policy must be deployed
+*after* that retrieve, because an app carrying it cannot be retrieved; and
+assigning a user is not expressible in PermissionSet metadata at all — it takes
+three records, and `SetupEntityAccess` lives on the standard API rather than
+Tooling.
+
+### ADR-026: What the first real org changed
+
+**Context.** Everything here was built and verified against mocked HTTP,
+because no org existed. Thirty tests were written to run the day one did. They
+found four defects and one wrong assumption in the tests themselves.
+
+**Decision.** All five fixed rather than documented. Each is recorded here with
+what made it invisible, since that is the reusable part.
+
+| What was wrong | Why no mocked test could see it |
+|---|---|
+| A replayed idempotency key reported `created: true` | Every mocked test calls each key once — the one case where the bug cannot appear |
+| `changed_fields` returned Salesforce's casing (`Title`) | The unit test asserted the provider's name confidently, so it agreed with the bug |
+| A missing record was classified `invalid_input`, not `record_not_found` | `INVALID_CROSS_REFERENCE_KEY` matches `INVALID_*` by shape; only a real 404 shows the mismatch |
+| A note invented `TaskSubtype: "Other"`, which the org rejects | It is a restricted picklist configured per org; a mock accepts anything |
+
+**Trade-offs accepted.** The fourth is the one worth dwelling on.
+[ADR-008](#adr-008-opportunity-stage-read-from-the-orgs-picklist-never-hardcoded)
+argued that a per-org picklist must never be hard-coded, and that reasoning was
+applied to sales stages and not carried across to activity kinds — where the
+connector supplied its own default for a field the caller had not set. The
+principle was right and its application was incomplete, which is a more common
+failure than getting the principle wrong.
+
+**Consequences.** The test suite's own bug is equally instructive: it
+hard-coded stage `"Prospecting"`, which the org does not have. The connector
+caught it and returned the six stages that are valid — ADR-008 working exactly
+as designed, demonstrated from the wrong side. The fixture now reads a stage
+from the org, because a test that hard-codes a picklist value is making the
+assumption the connector refuses to make.
+
+Two things nearly made the run meaningless and are worth naming. The skip
+condition read `os.environ` while credentials live in `.env`, so the first live
+run skipped all thirty tests and reported success — the worst way to fail. And
+the production guard aborted outright, because a Developer Edition org
+authenticates at `login.salesforce.com`: the same host as production with none
+of the consequences. Both now ask the question the way the connector does.
+
 ---
 
 ## Reliability
@@ -1199,7 +1283,10 @@ machine:
 
 ```
 $ python -m pytest -q
-438 passed, 2 skipped, 2 warnings in 16.02s
+443 passed, 2 skipped, 30 deselected, 2 warnings in 17.91s
+
+$ python -m pytest -m "integration or learning" -q     # needs the org
+30 passed, 445 deselected in 96.02s
 
 $ python -m ruff check .
 All checks passed!
@@ -1229,7 +1316,7 @@ from a transitive dependency (`python-multipart`), and one test misusing the
 **Test tiers** (`pyproject.toml` markers):
 
 - **Default** (`addopts = "-m 'not learning and not integration'"`, what the
-  438-pass run above covers): unit tests (`tests/unit/`, schema validation,
+  443-pass run above covers): unit tests (`tests/unit/`, schema validation,
   error mapping, retry classification, idempotency ledger, approval path,
   published examples, OpenAPI generation, MCP adapter thinness), contract
   tests (`tests/contract/`, that `connector.yaml`, the registry, the tool
@@ -1238,20 +1325,22 @@ from a transitive dependency (`python-multipart`), and one test misusing the
   no network and no credentials required. The two skips are the read action
   sitting out a test about idempotency keys, which only writes have.
 - **`integration`** — "end to end against a live sandbox (needs an org)."
-  22 tests in `tests/integration/`: the connection, the four writes with their
-  cleanup, and the pagination walk. **Written but never run.** They skip when
-  `SF_CLIENT_ID`, `SF_USERNAME`, and `SF_PRIVATE_KEY` are absent, which is the
-  state of this machine — so the count above reads 2 skipped and 30 deselected
-  rather than 30 failures. That is honest, not green: a skipped test has
-  proved nothing.
-- **`learning`** — "pins real Salesforce behaviour (needs an org)." 8 tests in
-  `tests/learning/`, each naming one assumption this connector was built on
-  from documentation, and the code that leans on it. A failure there is not a
-  bug report; it is a correction to something believed about Salesforce.
+  22 tests: the connection, the four writes with their cleanup, and the
+  pagination walk. **Run against a real Developer Edition org, all passing.**
+  They skip rather than fail when no credentials are configured, so a
+  contributor without an org sees skips — but a skip proves nothing, and the
+  numbers below are from a run that did not skip.
+- **`learning`** — "pins real Salesforce behaviour (needs an org)." 8 tests,
+  each naming one assumption this connector was built on from documentation
+  and the code that leans on it. All passing. A failure there is not a bug
+  report; it is a correction to something believed about Salesforce.
 
-Both tiers run with `make live`, and `docs/GO-LIVE.md` is the ordered runbook
-for the first time an org exists — including which single test is most likely
-to fail and what it would mean.
+Both tiers run with `make live`; `docs/GO-LIVE.md` is the ordered runbook.
+Its warning about the pagination walk being the most likely failure turned out
+to be wrong in an interesting way: `parameterizedSearch` **does** honour the
+`offset` the cursor is built from, so that test passed. Four other things
+failed instead — see
+[ADR-026](#adr-026-what-the-first-real-org-changed).
 
 **A real bug this process caught, and how.** While assembling the
 evaluation questions in `evaluations/` (ten Q&A pairs for testing whether a
@@ -1301,19 +1390,20 @@ truth: both gaps are closed.
 Stated plainly, per Definition of Done item 11 — hiding these would be worse
 than the gaps themselves.
 
-- **No live Salesforce org has ever been available.** There is no Developer
-  Edition org, no Connected App, and no sandbox credentials in this
-  environment. Every action has unit and fixture-level coverage against
-  mocked HTTP (`respx`); none has been run against a real org. Concretely:
-  no test file in this repository carries the `integration` or `learning`
-  pytest marker at all — the live tier is not merely unrun, it does not
-  exist as code yet.
-- **The ten `evaluations/questions.xml` answers were hand-derived, not
+- **Resolved.** This list opened with *"no live Salesforce org has ever been
+  available"*. One now is: a Developer Edition org with an External Client
+  App, and all 30 tests in `tests/integration/` and `tests/learning/` pass
+  against it, as does a full stdio round trip through the MCP protocol. What
+  that run found is
+  [ADR-026](#adr-026-what-the-first-real-org-changed). The entry is kept
+  rather than deleted because the four defects it uncovered are the argument
+  for why "passes against mocks" was never the same claim.
+- **The ten `evaluations/questions.xml` answers are still hand-derived, not
   executed.** They were worked out by hand from `evaluations/seed_data.md`
   plus the connector's own schemas and action code — the same reasoning an
-  LLM using only these tools would have to do — not by actually calling the
-  tools against Salesforce. `evaluations/README.md` documents exactly how to
-  run them for real once an org exists.
+  LLM using only these tools would have to do. Running them needs the seed
+  contacts loaded and the harness pointed at the org;
+  `evaluations/README.md` documents exactly how.
 - **Idempotency memory is process-scoped, not durable.** A restart between a
   write being sent and its response arriving loses the ledger entirely; a
   retry after that restart is indistinguishable from a first attempt. See
@@ -1322,8 +1412,9 @@ than the gaps themselves.
 - **Provider-side deduplication needs an org configuration change this
   connector cannot make for itself:** an External Id field on Contact (or
   Opportunity) that Salesforce itself would use to refuse a duplicate write,
-  independent of this connector's own in-memory ledger. Not configured on
-  any org, because no org exists to configure.
+  independent of this connector's own in-memory ledger. An org now exists,
+  but adding the field changes the org's schema rather than this connector,
+  so it is a decision rather than an oversight and remains unmade.
 - **The idempotency ledger's `IN_FLIGHT` state is unreached by the current
   call path** — `begin()` is never called by any action. Two truly
   concurrent calls sharing a fresh, not-yet-completed key are not currently

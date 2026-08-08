@@ -1,0 +1,7 @@
+{
+  "category": "input",
+  "code": "connector.invalid_input",
+  "name": "error_required_field_missing",
+  "outcome": "error",
+  "reason": "Required fields are missing: [LastName] (Salesforce code REQUIRED_FIELD_MISSING, HTTP 400)"
+}
