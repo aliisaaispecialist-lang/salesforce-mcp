@@ -24,6 +24,8 @@ actions:
   - salesforce.count_records
   - salesforce.create_contact
   - salesforce.create_opportunity
+  - salesforce.describe_object
+  - salesforce.get_record
   - salesforce.get_related
   - salesforce.link_contact_to_opportunity
   - salesforce.search_contact

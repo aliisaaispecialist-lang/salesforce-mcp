@@ -24,6 +24,8 @@ from salesforce_connector.schemas import (
     count_records,
     create_contact,
     create_opportunity,
+    describe_object,
+    get_record,
     get_related,
     link_contact_to_opportunity,
     search_contact,
@@ -35,6 +37,14 @@ MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "salesforce.count_records": (
         count_records.CountRecordsInput,
         count_records.CountRecordsOutput,
+    ),
+    "salesforce.describe_object": (
+        describe_object.DescribeObjectInput,
+        describe_object.DescribeObjectOutput,
+    ),
+    "salesforce.get_record": (
+        get_record.GetRecordInput,
+        get_record.GetRecordOutput,
     ),
     "salesforce.get_related": (
         get_related.GetRelatedInput,

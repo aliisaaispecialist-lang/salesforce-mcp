@@ -74,6 +74,8 @@ class TestTheManifest:
             "salesforce.soql_query",
             "salesforce.count_records",
             "salesforce.get_related",
+            "salesforce.describe_object",
+            "salesforce.get_record",
             "salesforce.create_contact",
             "salesforce.update_contact",
             "salesforce.create_opportunity",
@@ -101,7 +103,7 @@ class TestListActions:
         first = connector.list_actions()
         second = connector.list_actions()
 
-        assert len(first) == 9
+        assert len(first) == 11
         assert [a.action_id for a in first] == [a.action_id for a in second]
 
 

@@ -18,6 +18,8 @@ from salesforce_connector.actions.add_activity_note import AddActivityNote
 from salesforce_connector.actions.count_records import CountRecords
 from salesforce_connector.actions.create_contact import CreateContact
 from salesforce_connector.actions.create_opportunity import CreateOpportunity
+from salesforce_connector.actions.describe_object import DescribeObject
+from salesforce_connector.actions.get_record import GetRecord
 from salesforce_connector.actions.get_related import GetRelated
 from salesforce_connector.actions.link_contact_to_opportunity import LinkContactToOpportunity
 from salesforce_connector.actions.search_contact import SearchContact
@@ -31,6 +33,8 @@ _ACTIONS: Final[tuple[type[Action], ...]] = (
     SearchContact,
     CountRecords,
     GetRelated,
+    GetRecord,
+    DescribeObject,
     SoqlQuery,
     CreateContact,
     UpdateContact,

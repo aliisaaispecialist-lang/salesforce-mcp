@@ -837,6 +837,341 @@ paths:
                       next_action: This deal has no contact attached. If it is for a specific
                         person, call salesforce_link_contact_to_opportunity with opportunity_id=006xx000004TmiQAAS
                         and their contact id.
+  /actions/salesforce.describe_object:
+    post:
+      operationId: salesforce_describe_object
+      summary: Describe a Salesforce object's fields
+      description: "List an object's field names, types, and the picklist values this org\
+        \ accepts, so a call can be written correctly the first time.\n\nUse this when: before\
+        \ writing to an object you have not written to before; when a call failed because\
+        \ a field name or picklist value was not recognised; or when the user asks what can\
+        \ be stored about something. Picklists are configured per org, so this is the only\
+        \ reliable way to learn a stage or a status.\nDo not use this when: you already know\
+        \ the field names, since this returns a lot and costs context; or you want the records\
+        \ themselves rather than the shape of them, which is salesforce_get_record or salesforce_soql_query.\n\
+        \nExample -- Learn which sales stages this org accepts\n  call: {\"object_name\":\
+        \ \"Opportunity\", \"only_writable\": true}\n  returns: {\"fields\": [{\"label\":\
+        \ \"Stage\", \"name\": \"StageName\", \"picklist_values\": [\"Qualify\", \"Propose\"\
+        , \"Closed Won\"], \"relationship_name\": null, \"required\": true, \"type\": \"picklist\"\
+        , \"updateable\": true}], \"label\": \"Opportunity\", \"object_name\": \"Opportunity\"\
+        , \"returned\": 1}\n\nFailures and what to do:\n- salesforce.record_not_found: No\
+        \ object has that name in this org. Check the spelling: Salesforce object names are\
+        \ capitalised and custom ones end __c. Do not retry the same name.\n- salesforce.permission_denied:\
+        \ This user may not see that object's definition. Do not retry. Report that an administrator\
+        \ must grant access to the object.\n- salesforce.rate_limited: The org has spent its\
+        \ API allowance for now. Wait the stated number of seconds, then repeat the same call.\n\
+        - salesforce.transport_failed: Salesforce did not answer in time. Wait briefly and\
+        \ repeat. A describe is a large response, so a timeout here is more likely than on\
+        \ other reads."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which object to describe.
+              properties:
+                object_name:
+                  description: 'Required. The object, spelled as Salesforce spells it: Contact,
+                    Opportunity, Account, Lead, Task, or a custom object ending __c.'
+                  examples:
+                  - Contact
+                  - Opportunity
+                  maxLength: 80
+                  minLength: 1
+                  title: Object Name
+                  type: string
+                only_writable:
+                  default: false
+                  description: Optional, defaults to false. When true, returns only the fields
+                    that can be set, which is what you want before creating or updating a
+                    record. Formula fields, rollups and system fields such as CreatedDate
+                    are dropped, because writing to one fails.
+                  title: Only Writable
+                  type: boolean
+              required:
+              - object_name
+              title: DescribeObjectInput
+              type: object
+            examples:
+              Learn which sales stages this org accepts:
+                summary: Learn which sales stages this org accepts
+                value:
+                  object_name: Opportunity
+                  only_writable: true
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    $defs:
+                      FieldDescription:
+                        additionalProperties: false
+                        description: One field, reduced to what a caller needs to use it.
+                        properties:
+                          name:
+                            description: The API name, which is what a call must use.
+                            title: Name
+                            type: string
+                          label:
+                            description: What a person sees in the Salesforce UI.
+                            title: Label
+                            type: string
+                          type:
+                            description: string, picklist, date, currency, reference, and
+                              so on.
+                            title: Type
+                            type: string
+                          required:
+                            description: True when a create fails without it and Salesforce
+                              supplies no default.
+                            title: Required
+                            type: boolean
+                          updateable:
+                            description: False for a field that cannot be written to.
+                            title: Updateable
+                            type: boolean
+                          picklist_values:
+                            default: []
+                            description: 'The active values this org accepts, for a picklist
+                              field. Empty for every other type. These are configured per
+                              org: never assume a value that is not listed here.'
+                            items:
+                              type: string
+                            title: Picklist Values
+                            type: array
+                          relationship_name:
+                            anyOf:
+                            - type: string
+                            - type: 'null'
+                            default: null
+                            description: For a lookup field, the name to follow with salesforce_get_related.
+                              A Contact's AccountId is followed as the relationship named
+                              Account.
+                            title: Relationship Name
+                        required:
+                        - name
+                        - label
+                        - type
+                        - required
+                        - updateable
+                        title: FieldDescription
+                        type: object
+                    additionalProperties: false
+                    description: The object's fields, and how many there were.
+                    properties:
+                      object_name:
+                        description: The object described.
+                        title: Object Name
+                        type: string
+                      label:
+                        description: What a person calls it in the UI.
+                        title: Label
+                        type: string
+                      fields:
+                        description: Its fields, reduced to what is needed to read or write
+                          one.
+                        items:
+                          $ref: '#/$defs/FieldDescription'
+                        title: Fields
+                        type: array
+                      returned:
+                        description: How many fields are in this response.
+                        title: Returned
+                        type: integer
+                    required:
+                    - object_name
+                    - label
+                    - fields
+                    - returned
+                    title: DescribeObjectOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Learn which sales stages this org accepts:
+                  summary: Learn which sales stages this org accepts
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      object_name: Opportunity
+                      label: Opportunity
+                      fields:
+                      - name: StageName
+                        label: Stage
+                        type: picklist
+                        required: true
+                        updateable: true
+                        picklist_values:
+                        - Qualify
+                        - Propose
+                        - Closed Won
+                        relationship_name: null
+                      returned: 1
+  /actions/salesforce.get_record:
+    post:
+      operationId: salesforce_get_record
+      summary: Read one Salesforce record by id
+      description: "Read a single Salesforce record when you already have its id.\n\nUse this\
+        \ when: you hold a record id, from a search, from a record you just created, or from\
+        \ a relationship, and want the record itself.\nDo not use this when: you do not have\
+        \ the id, in which case search for it by name or query for it by condition; or you\
+        \ want several records at once, which is salesforce_soql_query. This reads exactly\
+        \ one.\n\nExample -- Read the fields you care about\n  call: {\"fields\": [\"Name\"\
+        , \"Email\", \"Title\"], \"object_name\": \"Contact\", \"record_id\": \"003xx000004TmiQAAS\"\
+        }\n  returns: {\"record\": {\"Email\": \"ada@example.com\", \"Id\": \"003xx000004TmiQAAS\"\
+        , \"Name\": \"Ada Lovelace\", \"Title\": \"Chief Analyst\"}}\n\nFailures and what\
+        \ to do:\n- salesforce.record_not_found: No record has that id, or it has been deleted.\
+        \ Do not retry with the same id. Search for the record by name or email, and tell\
+        \ the user if it no longer exists.\n- connector.invalid_input: The id is malformed,\
+        \ or a named field does not exist. Salesforce names the field it did not recognise.\
+        \ Call salesforce_describe_object to see the real field names, then call again.\n\
+        - salesforce.permission_denied: This user may not read that object, or one of the\
+        \ fields named. Do not retry. Try again naming fewer fields if only one was refused,\
+        \ and report that an administrator must grant access.\n- salesforce.rate_limited:\
+        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
+        \ then repeat the same call.\n- salesforce.transport_failed: Salesforce did not answer\
+        \ in time. Wait briefly and repeat. Reading again is always safe."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which record, and how much of it.
+              properties:
+                object_name:
+                  description: 'Required. The object, spelled as Salesforce spells it: Contact,
+                    Opportunity, Account, Lead, Task, or a custom object ending __c.'
+                  maxLength: 80
+                  minLength: 1
+                  title: Object Name
+                  type: string
+                record_id:
+                  description: 'Required. The record''s Salesforce id. Search for it first
+                    if you do not have it. Never guess: a well-formed id that belongs to something
+                    else returns that something else, quietly.'
+                  maxLength: 18
+                  minLength: 15
+                  title: Record Id
+                  type: string
+                fields:
+                  default: []
+                  description: 'Optional. Which fields to return, named as Salesforce names
+                    them: Name, Email, Title. Omit to get every field the object has, which
+                    on a real org is dozens of them and mostly empty. Naming the three or
+                    four you need keeps the answer readable and cheap.
+
+
+                    If you do not know what a field is called, call salesforce_describe_object
+                    first rather than guessing.'
+                  examples:
+                  - - Name
+                    - Email
+                  - - Name
+                    - StageName
+                    - Amount
+                  items:
+                    type: string
+                  title: Fields
+                  type: array
+              required:
+              - object_name
+              - record_id
+              title: GetRecordInput
+              type: object
+            examples:
+              Read the fields you care about:
+                summary: Read the fields you care about
+                value:
+                  object_name: Contact
+                  record_id: 003xx000004TmiQAAS
+                  fields:
+                  - Name
+                  - Email
+                  - Title
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: The record as Salesforce holds it.
+                    properties:
+                      record:
+                        additionalProperties: true
+                        description: The record's fields. Exactly the ones asked for, or all
+                          of them if none were named. A field present with a null value is
+                          set to nothing; a field absent was not requested.
+                        title: Record
+                        type: object
+                    required:
+                    - record
+                    title: GetRecordOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Read the fields you care about:
+                  summary: Read the fields you care about
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      record:
+                        Id: 003xx000004TmiQAAS
+                        Name: Ada Lovelace
+                        Email: ada@example.com
+                        Title: Chief Analyst
   /actions/salesforce.get_related:
     post:
       operationId: salesforce_get_related
