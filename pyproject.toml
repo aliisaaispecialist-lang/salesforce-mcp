@@ -47,6 +47,11 @@ path = "src/salesforce_connector/__init__.py"
 packages = ["src/salesforce_connector"]
 
 [tool.ruff]
+# Quoted sources, not our code. ruff formats Python inside markdown fences, and
+# `docs/research/` is full of excerpts copied verbatim from other people's
+# documentation and books. Reformatting a quotation makes it stop being one --
+# and CI failed on exactly that, which is how this exclusion got written.
+extend-exclude = ["docs"]
 line-length = 100  # PEP 8 permits raising 79 by team agreement
 target-version = "py312"
 src = ["src", "tests"]

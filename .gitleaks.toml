@@ -1,0 +1,34 @@
+# gitleaks configuration.
+#
+# One allowlist, for one rule, on one field -- written only after CI flagged it
+# and the finding was checked rather than assumed to be noise.
+#
+# `idempotency_key` is a caller-generated identifier for a logical write. It is
+# published in every write tool's own JSON Schema, appears in the worked
+# examples a model reads, and is deliberately visible: a caller that cannot see
+# it cannot resend the same one after a timeout, which is the entire mechanism
+# preventing duplicate records. A value that must be public by design is not a
+# secret, and gitleaks' generic-api-key rule matches it purely on shape,
+# because a UUID looks like a token.
+#
+# Nothing else is allowlisted. Real credentials are excluded from the
+# repository by .gitignore rather than forgiven here.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [rules.allowlist]
+  description = "idempotency_key is a published schema field, not a credential"
+  regexes = ['''idempotency_key''']
+  paths = [
+    '''src/salesforce_connector/schemas/.*\.py''',
+    '''tests/.*\.py''',
+    '''examples/.*''',
+    '''docs/.*''',
+    '''QUICKSTART\.md''',
+    '''README\.md''',
+    '''openapi\.yaml''',
+  ]
