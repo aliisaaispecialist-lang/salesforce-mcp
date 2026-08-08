@@ -21,7 +21,6 @@ listing five fixtures says nothing about what the test does, and `org.marker`
 reads better at the point of use than a bare `marker` anyway.
 """
 
-import os
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -35,6 +34,7 @@ from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import PRODUCTION_LOGIN_URL, Settings, load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionRequest, ActionResult
+from salesforce_connector.errors.model import ConfigurationError
 from salesforce_connector.exchange import RequestSpec
 
 REQUIRED = ("SF_CLIENT_ID", "SF_USERNAME", "SF_PRIVATE_KEY")
@@ -43,8 +43,20 @@ Call = Callable[..., Awaitable[ActionResult]]
 
 
 def credentials_present() -> bool:
-    """True when every variable a live run needs is set to something."""
-    return all(os.environ.get(name) for name in REQUIRED)
+    """True when the connector could actually authenticate right now.
+
+    Asked by building `Settings` rather than by reading `os.environ`, because
+    those are not the same question. Credentials usually live in `.env` -- that
+    is what QUICKSTART tells people to do -- and an environment check finds
+    nothing there. The first live run against a real org skipped all thirty
+    tests for exactly that reason, which is the worst way to fail: it reads as
+    success.
+    """
+    try:
+        load_settings()
+    except ConfigurationError:
+        return False
+    return True
 
 
 needs_an_org = pytest.mark.skipif(
@@ -126,16 +138,34 @@ class Org:
     settings: Settings
     """The credentials, in the form `test_connection` asks for them."""
 
+    stage: str
+    """A sales stage this org actually has.
+
+    Read from the org's own picklist rather than written here. The first live
+    run failed on a hard-coded "Prospecting", which this org does not have --
+    proving ADR-008's point from the wrong side. A test that hard-codes a
+    picklist value is making exactly the assumption the connector refuses to
+    make, and it fails on the first org that disagrees.
+    """
+
 
 @pytest.fixture(scope="session")
 def live_settings() -> Settings:
-    """Read the real credentials, and refuse a production org."""
+    """Read the real credentials, and refuse an unacknowledged production host.
+
+    A Developer Edition org authenticates at `login.salesforce.com` -- the same
+    host as a real production org, with none of the consequences. Refusing that
+    host outright would make this tier unusable against exactly the org type
+    the programme recommends, so it honours the same explicit opt-in `Settings`
+    does. `SF_ALLOW_PRODUCTION=true` is a person saying, in writing, that they
+    know which org this is.
+    """
     settings = load_settings()
-    if settings.login_url.rstrip("/") == PRODUCTION_LOGIN_URL:
+    if settings.login_url.rstrip("/") == PRODUCTION_LOGIN_URL and not settings.allow_production:
         pytest.exit(
-            "Integration tests refuse to run against login.salesforce.com. "
-            "These tests create and delete records. Point SF_LOGIN_URL at a "
-            "sandbox or a Developer Edition org.",
+            "These tests create and delete records, and SF_LOGIN_URL points at "
+            "login.salesforce.com. Point it at a sandbox, or set "
+            "SF_ALLOW_PRODUCTION=true if this is a Developer Edition org.",
             returncode=2,
         )
     return settings
@@ -180,6 +210,7 @@ async def org(live_client: SalesforceClient, live_settings: Settings) -> AsyncIt
             connector=connector,
             client=live_client,
             settings=live_settings,
+            stage=await _a_real_stage(live_client),
         )
     finally:
         leftovers = await bin_bag.sweep(live_client)
@@ -205,3 +236,14 @@ def unwrap(result: ActionResult) -> Mapping[str, Any]:
             f"next step: {error.next_step if error else 'none given'}"
         )
     return result.data
+
+
+async def _a_real_stage(client: SalesforceClient) -> str:
+    """Ask the org for a stage it actually accepts.
+
+    The first active value, whichever it is. Which one hardly matters; that it
+    came from this org rather than from an assumption is the whole point.
+    """
+    response = await client.request(RequestSpec(method="GET", path="sobjects/Opportunity/describe"))
+    field = next(f for f in response.body["fields"] if f["name"] == "StageName")
+    return str(next(v["value"] for v in field["picklistValues"] if v.get("active", True)))

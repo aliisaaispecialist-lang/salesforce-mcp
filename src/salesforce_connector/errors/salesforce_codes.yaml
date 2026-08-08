@@ -23,6 +23,15 @@ overrides:
   # Matches INVALID_* and would be read as bad input, but the remedy is to
   # re-authenticate.
   INVALID_OPERATION_WITH_EXPIRED_PASSWORD: auth
+  # Also matches INVALID_*, and also is not bad input. This is what Salesforce
+  # returns, with HTTP 404, when a well-formed id refers to a record that does
+  # not exist -- the single most common failure of update_contact and
+  # add_activity_note. Read as invalid input, a model corrects the field and
+  # tries again with the same wrong id. Read as not-found, it searches for the
+  # right one, which is the remedy the tools' own error guidance promises.
+  # Found by running against a real org: every write tool documents
+  # salesforce.record_not_found for this case, and none of them produced it.
+  INVALID_CROSS_REFERENCE_KEY: not_found
 
 patterns:
   - outcome: rate_limit

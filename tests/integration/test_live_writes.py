@@ -105,7 +105,7 @@ class TestUpdatingAContact:
         assert "title" in changed["changed_fields"]
 
     @pytest.mark.asyncio
-    async def test_an_unknown_id_is_a_clean_not_found(self, org: Org) -> None:
+    async def test_an_id_for_no_existing_record_is_a_clean_not_found(self, org: Org) -> None:
         result = await org.call(
             "salesforce.update_contact",
             contact_id="003000000000000AAA",
@@ -132,7 +132,7 @@ class TestCreatingAnOpportunity:
             await org.call(
                 "salesforce.create_opportunity",
                 name=f"{org.marker} renewal",
-                stage_name="Prospecting",
+                stage_name=org.stage,
                 close_date=FAR_FUTURE,
                 contact_id=contact["id"],
                 idempotency_key=f"{org.key}-opp",
@@ -200,7 +200,7 @@ class TestAddingAnActivityNote:
             await org.call(
                 "salesforce.create_opportunity",
                 name=f"{org.marker} deal",
-                stage_name="Prospecting",
+                stage_name=org.stage,
                 close_date=FAR_FUTURE,
                 idempotency_key=org.key,
             )

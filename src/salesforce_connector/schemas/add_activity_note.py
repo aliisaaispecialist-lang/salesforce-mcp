@@ -81,15 +81,18 @@ class AddActivityNoteInput(BaseModel):
         ),
     ] = None
     activity_kind: Annotated[
-        ActivityKind,
+        ActivityKind | None,
         Field(
-            default=ActivityKind.NOTE,
+            default=None,
             description=(
-                "Optional. How the interaction happened. Defaults to Other, which is "
-                "correct for a plain note."
+                "Optional. How the interaction happened. Omit it for a plain note "
+                "and Salesforce applies this org's own default: the underlying "
+                "field is a restricted picklist configured per org, so a value "
+                "invented here can be rejected outright. Send one only when the "
+                "user actually said how the interaction happened."
             ),
         ),
-    ] = ActivityKind.NOTE
+    ] = None
     activity_date: Annotated[
         date | None,
         Field(

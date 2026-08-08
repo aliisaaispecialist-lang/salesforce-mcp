@@ -60,9 +60,17 @@ def _task_fields(params: schema.AddActivityNoteInput) -> Mapping[str, Any]:
         "Subject": params.subject,
         "Status": _COMPLETED,
         "ActivityDate": when.isoformat(),
-        "TaskSubtype": params.activity_kind.value,
         **_attachment(params.related_to_id),
     }
+    # TaskSubtype is a restricted picklist every org configures for itself, and
+    # this connector was sending its own default of "Other" whenever the caller
+    # named no kind. An org that has not enabled that value rejects the whole
+    # write -- which is what a real org did, on a note the caller never asked
+    # to categorise. Omitted rather than invented, so Salesforce applies the
+    # org's own default. ADR-008 made this argument about sales stages; the
+    # same reasoning applies here and had not been carried across.
+    if params.activity_kind is not None:
+        fields["TaskSubtype"] = params.activity_kind.value
     if params.body is not None:
         fields["Description"] = params.body
     return fields

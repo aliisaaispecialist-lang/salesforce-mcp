@@ -242,7 +242,10 @@ class TestUpdateContact:
 
             assert read.called
             assert result.data["title"] == "CTO"
-            assert result.data["changed_fields"] == ["Title"]
+            # The caller's own name for the field, not Salesforce's. This test
+            # asserted `Title` until a live org showed the provider's casing
+            # leaking through an interface that is snake_case everywhere else.
+            assert result.data["changed_fields"] == ["title"]
 
 
 @pytest.mark.asyncio

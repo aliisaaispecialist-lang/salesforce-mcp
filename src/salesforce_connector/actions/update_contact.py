@@ -50,7 +50,13 @@ class UpdateContact(Action):
             "email": current.get("Email"),
             "phone": current.get("Phone"),
             "title": current.get("Title"),
-            "changed_fields": tuple(changes),
+            # Reported in the caller's own vocabulary, not Salesforce's. A
+            # caller who sent `title` was getting back `Title`, which is the
+            # provider's field name leaking through an interface that is
+            # snake_case everywhere else -- and unusable for the obvious thing
+            # a caller does with this list, which is compare it to what they
+            # asked for. Found by running against a real org.
+            "changed_fields": tuple(_asked_for(params)),
         }
 
     async def _read_back(self, contact_id: str) -> Mapping[str, Any]:
@@ -81,3 +87,14 @@ def _changes(params: schema.UpdateContactInput) -> Mapping[str, Any]:
         for name, value in given.items()
         if name in _FIELD_NAMES and value is not None
     }
+
+
+def _asked_for(params: schema.UpdateContactInput) -> tuple[str, ...]:
+    """Name the changed fields the way the caller named them.
+
+    Derived from the same source as `_changes` so the two cannot disagree
+    about what was sent: one renders the caller's names into Salesforce's,
+    this one keeps them.
+    """
+    given = params.model_dump(exclude_none=True)
+    return tuple(name for name in given if name in _FIELD_NAMES and given[name] is not None)

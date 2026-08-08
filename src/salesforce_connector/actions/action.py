@@ -21,6 +21,7 @@ from pydantic import BaseModel, ValidationError
 from salesforce_connector.client import SalesforceClient
 from salesforce_connector.contract import ActionRequest, ActionResult, Pagination
 from salesforce_connector.errors.model import ConnectorError, ErrorContext, InvalidInputError
+from salesforce_connector.immutable import freeze
 from salesforce_connector.observability import bind_request, clear_request, get_logger
 from salesforce_connector.schemas.envelope import ActionSpec
 
@@ -98,7 +99,7 @@ class Action(ABC):
         return ActionResult(
             ok=True,
             request_id=request.request_id,
-            data=entry.result,
+            data=_as_replay(entry.result),
             warnings=(
                 "This idempotency key had already completed; the original result is returned.",
             ),
@@ -181,3 +182,22 @@ def _name_of(location: tuple[object, ...]) -> str:
 def _fields_of(exc: ValidationError) -> tuple[str, ...]:
     named = (_name_of(problem["loc"]) for problem in exc.errors())
     return tuple(dict.fromkeys(named))
+
+
+def _as_replay(original: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return a stored result marked as the replay it is.
+
+    Every write's output schema documents `created` as "True if this call
+    created the record; False means the identical key had already created it".
+    Returning the stored result verbatim made that false: the replay reported
+    `created: True` exactly like the write that really did create something, so
+    the one field a caller has for telling a fresh write from a deduplicated
+    retry always said the same thing.
+
+    Found by running against a real org. Every mocked test called each key
+    once, which is the one case where the bug cannot appear.
+    """
+    if "created" not in original:
+        return original
+    replayed: Mapping[str, Any] = freeze({**dict(original), "created": False})
+    return replayed
