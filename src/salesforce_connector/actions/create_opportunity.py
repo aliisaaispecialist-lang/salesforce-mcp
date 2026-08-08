@@ -22,15 +22,13 @@ from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import create_opportunity as schema
 
 _PATH: Final = "sobjects/Opportunity"
-_ROLE_PATH: Final = "sobjects/OpportunityContactRole"
 _DESCRIBE_PATH: Final = "sobjects/Opportunity/describe"
 
 _CREATED = "opportunity_created"
-_LINKED = "contact_linked"
 
 
 class CreateOpportunity(Action):
-    """Add a deal, and attach a contact to it when asked."""
+    """Add a deal. Attaching a contact is a separate tool."""
 
     spec = schema.SPEC
     input_model: ClassVar[type] = schema.CreateOpportunityInput
@@ -42,16 +40,22 @@ class CreateOpportunity(Action):
 
     async def _execute(self, params: schema.CreateOpportunityInput) -> Mapping[str, Any]:
         await self._reject_unknown_stage(params.stage_name)
-
         opportunity_id = await self._create(params)
-        linked = await self._link_contact(opportunity_id, params.contact_id)
 
         return {
             "id": opportunity_id,
             "name": params.name,
             "stage_name": params.stage_name,
             "created": True,
-            "contact_linked": linked,
+            # The handover, in the result rather than only the description,
+            # because this is the moment the next decision is due. It names
+            # what is unfinished, the tool that finishes it, and the id to
+            # carry across -- a model missing any of the three guesses at it.
+            "next_action": (
+                f"This deal has no contact attached. If it is for a specific person, "
+                f"call salesforce_link_contact_to_opportunity with "
+                f"opportunity_id={opportunity_id} and their contact id."
+            ),
         }
 
     async def _create(self, params: schema.CreateOpportunityInput) -> str:
@@ -72,33 +76,6 @@ class CreateOpportunity(Action):
         created_id = str(response.body.get("id", "")) if isinstance(response.body, Mapping) else ""
         self._journal.record(_CREATED, {"id": created_id})
         return created_id
-
-    async def _link_contact(self, opportunity_id: str, contact_id: str | None) -> bool | None:
-        """Attach the contact, reporting failure without losing the deal.
-
-        The opportunity already exists by this point, so a failure here is a
-        partial success. Raising would send the caller back to create a second
-        deal.
-        """
-        if contact_id is None:
-            return None
-        if self._journal.is_done(_LINKED):
-            return True
-        try:
-            await self._client.request(
-                RequestSpec(
-                    method="POST",
-                    path=_ROLE_PATH,
-                    json_body={"OpportunityId": opportunity_id, "ContactId": contact_id},
-                    is_write=True,
-                    idempotency_key=f"{opportunity_id}:role",
-                )
-            )
-        except ConnectorError:
-            self._log.warning("action.partial", step=_LINKED, opportunity_id=opportunity_id)
-            return False
-        self._journal.record(_LINKED)
-        return True
 
     async def _reject_unknown_stage(self, stage: str) -> None:
         """Refuse a stage this org does not use, and say which it does."""

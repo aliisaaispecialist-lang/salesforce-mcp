@@ -48,7 +48,7 @@ class TestTheOrgAnswers:
 class TestWhatTheOrgOffers:
     @pytest.mark.asyncio
     async def test_all_five_actions_are_available(self, org: Org) -> None:
-        assert len(org.connector.list_actions()) == 5
+        assert len(org.connector.list_actions()) == 6
 
     @pytest.mark.asyncio
     async def test_the_quota_is_reported(self, org: Org) -> None:

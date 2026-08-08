@@ -128,11 +128,11 @@ class TestTheClientsPath:
 
 
 class TestEveryWriteAgrees:
-    def test_all_four_writes_declare_approval_and_the_read_does_not(self) -> None:
+    def test_every_write_declares_approval_and_the_read_does_not(self) -> None:
         writes = [d for d in described() if d.kind is ActionKind.WRITE]
         reads = [d for d in described() if d.kind is ActionKind.READ]
 
-        assert len(writes) == 4
+        assert len(writes) == 5
         assert len(reads) == 1
         for action in writes:
             assert "approved" in action.input_schema["properties"]

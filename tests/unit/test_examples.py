@@ -23,6 +23,7 @@ from salesforce_connector.schemas import (
     add_activity_note,
     create_contact,
     create_opportunity,
+    link_contact_to_opportunity,
     search_contact,
     update_contact,
 )
@@ -43,6 +44,10 @@ MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "salesforce.create_opportunity": (
         create_opportunity.CreateOpportunityInput,
         create_opportunity.CreateOpportunityOutput,
+    ),
+    "salesforce.link_contact_to_opportunity": (
+        link_contact_to_opportunity.LinkContactToOpportunityInput,
+        link_contact_to_opportunity.LinkContactToOpportunityOutput,
     ),
     "salesforce.add_activity_note": (
         add_activity_note.AddActivityNoteInput,

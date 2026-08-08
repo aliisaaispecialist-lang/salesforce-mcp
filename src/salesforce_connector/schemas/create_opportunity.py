@@ -78,17 +78,6 @@ class CreateOpportunityInput(BaseModel):
         float | None,
         Field(default=None, ge=0, description="Optional. Value of the deal in the org's currency."),
     ] = None
-    contact_id: Annotated[
-        str | None,
-        Field(
-            default=None,
-            description=(
-                "Optional. Contact to associate with the deal, id starting 003. This "
-                "is a second write after the opportunity is created, so it can succeed "
-                "or fail independently; the result says which happened."
-            ),
-        ),
-    ] = None
     description: Annotated[
         str | None, Field(default=None, max_length=32000, description="Optional. Free-text notes.")
     ] = None
@@ -111,14 +100,14 @@ class CreateOpportunityOutput(BaseModel):
             )
         ),
     ]
-    contact_linked: Annotated[
-        bool | None,
+    next_action: Annotated[
+        str | None,
         Field(
             default=None,
             description=(
-                "True if the contact was linked, false if that step failed while the "
-                "opportunity still exists, absent if no contact was requested. A false "
-                "here is a partial success: do not create the opportunity again."
+                "What is still unfinished, and which tool finishes it. Present only "
+                "when the deal has no contact attached; absent means there is "
+                "nothing further to do."
             ),
         ),
     ] = None
@@ -149,41 +138,26 @@ SPEC = ActionSpec(
     output_schema=schema_of(CreateOpportunityOutput),
     examples=(
         ActionExample(
-            title="Open a deal and link the contact it came from",
+            title="Open a deal",
             arguments={
                 "name": "Example Corp - annual renewal",
-                "stage_name": "Prospecting",
+                "stage_name": "Qualify",
                 "close_date": "2026-12-01",
                 "amount": 45000,
                 "account_id": "001xx000003DGb2AAG",
-                "contact_id": "003xx000004TmiQAAS",
                 "idempotency_key": "c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f",
                 "approved": True,
             },
             result={
                 "id": "006xx000004TmiQAAS",
                 "name": "Example Corp - annual renewal",
-                "stage_name": "Prospecting",
+                "stage_name": "Qualify",
                 "created": True,
-                "contact_linked": True,
-            },
-        ),
-        ActionExample(
-            title="The opportunity was created but the contact link failed",
-            arguments={
-                "name": "Example Corp - annual renewal",
-                "stage_name": "Prospecting",
-                "close_date": "2026-12-01",
-                "contact_id": "003xx000004TmiQAAS",
-                "idempotency_key": "c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f",
-                "approved": True,
-            },
-            result={
-                "id": "006xx000004TmiQAAS",
-                "name": "Example Corp - annual renewal",
-                "stage_name": "Prospecting",
-                "created": True,
-                "contact_linked": False,
+                "next_action": (
+                    "This deal has no contact attached. If it is for a specific "
+                    "person, call salesforce_link_contact_to_opportunity with "
+                    "opportunity_id=006xx000004TmiQAAS and their contact id."
+                ),
             },
         ),
     ),
@@ -217,7 +191,7 @@ SPEC = ActionSpec(
         ),
         ErrorGuidance(
             code="salesforce.record_not_found",
-            when="The account_id or contact_id does not exist.",
+            when="The account_id does not exist.",
             remedy=(
                 "Search for the right record, or omit the optional id. Never guess an "
                 "id: a valid-looking one may belong to something else."
@@ -249,7 +223,7 @@ SPEC = ActionSpec(
             when="The request did not complete, so the opportunity may or may not exist.",
             remedy=(
                 "Repeat with the identical idempotency key, which returns the original "
-                "result if it was already created. If the result shows contact_linked "
+                "result if it was already created. Read next_action in the result: it "
                 "false, the deal exists and only the link is missing: do not create it "
                 "again."
             ),

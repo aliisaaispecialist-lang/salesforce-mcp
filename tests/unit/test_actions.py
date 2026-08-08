@@ -71,8 +71,8 @@ async def run(client: SalesforceClient, action_id: str, **params: Any) -> Any:
 
 
 class TestTheRegistry:
-    def test_it_offers_exactly_the_five_assigned_actions(self) -> None:
-        assert len(registry.BY_ID) == 5
+    def test_it_offers_the_five_assigned_actions_plus_the_link_split_from_one(self) -> None:
+        assert len(registry.BY_ID) == 6
 
     def test_the_order_is_stable_rather_than_incidental(self) -> None:
         assert list(registry.BY_ID) == sorted(registry.BY_ID)
@@ -80,7 +80,7 @@ class TestTheRegistry:
     def test_descriptors_carry_the_rendered_description(self) -> None:
         described = registry.descriptors()
 
-        assert len(described) == 5
+        assert len(described) == 6
         assert all("Do not use this when:" in item.description for item in described)
 
     def test_an_unknown_action_names_the_ones_that_exist(self, client: SalesforceClient) -> None:
@@ -341,40 +341,42 @@ class TestCreateOpportunity:
             assert "Prospecting" in result.error.next_step
             assert result.error.invalid_fields == ("stage_name",)
 
-    async def test_a_failed_contact_link_reports_partial_success_not_failure(
+    async def test_it_hands_over_rather_than_linking_a_contact_itself(
         self, client: SalesforceClient
     ) -> None:
+        """The split, asserted from the outside.
+
+        Linking used to happen inside this action whenever an optional
+        contact_id was supplied, and could fail after the deal existed. Now the
+        deal is all this tool makes, and the result names the tool that
+        finishes the job and the id to give it.
+        """
         async with client, respx.mock:
             token_route()
             respx.get(f"{DATA}/sobjects/Opportunity/describe").mock(
-                return_value=self.describe(("Prospecting",))
+                return_value=self.describe(("Qualify",))
+            )
+            role = respx.post(f"{DATA}/sobjects/OpportunityContactRole").mock(
+                return_value=httpx.Response(201, json={"id": "00Krole"})
             )
             respx.post(f"{DATA}/sobjects/Opportunity").mock(
                 return_value=httpx.Response(201, json={"id": "006new"})
-            )
-            respx.post(f"{DATA}/sobjects/OpportunityContactRole").mock(
-                return_value=httpx.Response(
-                    403, json=[{"errorCode": "INSUFFICIENT_ACCESS", "message": "no"}]
-                )
             )
 
             result = await run(
                 client,
                 "salesforce.create_opportunity",
-                name="Renewal",
-                stage_name="Prospecting",
-                close_date="2026-12-01",
+                name="Deal",
+                stage_name="Qualify",
+                close_date="2030-01-01",
                 idempotency_key=KEY,
-                contact_id="003xx000004TmiQ",
             )
 
             assert result.ok
-            assert result.data["id"] == "006new"
-            assert result.data["contact_linked"] is False
+            assert role.call_count == 0, "this action must not write a contact role"
+            assert "salesforce_link_contact_to_opportunity" in result.data["next_action"]
+            assert "006new" in result.data["next_action"]
 
-
-@pytest.mark.asyncio
-class TestFailuresNeverEscape:
     async def test_bad_arguments_come_back_as_a_result_naming_the_field(
         self, client: SalesforceClient
     ) -> None:

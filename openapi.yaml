@@ -479,28 +479,29 @@ paths:
         \ expected close date.\nDo not use this when: the deal already exists and needs changing;\
         \ you only want to log a conversation, which is the activity note; or you are missing\
         \ the stage or close date, in which case ask the user rather than inventing them.\n\
-        \nExample -- Open a deal and link the contact it came from\n  call: {\"account_id\"\
-        : \"001xx000003DGb2AAG\", \"amount\": 45000, \"approved\": true, \"close_date\": \"\
-        2026-12-01\", \"contact_id\": \"003xx000004TmiQAAS\", \"idempotency_key\": \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\"\
-        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Prospecting\"}\n\
-        \  returns: {\"contact_linked\": true, \"created\": true, \"id\": \"006xx000004TmiQAAS\"\
-        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Prospecting\"}\n\n\
-        Failures and what to do:\n- connector.invalid_input: A required field was missing,\
-        \ or stage_name is not a stage this org uses. The error lists the exact stages this\
-        \ org accepts. Choose one of them, or ask the user which they meant, then call again\
-        \ with the same idempotency key. Do not invent a stage name.\n- salesforce.record_not_found:\
-        \ The account_id or contact_id does not exist. Search for the right record, or omit\
-        \ the optional id. Never guess an id: a valid-looking one may belong to something\
-        \ else.\n- salesforce.permission_denied: This Salesforce user may not create opportunities.\
-        \ Do not retry. Report that the profile lacks Create on Opportunity and an administrator\
-        \ must grant it.\n- salesforce.conflict: Duplicate rules matched an existing opportunity.\
-        \ Do not repeat unchanged. Show the user the matching deal and ask whether they meant\
-        \ that one.\n- salesforce.rate_limited: The org has spent its API allowance for now.\
-        \ Wait the stated number of seconds, then repeat with the same key.\n- salesforce.transport_failed:\
-        \ The request did not complete, so the opportunity may or may not exist. Repeat with\
-        \ the identical idempotency key, which returns the original result if it was already\
-        \ created. If the result shows contact_linked false, the deal exists and only the\
-        \ link is missing: do not create it again."
+        \nExample -- Open a deal\n  call: {\"account_id\": \"001xx000003DGb2AAG\", \"amount\"\
+        : 45000, \"approved\": true, \"close_date\": \"2026-12-01\", \"idempotency_key\":\
+        \ \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\", \"name\": \"Example Corp - annual renewal\"\
+        , \"stage_name\": \"Qualify\"}\n  returns: {\"created\": true, \"id\": \"006xx000004TmiQAAS\"\
+        , \"name\": \"Example Corp - annual renewal\", \"next_action\": \"This deal has no\
+        \ contact attached. If it is for a specific person, call salesforce_link_contact_to_opportunity\
+        \ with opportunity_id=006xx000004TmiQAAS and their contact id.\", \"stage_name\":\
+        \ \"Qualify\"}\n\nFailures and what to do:\n- connector.invalid_input: A required\
+        \ field was missing, or stage_name is not a stage this org uses. The error lists the\
+        \ exact stages this org accepts. Choose one of them, or ask the user which they meant,\
+        \ then call again with the same idempotency key. Do not invent a stage name.\n- salesforce.record_not_found:\
+        \ The account_id does not exist. Search for the right record, or omit the optional\
+        \ id. Never guess an id: a valid-looking one may belong to something else.\n- salesforce.permission_denied:\
+        \ This Salesforce user may not create opportunities. Do not retry. Report that the\
+        \ profile lacks Create on Opportunity and an administrator must grant it.\n- salesforce.conflict:\
+        \ Duplicate rules matched an existing opportunity. Do not repeat unchanged. Show the\
+        \ user the matching deal and ask whether they meant that one.\n- salesforce.rate_limited:\
+        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
+        \ then repeat with the same key.\n- salesforce.transport_failed: The request did not\
+        \ complete, so the opportunity may or may not exist. Repeat with the identical idempotency\
+        \ key, which returns the original result if it was already created. Read next_action\
+        \ in the result: it false, the deal exists and only the link is missing: do not create\
+        \ it again."
       tags:
       - write
       requestBody:
@@ -568,15 +569,6 @@ paths:
                   default: null
                   description: Optional. Value of the deal in the org's currency.
                   title: Amount
-                contact_id:
-                  anyOf:
-                  - type: string
-                  - type: 'null'
-                  default: null
-                  description: Optional. Contact to associate with the deal, id starting 003.
-                    This is a second write after the opportunity is created, so it can succeed
-                    or fail independently; the result says which happened.
-                  title: Contact Id
                 description:
                   anyOf:
                   - maxLength: 32000
@@ -593,24 +585,14 @@ paths:
               title: CreateOpportunityInput
               type: object
             examples:
-              Open a deal and link the contact it came from:
-                summary: Open a deal and link the contact it came from
+              Open a deal:
+                summary: Open a deal
                 value:
                   name: Example Corp - annual renewal
-                  stage_name: Prospecting
+                  stage_name: Qualify
                   close_date: '2026-12-01'
                   amount: 45000
                   account_id: 001xx000003DGb2AAG
-                  contact_id: 003xx000004TmiQAAS
-                  idempotency_key: c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f
-                  approved: true
-              The opportunity was created but the contact link failed:
-                summary: The opportunity was created but the contact link failed
-                value:
-                  name: Example Corp - annual renewal
-                  stage_name: Prospecting
-                  close_date: '2026-12-01'
-                  contact_id: 003xx000004TmiQAAS
                   idempotency_key: c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f
                   approved: true
       responses:
@@ -647,16 +629,15 @@ paths:
                           identical key had already created it and this is the original outcome.
                         title: Created
                         type: boolean
-                      contact_linked:
+                      next_action:
                         anyOf:
-                        - type: boolean
+                        - type: string
                         - type: 'null'
                         default: null
-                        description: 'True if the contact was linked, false if that step failed
-                          while the opportunity still exists, absent if no contact was requested.
-                          A false here is a partial success: do not create the opportunity
-                          again.'
-                        title: Contact Linked
+                        description: What is still unfinished, and which tool finishes it.
+                          Present only when the deal has no contact attached; absent means
+                          there is nothing further to do.
+                        title: Next Action
                     required:
                     - id
                     - name
@@ -680,28 +661,188 @@ paths:
                 - ok
                 - request_id
               examples:
-                Open a deal and link the contact it came from:
-                  summary: Open a deal and link the contact it came from
+                Open a deal:
+                  summary: Open a deal
                   value:
                     ok: true
                     request_id: req-01HZY6
                     data:
                       id: 006xx000004TmiQAAS
                       name: Example Corp - annual renewal
-                      stage_name: Prospecting
+                      stage_name: Qualify
                       created: true
-                      contact_linked: true
-                The opportunity was created but the contact link failed:
-                  summary: The opportunity was created but the contact link failed
+                      next_action: This deal has no contact attached. If it is for a specific
+                        person, call salesforce_link_contact_to_opportunity with opportunity_id=006xx000004TmiQAAS
+                        and their contact id.
+  /actions/salesforce.link_contact_to_opportunity:
+    post:
+      operationId: salesforce_link_contact_to_opportunity
+      summary: Attach a contact to a Salesforce opportunity
+      description: "Attach an existing contact to an existing opportunity, so the deal records\
+        \ who it is for.\n\nUse this when: you have just created an opportunity for a particular\
+        \ person and hold both ids; or an existing deal is missing the contact it belongs\
+        \ to.\nDo not use this when: the opportunity does not exist yet, in which case create\
+        \ it first and use the id it returns; or you do not have the contact's id, in which\
+        \ case search for them rather than guessing. This tool only links two records that\
+        \ already exist, and creates neither.\n\nExample -- Attach the contact to a deal just\
+        \ created\n  call: {\"approved\": true, \"contact_id\": \"003xx000004TmiQAAS\", \"\
+        idempotency_key\": \"f6a7b8c9-d0e1-4f2a-9b3c-5d6e7f8a9b0c\", \"opportunity_id\": \"\
+        006xx000004TmiQAAS\"}\n  returns: {\"contact_id\": \"003xx000004TmiQAAS\", \"id\"\
+        : \"00Kxx0000012345AAA\", \"linked\": true, \"opportunity_id\": \"006xx000004TmiQAAS\"\
+        }\n\nFailures and what to do:\n- salesforce.record_not_found: Either the opportunity\
+        \ or the contact does not exist. Do not retry with the same ids. Search for whichever\
+        \ record is missing, and tell the user if it has been deleted. The error names which\
+        \ id failed.\n- connector.invalid_input: An id is malformed, or the two ids are the\
+        \ wrong way round. Check that opportunity_id starts 006 and contact_id starts 003.\
+        \ Correct them and call again with the same idempotency key.\n- salesforce.conflict:\
+        \ This contact already has a role on this opportunity. Do not retry. The link you\
+        \ wanted already exists, so report that the contact is already attached rather than\
+        \ treating it as a failure.\n- salesforce.permission_denied: This Salesforce user\
+        \ may not create contact roles. Do not retry. Report that the profile lacks Create\
+        \ on OpportunityContactRole and an administrator must grant it.\n- salesforce.rate_limited:\
+        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
+        \ then repeat with the same key.\n- salesforce.transport_failed: The request did not\
+        \ complete, so the link may or may not exist. Repeat with the identical idempotency\
+        \ key. Attaching the same person twice would put them on the deal twice, and the key\
+        \ is what prevents it."
+      tags:
+      - write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which contact, and which deal.
+              properties:
+                opportunity_id:
+                  description: 'Required. The deal to attach someone to, id starting 006.
+                    If you have just created the opportunity, this is the id it returned.
+                    If you do not have it, do not guess: create the opportunity first, or
+                    search for it if it already exists.'
+                  maxLength: 18
+                  minLength: 15
+                  title: Opportunity Id
+                  type: string
+                contact_id:
+                  description: 'Required. The person to attach, id starting 003. Search for
+                    the contact by name or email if you do not have their id. Never guess
+                    an id: a valid-looking one may belong to somebody else, and this would
+                    attach the wrong person to the deal.'
+                  maxLength: 18
+                  minLength: 15
+                  title: Contact Id
+                  type: string
+                idempotency_key:
+                  description: 'A unique id you generate for this logical write, for example
+                    a UUID. Required. If you retry this call after a timeout or an unclear
+                    failure, send the identical value: the connector recognises it and returns
+                    the original outcome instead of writing a second record. Generate a new
+                    value only when you genuinely intend a separate record.'
+                  minLength: 8
+                  title: Idempotency Key
+                  type: string
+                approved:
+                  default: false
+                  description: 'Optional, defaults to false. Set to true only after a person
+                    has seen and confirmed this write. A write arriving without it is refused,
+                    and the refusal says so. It is declared here because a tool must not ask
+                    for an argument its own schema does not offer: a caller working from the
+                    schema alone would have no way to supply it.'
+                  title: Approved
+                  type: boolean
+                role:
+                  anyOf:
+                  - type: string
+                  - type: 'null'
+                  default: null
+                  description: 'Optional. What part this person plays, for example ''Decision
+                    Maker'' or ''Economic Buyer''. Roles are a picklist configured per org,
+                    so omit this unless the user named one: Salesforce then applies the org''s
+                    own default rather than rejecting a value invented here.'
+                  title: Role
+              required:
+              - opportunity_id
+              - contact_id
+              - idempotency_key
+              title: LinkContactToOpportunityInput
+              type: object
+            examples:
+              Attach the contact to a deal just created:
+                summary: Attach the contact to a deal just created
+                value:
+                  opportunity_id: 006xx000004TmiQAAS
+                  contact_id: 003xx000004TmiQAAS
+                  idempotency_key: f6a7b8c9-d0e1-4f2a-9b3c-5d6e7f8a9b0c
+                  approved: true
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: The link that now exists.
+                    properties:
+                      id:
+                        description: Record id of the contact role, starting 00K.
+                        title: Id
+                        type: string
+                      opportunity_id:
+                        description: The deal the contact is now attached to.
+                        title: Opportunity Id
+                        type: string
+                      contact_id:
+                        description: The person attached.
+                        title: Contact Id
+                        type: string
+                      linked:
+                        description: True if this call created the link. False means the identical
+                          idempotency key had already created it and this is the original
+                          outcome, not a second role.
+                        title: Linked
+                        type: boolean
+                    required:
+                    - id
+                    - opportunity_id
+                    - contact_id
+                    - linked
+                    title: LinkContactToOpportunityOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Attach the contact to a deal just created:
+                  summary: Attach the contact to a deal just created
                   value:
                     ok: true
                     request_id: req-01HZY6
                     data:
-                      id: 006xx000004TmiQAAS
-                      name: Example Corp - annual renewal
-                      stage_name: Prospecting
-                      created: true
-                      contact_linked: false
+                      id: 00Kxx0000012345AAA
+                      opportunity_id: 006xx000004TmiQAAS
+                      contact_id: 003xx000004TmiQAAS
+                      linked: true
   /actions/salesforce.search_contact:
     post:
       operationId: salesforce_search_contact

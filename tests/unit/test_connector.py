@@ -74,6 +74,7 @@ class TestTheManifest:
             "salesforce.create_contact",
             "salesforce.update_contact",
             "salesforce.create_opportunity",
+            "salesforce.link_contact_to_opportunity",
             "salesforce.add_activity_note",
         }
 
@@ -93,11 +94,11 @@ class TestTheManifest:
 
 
 class TestListActions:
-    def test_all_five_are_described_in_a_stable_order(self, connector: SalesforceConnector) -> None:
+    def test_all_six_are_described_in_a_stable_order(self, connector: SalesforceConnector) -> None:
         first = connector.list_actions()
         second = connector.list_actions()
 
-        assert len(first) == 5
+        assert len(first) == 6
         assert [a.action_id for a in first] == [a.action_id for a in second]
 
 

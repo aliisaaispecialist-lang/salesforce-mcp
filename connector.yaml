@@ -23,6 +23,7 @@ actions:
   - salesforce.add_activity_note
   - salesforce.create_contact
   - salesforce.create_opportunity
+  - salesforce.link_contact_to_opportunity
   - salesforce.search_contact
   - salesforce.update_contact
 
