@@ -182,6 +182,11 @@ SPEC = ActionSpec(
             },
         ),
     ),
+    manual_recovery=(
+        "Open the contact or opportunity in Salesforce and add the activity "
+        "by hand from the Activity tab. Check the timeline first in case "
+        "the note was already logged before the failure. "
+    ),
     missing_inputs=(
         MissingInput(
             field="related_to_id",

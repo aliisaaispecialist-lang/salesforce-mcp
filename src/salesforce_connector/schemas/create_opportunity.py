@@ -187,6 +187,13 @@ SPEC = ActionSpec(
             },
         ),
     ),
+    manual_recovery=(
+        "Open Salesforce and search Opportunities for the name before doing "
+        "anything, because the deal may exist without its contact link. If "
+        "it does, add the contact under Related > Contact Roles rather than "
+        "creating the opportunity again. If it does not, create it from "
+        "Opportunities > New. "
+    ),
     missing_inputs=(
         MissingInput(field="name", prompt="What should the opportunity be called?"),
         MissingInput(

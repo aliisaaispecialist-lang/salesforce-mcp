@@ -72,6 +72,21 @@ class ActionSpec(_Frozen):
     input_schema: Mapping[str, Any]
     output_schema: Mapping[str, Any]
     errors: Sequence[ErrorGuidance]
+    manual_recovery: str = ""
+    """What a person must do by hand when this action cannot be completed.
+
+    Every write that changes state needs one. Chapter 6's rule is that a tool
+    which creates or modifies something has either a rollback tool or a
+    documented manual procedure, and this connector has no rollback tools: it
+    cannot un-create a contact, and offering to would be worse than saying so.
+
+    So this is the procedure, written for the person who has to carry it out
+    rather than for the model. It is attached to the escalation after the
+    retries are exhausted, at the one moment somebody actually needs it.
+
+    Reads leave it empty. There is nothing to recover from a failed search.
+    """
+
     missing_inputs: Sequence[MissingInput] = ()
     examples: tuple[ActionExample, ...] = ()
 

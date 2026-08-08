@@ -136,6 +136,11 @@ SPEC = ActionSpec(
             },
         ),
     ),
+    manual_recovery=(
+        "Open the contact in Salesforce and set the fields by hand. Check "
+        "the current values first: an update can apply and still report "
+        "failure, so some of the change may already be saved. "
+    ),
     missing_inputs=(
         MissingInput(
             field="contact_id",

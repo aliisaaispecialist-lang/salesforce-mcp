@@ -141,6 +141,12 @@ SPEC = ActionSpec(
             result={"id": "003xx000004TmiQAAS", "name": "Ada Lovelace", "created": False},
         ),
     ),
+    manual_recovery=(
+        "Open Salesforce, search Contacts for the name to confirm it was "
+        "not partly created, then create it by hand from Contacts > New. If "
+        "a half-created record is there, correct that one rather than "
+        "adding a second. "
+    ),
     missing_inputs=(
         MissingInput(
             field="last_name",

@@ -19,13 +19,22 @@ from typing import Any, ClassVar, Final
 from pydantic import BaseModel, ValidationError
 
 from salesforce_connector.client import SalesforceClient
-from salesforce_connector.contract import ActionRequest, ActionResult, Pagination
-from salesforce_connector.errors.model import ConnectorError, ErrorContext, InvalidInputError
+from salesforce_connector.contract import ActionError, ActionRequest, ActionResult, Pagination
+from salesforce_connector.errors.model import (
+    ConnectorError,
+    ErrorContext,
+    EscalationError,
+    InvalidInputError,
+)
 from salesforce_connector.immutable import freeze
 from salesforce_connector.observability import bind_request, clear_request, get_logger
 from salesforce_connector.schemas.envelope import ActionSpec
 
 _MILLISECONDS: Final = 1000.0
+
+# Two blank lines, so the human instructions read as their own paragraph
+# rather than running on from advice written for a model.
+BY_HAND = "\n\nTo do it by hand: "
 
 
 class Action(ABC):
@@ -138,7 +147,7 @@ class Action(ABC):
         self, request: ActionRequest, failure: ConnectorError, started: float
     ) -> ActionResult:
         elapsed = (time.monotonic() - started) * _MILLISECONDS
-        error = failure.to_action_error()
+        error = self._with_recovery(failure.to_action_error())
         self._client.metrics.record_call(self.spec.action_id, ok=False, duration_ms=elapsed)
         self._client.metrics.record_failure(self.spec.action_id, error.category.value)
         if request.idempotency_key is not None and not failure.retryable:
@@ -152,6 +161,23 @@ class Action(ABC):
             # whether to retry wants to know how much allowance is left.
             rate_limit=self._client.last_rate_limit,
         )
+
+    def _with_recovery(self, error: ActionError) -> ActionError:
+        """Attach this action's manual procedure when it has escalated.
+
+        The client raises the escalation, because it is the only layer that
+        knows the retries are exhausted. It cannot say what to do instead,
+        because it does not know which action was being attempted. This layer
+        does, so the two halves meet here.
+
+        Attached only on escalation. A first-attempt failure has a next step
+        the model can act on by itself, and burying it under instructions for
+        a human would make the recoverable case look unrecoverable.
+        """
+        if error.code != EscalationError.code or not self.spec.manual_recovery:
+            return error
+        handover = error.next_step + BY_HAND + self.spec.manual_recovery.strip()
+        return error.model_copy(update={"next_step": handover})
 
     @abstractmethod
     async def _execute(self, params: Any) -> Mapping[str, Any]:
