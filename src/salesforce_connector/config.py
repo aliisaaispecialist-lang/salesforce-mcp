@@ -65,6 +65,25 @@ class Settings(BaseSettings):
     write_timeout_seconds: float = Field(default=22.0, gt=0)
     allow_production: bool = False
 
+    # Everything below was a constant inside the module that used it, which
+    # meant changing how often this connector retries required reading
+    # errors/retry.py and editing a literal. A value somebody might reasonably
+    # want to change belongs where changing it is expected.
+    max_attempts: int = Field(default=3, ge=1, le=10)
+    """How many times a retryable call is tried before it escalates."""
+
+    retry_budget_seconds: float = Field(default=120.0, gt=0)
+    """Total wall clock a single call may spend across all its attempts."""
+
+    connect_timeout_seconds: float = Field(default=5.0, gt=0)
+    """Waiting for the socket, separate from waiting for an answer."""
+
+    calls_per_minute: float = Field(default=60.0, gt=0)
+    """The connector's own budget, well under any org's API allowance."""
+
+    approval_ttl_seconds: int = Field(default=600, gt=0)
+    """How long a person's approval of a write stays valid."""
+
     @field_validator("private_key", mode="before")
     @classmethod
     def _restore_newlines(cls, value: object) -> object:

@@ -43,8 +43,8 @@ class SalesforceConnector:
     def __init__(self, client: SalesforceClient, manifest: ConnectorManifest) -> None:
         self._client = client
         self._manifest = manifest
-        self._budget = CallBudget()
-        self._approvals = ApprovalGate()
+        self._budget = CallBudget(client.settings.calls_per_minute)
+        self._approvals = ApprovalGate(client.settings.approval_ttl_seconds)
         self._log = get_logger()
 
     @property

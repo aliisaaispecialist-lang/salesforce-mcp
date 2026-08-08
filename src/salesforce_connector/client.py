@@ -47,7 +47,6 @@ from salesforce_connector.observability import Metrics, get_logger
 
 _MAX_KEEPALIVE: Final = 5
 _MAX_CONNECTIONS: Final = 10
-_CONNECT_TIMEOUT: Final = 5.0
 
 
 class SalesforceClient:
@@ -79,10 +78,22 @@ class SalesforceClient:
                 max_keepalive_connections=_MAX_KEEPALIVE,
                 max_connections=_MAX_CONNECTIONS,
             ),
-            timeout=httpx.Timeout(settings.read_timeout_seconds, connect=_CONNECT_TIMEOUT),
+            timeout=httpx.Timeout(
+                settings.read_timeout_seconds, connect=settings.connect_timeout_seconds
+            ),
             follow_redirects=False,
         )
         return cls(settings, strategy, http)
+
+    @property
+    def settings(self) -> Settings:
+        """The configuration this client was opened with.
+
+        Exposed because the connector above needs the same tunables -- the call
+        budget, chiefly -- and passing them twice invites the two copies to
+        disagree.
+        """
+        return self._settings
 
     async def aclose(self) -> None:
         """Close the pool and forget the token."""
@@ -120,7 +131,10 @@ class SalesforceClient:
         Raises:
             ConnectorError: The call failed in a way no further attempt fixes.
         """
-        policy = RetryPolicy()
+        policy = RetryPolicy(
+            max_attempts=self._settings.max_attempts,
+            total_budget_seconds=self._settings.retry_budget_seconds,
+        )
         attempted = 0
         try:
             async for attempt in build_retrying(policy, spec.shape, self._log_before_sleep):

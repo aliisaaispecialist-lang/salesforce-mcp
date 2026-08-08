@@ -54,7 +54,9 @@ def client(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> SalesforceCli
     """A client whose retries are instant, so tests do not wait."""
     monkeypatch.setattr(
         "salesforce_connector.client.RetryPolicy",
-        lambda: RetryPolicy(initial_wait_seconds=0.001, max_wait_seconds=0.002),
+        # The waits are made tiny; whatever the caller passes for attempts and
+        # budget is honoured, so a test of exhaustion still sees the real count.
+        lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),
     )
     return SalesforceClient.open(settings, JwtBearerAuth())
 

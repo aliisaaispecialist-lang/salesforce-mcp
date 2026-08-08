@@ -49,7 +49,9 @@ def settings() -> Settings:
 def connector(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> SalesforceConnector:
     monkeypatch.setattr(
         "salesforce_connector.client.RetryPolicy",
-        lambda: RetryPolicy(initial_wait_seconds=0.001, max_wait_seconds=0.002),
+        # The waits are made tiny; whatever the caller passes for attempts and
+        # budget is honoured, so a test of exhaustion still sees the real count.
+        lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),
     )
     client = SalesforceClient.open(settings, JwtBearerAuth())
     return SalesforceConnector(client, load_manifest(settings))

@@ -40,7 +40,9 @@ PRIVATE_KEY = (
 def client(monkeypatch: pytest.MonkeyPatch) -> SalesforceClient:
     monkeypatch.setattr(
         "salesforce_connector.client.RetryPolicy",
-        lambda: RetryPolicy(initial_wait_seconds=0.001, max_wait_seconds=0.002),
+        # The waits are made tiny; whatever the caller passes for attempts and
+        # budget is honoured, so a test of exhaustion still sees the real count.
+        lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),
     )
     settings = Settings(
         client_id="3MVG9key",  # type: ignore[arg-type]
