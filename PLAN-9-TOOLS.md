@@ -131,6 +131,38 @@ rather than guessing a value. The existing `MissingInput` type on `ActionSpec`
 already carries this and is currently underused: it should be populated for
 every required field on all nine.
 
+## One tool, one action
+
+The rule, and it comes before the nine: **a tool does one thing.** Two actions
+in one tool only when they are genuinely the same operation and a caller would
+never want one without the other.
+
+Where the nine already break this, and the fix:
+
+| Tool | Does | Verdict |
+|---|---|---|
+| `save_record` | create **or** update | **Split.** "Add someone new" and "change someone" are different intentions with different risk. A model that means create should not be able to silently overwrite |
+| `save_together` | several writes atomically | **Keep as one.** The whole point is that they are one operation; splitting it is what causes the half-done state it exists to prevent |
+| `update_record` | PATCH then re-read | **Keep as one.** The re-read is not a second action, it is how the first one reports its result. Salesforce answers a PATCH with an empty 204 |
+| `soql_query` | filter, sort, count, page | **Keep as one.** All the same question with different clauses, and splitting it would mean guessing which clause combinations deserve a tool |
+
+So the count moves from nine to ten:
+
+```
+create_record     always creates, fails if a match exists
+save_record       upsert, keyed on a unique field
+update_record     changes one that already exists
+```
+
+Three tools where there was one, because "make a new one", "make sure one
+exists", and "change this one" are three things a user means and three
+different consequences when the model picks wrong.
+
+`create_opportunity` today is the counter-example worth remembering. It creates
+a deal **and** links a contact, and the second half can fail after the first
+succeeded. That is exactly the cost of two actions in one tool, and it is why
+`save_together` has to be explicitly atomic rather than merely convenient.
+
 ## Naming
 
 Name the action and what it works from, not the noun alone. A model picks
