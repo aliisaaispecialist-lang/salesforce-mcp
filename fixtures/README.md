@@ -5,7 +5,7 @@ Empty until an org exists. `python scripts/record_fixtures.py` fills it.
 Every mocked response elsewhere in this repository was written from
 documentation, which is the best anyone can do without an org and is not the
 same as knowing. A field that is absent rather than null, an error body with
-one more layer of nesting, a date that is not quite ISO — none of those appear
+one more layer of nesting, a date that is not quite ISO, none of those appear
 until Salesforce answers for itself.
 
 These files are those answers, with everything specific to one org removed:
@@ -27,7 +27,7 @@ unscrubbed there and it cannot be committed by accident.
 | File | Why it is worth having |
 |---|---|
 | `limits.json` | The endpoint `testConnection` reads, and the `Sforce-Limit-Info` header the quota metadata is parsed from |
-| `describe_opportunity.json` | The stage picklist, which is read per org rather than hard-coded — see ADR-008 |
+| `describe_opportunity.json` | The stage picklist, which is read per org rather than hard-coded, see ADR-008 |
 | `search_no_matches.json` | An empty search result, which must be a success rather than an error |
 | `error_record_not_found.json` | The error body shape `errors/mapping.py` classifies against |
 | `error_required_field_missing.json` | Whether Salesforce names the field that was wrong, which the tool descriptions promise it does |

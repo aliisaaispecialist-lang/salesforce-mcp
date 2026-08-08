@@ -3,7 +3,7 @@
 All notable changes to this connector are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.0.0] — 2026-08-07
+## [1.0.0], 2026-08-07
 
 First release. Handoff notes for whoever picks this up next are at the bottom
 of this entry.
@@ -15,7 +15,7 @@ of this entry.
   `salesforce.create_opportunity`, `salesforce.add_activity_note` (writes).
   Each validates its own input model, knows one Salesforce endpoint, and
   returns the same success/error envelope. (`src/salesforce_connector/actions/`)
-- **OAuth 2.0 JWT Bearer authentication** as the default flow — a signed
+- **OAuth 2.0 JWT Bearer authentication** as the default flow: a signed
   assertion exchanged for an access token, no password and no secret in
   transit. **OAuth 2.0 Client Credentials** as a fallback for anyone who
   cannot complete the certificate step. (`auth/jwt_bearer.py`,
@@ -30,7 +30,7 @@ of this entry.
 - **Idempotency for writes**: every write action requires a caller-supplied
   `idempotency_key`; a repeated key within the same process returns the
   original result instead of writing twice. Deduplication is process-scoped
-  — see Known limitations. (`idempotency.py`, `actions/action.py`)
+ , see Known limitations. (`idempotency.py`, `actions/action.py`)
 - **A checkpoint journal** for multi-step operations, so a resumed attempt
   skips whatever already finished instead of repeating it or reporting a
   false failure. (`checkpoint.py`)
@@ -49,11 +49,11 @@ of this entry.
 - **Contract tests** (`tests/contract/`) asserting that the four descriptions
   of this connector stay one description: `connector.yaml`, the action
   registry, the MCP tool list, and `openapi.yaml`. Also that
-  `SalesforceConnector` still has every member `DooConnector` declares —
+  `SalesforceConnector` still has every member `DooConnector` declares,
   asked of the Protocol itself rather than copied into the test.
 - **The server asks before it writes.** Every write goes through an MCP
-  elicitation — a single-boolean confirmation quoting the action and the
-  caller's own values — before the connector is called at all, whether or not
+  elicitation: a single-boolean confirmation quoting the action and the
+  caller's own values, before the connector is called at all, whether or not
   the caller sent `approved: true`. `decline`, `cancel`, an unchecked box, and
   content the SDK cannot validate all refuse and write nothing. A client that
   declares no `elicitation` capability is never asked, per the specification,
@@ -91,7 +91,7 @@ of this entry.
   contract (`.importlinter`), not left as a promise, and checked in CI and
   pre-commit on every change.
 - **A multi-stage, non-root Docker image** speaking stdio only, built from
-  `src/`, `mcp/`, and `connector.yaml` alone — no test fixtures, no `.env`,
+  `src/`, `mcp/`, and `connector.yaml` alone: no test fixtures, no `.env`,
   no Git history layer. (`Dockerfile`, `.dockerignore`)
 - **A three-family security test suite** (`tests/security/test_injection_and_leaks.py`):
   query injection through search terms, prompt injection through record
@@ -109,7 +109,7 @@ of this entry.
   `</salesforce_record_data>`). A Salesforce field containing the literal
   closing tag as text could end the fence early, and everything the record
   wrote after that point would have been read as though it came from the
-  connector rather than from the record — a working prompt-injection
+  connector rather than from the record: a working prompt-injection
   primitive. `test_a_record_cannot_close_the_fence_and_speak_outside_it`
   was written to prove the fence held and failed against the original
   implementation. The fix appends a `secrets.token_hex` nonce to both
@@ -162,16 +162,16 @@ unapproved write refused.
 That run found four defects no mocked test could have, all fixed:
 
 - a replayed idempotency key reported `created: true`, because the ledger
-  returned the stored result verbatim — invisible to every mocked test, since
+  returned the stored result verbatim, invisible to every mocked test, since
   each calls a key exactly once
 - `changed_fields` came back in Salesforce's casing rather than the caller's
 - a missing record was classified as invalid input rather than not-found,
   so the code every write tool documents for that case was never produced
 - an activity note supplied its own `TaskSubtype` default, which a restricted
-  per-org picklist rejected — the same reasoning as ADR-008, not carried across
+  per-org picklist rejected: the same reasoning as ADR-008, not carried across
 
 The org needed an **External Client App**: Salesforce disabled connected app
-creation in new orgs in Winter '26. Nothing in `src/` changed for that — the
+creation in new orgs in Winter '26. Nothing in `src/` changed for that, the
 flow, the assertion, and the scopes are identical; only where the certificate
 is registered moved.
 
@@ -193,7 +193,7 @@ release.
 What is deliberately not built: HTTP/SSE transport, durable cross-restart
 idempotency, and anything beyond the five assigned actions.
 
-What is blocked: one thing, and it is an asset rather than a decision — a
+What is blocked: one thing, and it is an asset rather than a decision, a
 Salesforce sandbox org. It blocks the live evaluation run, the one real
 sandbox test, and two questions that cannot be answered from documentation
 (whether `parameterizedSearch` honours `offset`, and whether an External Id

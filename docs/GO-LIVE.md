@@ -36,7 +36,7 @@ SF_ALLOW_PRODUCTION=true   # a Developer Edition org, not a real one
 ```
 
 Say it explicitly rather than weakening the guard. A sandbox needs neither
-line — `https://test.salesforce.com` is already the default.
+line, `https://test.salesforce.com` is already the default.
 
 ---
 
@@ -61,7 +61,7 @@ look the same: *is the org set up wrong* or *is the connector wrong*.
 |---|---|
 | `Successfully authorized` | The org side is correct. Anything that fails later is ours. |
 | `user hasn't approved this consumer` | Permitted Users is not set to *Admin approved users are pre-authorized*, or the profile was not added |
-| `invalid_grant` immediately after creating the app | The 2–10 minute propagation has not finished. Wait. |
+| `invalid_grant` immediately after creating the app | The 2 to 10 minute propagation has not finished. Wait. |
 | `invalid_grant` later | Username, Consumer Key, or the key/certificate pair do not match |
 | `invalid_client_id` | The Consumer Key is wrong or the app was deleted |
 
@@ -87,7 +87,7 @@ with the instance URL and API version.
 make live
 ```
 
-Runs `tests/integration/` and `tests/learning/` — 30 tests that are skipped in
+Runs `tests/integration/` and `tests/learning/`, 30 tests that are skipped in
 every other run. Expect them to take a minute; each creates real records and
 deletes them again.
 
@@ -98,9 +98,9 @@ first. It is the most likely failure here and the only one that would mean a
 connector change rather than a setup problem. `search_contact` sends an
 `offset` to `parameterizedSearch`; SOSL-backed search has not historically
 honoured offset the way a SOQL query does. If page two repeats page one, the
-cursor never advances and a caller walking it would loop forever — so the
+cursor never advances and a caller walking it would loop forever, so the
 pagination mechanism needs replacing, and
-[ADR-003](../README.md#adr-003-parameterizedsearch-instead-of-soql-or-sosl)
+[ADR-003](DECISIONS.md#adr-003-parameterizedsearch-instead-of-soql-or-sosl)
 needs revisiting.
 
 **The learning tier's failures are information, not bugs.** Each test names an
@@ -122,7 +122,7 @@ hand from `evaluations/seed_data.md`. They have never been run against an org.
 
 1. Load the seed contacts (see the setup notes at the bottom of
    `seed_data.md`).
-2. Run the harness from the mcp-builder skill — the command is in
+2. Run the harness from the mcp-builder skill: the command is in
    `evaluations/README.md`.
 3. A mismatch is either a bad answer in that file **or** a real gap in a tool's
    schema or description. Fix whichever it actually is; the guide's own
@@ -151,11 +151,11 @@ real person.
 
 Three things say "never run against a real org" and will be untrue afterwards:
 
-- `README.md` — the Testing section, and the `learning`/`integration` tier
+- `README.md`: the Testing section, and the `learning`/`integration` tier
   notes that currently say no test carries those markers
-- `evaluations/README.md` — the honest caveat at the top
-- `CHANGELOG.md` — the Blocked section
+- `evaluations/README.md`: the honest caveat at the top
+- `CHANGELOG.md`: the Blocked section
 
-Definition of Done item 9 — *"one real sandbox test where access permits"* —
+Definition of Done item 9, *"one real sandbox test where access permits"*,
 is met the moment step 3 passes. Say so in the changelog rather than leaving a
 reader to infer it.

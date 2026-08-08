@@ -2,7 +2,7 @@
 
 Written for someone who has never seen this repository.
 
-There are two ways to run it — Python directly, or Docker. Both speak the same
+There are two ways to run it, Python directly, or Docker. Both speak the same
 protocol over the same transport. Docker is here for reproducibility: it is
 still a local subprocess reading stdin and writing stdout, not a server you
 deploy and point clients at.
@@ -25,7 +25,7 @@ the code.
 | **4** | Put three values in `.env` | A configured connector | 3 min |
 | **5** | Run the connection check | Proof it works, before any client | 1 min |
 | **6** | `python scripts/install_client.py <your app>` | Five Salesforce tools in your app | 2 min |
-| **7** | Ask it something in plain language | A working assistant | — |
+| **7** | Ask it something in plain language | A working assistant |, |
 
 ### The three values everything comes down to
 
@@ -34,12 +34,12 @@ one of them is a secret:
 
 | Value | Secret? | Comes from | Goes to |
 |---|---|---|---|
-| **Consumer Key** (`SF_CLIENT_ID`) | No — it only identifies the app | Step 3d | `.env` |
+| **Consumer Key** (`SF_CLIENT_ID`) | No: it only identifies the app | Step 3d | `.env` |
 | **Username** (`SF_USERNAME`) | No | Your org's user record | `.env` |
 | **Private key** (`SF_PRIVATE_KEY`) | **Yes** | Step 3a, `openssl`, on your machine | `.env`, and nowhere else |
 
 The private key never leaves your machine and never travels to Salesforce.
-Salesforce holds only the *certificate* — its public half — and uses it to
+Salesforce holds only the *certificate*, its public half, and uses it to
 check a signature the connector makes. That is what "no password, no secret in
 transit" means here, and it is why step 3a comes before everything else.
 
@@ -51,12 +51,12 @@ transit" means here, and it is why step 3a comes before everything else.
 ### What if you only want to review it?
 
 Steps 1 and 2 are enough. `pytest` runs 443 tests with **no credentials, no
-org, and no network** — they are mocked end to end. You can read
+org, and no network**: they are mocked end to end. You can read
 `openapi.yaml`, inspect the five tool schemas, and build the Docker image
 without ever touching Salesforce. Credentials are needed only from step 5
 onward, the moment you want to touch a real org.
 
-**Time:** about ten minutes for steps 1–2, twenty to forty for step 3 the
+**Time:** about ten minutes for steps 1 to 2, twenty to forty for step 3 the
 first time you ever configure an External Client App. Step 3 is the only part
 that genuinely takes time, and none of it is this connector's fault.
 
@@ -64,7 +64,7 @@ that genuinely takes time, and none of it is this connector's fault.
 
 ## 1. Get the code
 
-**From the ZIP:** unzip it anywhere. The folder you get is the project root —
+**From the ZIP:** unzip it anywhere. The folder you get is the project root,
 the one containing `connector.yaml` and `pyproject.toml`.
 
 **From a clone:**
@@ -136,11 +136,11 @@ arrives as `C:/Program Files/Git/CN=salesforce-mcp` and OpenSSL rejects it.
 The error names the format and not the cause, which is why it is worth saying
 here.
 
-`salesforce.key` is the private key — the connector reads this. `salesforce.crt`
-is the certificate — Salesforce reads this. **Never commit either.** `secrets/`,
+`salesforce.key` is the private key: the connector reads this. `salesforce.crt`
+is the certificate, Salesforce reads this. **Never commit either.** `secrets/`,
 `*.key`, and `*.crt` are all in `.gitignore` and `.dockerignore`.
 
-Check they belong to each other before uploading anything — a mismatched pair
+Check they belong to each other before uploading anything: a mismatched pair
 fails later as `invalid_grant`, which reads like a wrong username:
 
 ```bash
@@ -148,13 +148,13 @@ openssl x509 -in salesforce.crt -noout -pubkey | openssl md5
 openssl pkey -in salesforce.key -pubout | openssl md5   # same hash = a pair
 ```
 
-### 3b. Create an External Client App — not a Connected App
+### 3b. Create an External Client App, not a Connected App
 
 > **This changed under us, and it will catch you out.** Salesforce disabled
 > connected app creation in all new orgs in Winter '26, and from Spring '26
 > will not re-enable it without a support request. A new org answers
 > *"You can't create a connected app. To enable connected app creation,
-> contact Salesforce Customer Support."* — to the API as well as the UI. This
+> contact Salesforce Customer Support."*, to the API as well as the UI. This
 > guide originally said Connected App and was wrong for anyone starting today.
 > **External Client Apps** are the replacement and support the same JWT bearer
 > flow.
@@ -165,13 +165,13 @@ openssl pkey -in salesforce.key -pubout | openssl md5   # same hash = a pair
 - **Contact Email:** your own
 - **Distribution State:** `Local`
 - Under **API (Enable OAuth Settings)**, tick **Enable OAuth**
-- **Callback URL:** `http://localhost/callback` — unused by this flow, but the
+- **Callback URL:** `http://localhost/callback`, unused by this flow, but the
   form requires one
 - **Enable JWT Bearer Flow**, then **Upload Files** and choose `salesforce.crt`
-- **Scopes:** exactly two — **Manage user data via APIs (api)** and **Perform
+- **Scopes:** exactly two, **Manage user data via APIs (api)** and **Perform
   requests at any time (refresh_token, offline_access)**. Nothing more.
   `connector.yaml` declares only these two and a reviewer will compare.
-- Save, then wait **2–10 minutes**. Salesforce says so and means it; trying
+- Save, then wait **2 to 10 minutes**. Salesforce says so and means it; trying
   immediately gives `invalid_grant`, which reads like a wrong key.
 
 ### 3c. Pre-authorise the user
@@ -185,7 +185,7 @@ Policies**
 
 This is what lets JWT Bearer work with no interactive login. Skip it and you
 get `user hasn't approved this consumer`. Do it but assign nobody, and you get
-`user is not admin approved to access this app` — two different messages for
+`user is not admin approved to access this app`, two different messages for
 the two halves of the same step.
 
 ### 3d. Collect the Consumer Key
@@ -193,7 +193,7 @@ the two halves of the same step.
 **External Client App Manager → your app → Settings → OAuth → Consumer Key and
 Secret.** Copy the **Consumer Key**. That is your `SF_CLIENT_ID`.
 
-### 3e. Or do all of 3b–3d from the CLI
+### 3e. Or do all of 3b to 3d from the CLI
 
 Every step above is scriptable, and this is how the org this connector was
 verified against was actually built. It needs the Salesforce CLI
@@ -203,7 +203,7 @@ verified against was actually built. It needs the Salesforce CLI
 sf org login web --alias myorg --set-default
 ```
 
-Then deploy an External Client App as metadata — three components, in
+Then deploy an External Client App as metadata, three components, in
 `externalClientApps/`, `extlClntAppGlobalOauthSets/`, and
 `extlClntAppOauthSettings/`. Two things to know before you try:
 
@@ -215,7 +215,7 @@ Then deploy an External Client App as metadata — three components, in
   `AdminApprovedPreAuthorized`).
 
 Assigning the user is not expressible in PermissionSet metadata. Create the
-permission set, grant it the app, and assign it — three records:
+permission set, grant it the app, and assign it, three records:
 
 ```bash
 sf data query --query "SELECT Id, DeveloperName FROM ExternalClientApplication"
@@ -227,7 +227,7 @@ sf data create record --sobject PermissionSetAssignment \
   --values "AssigneeId=<user id> PermissionSetId=<permission set id>"
 ```
 
-`SetupEntityAccess` is on the standard API, not the Tooling API — asking
+`SetupEntityAccess` is on the standard API, not the Tooling API, asking
 Tooling for it returns *"The requested resource does not exist"*, which sounds
 like the record is wrong when it is the endpoint.
 
@@ -244,7 +244,7 @@ Fill in three values. Every other line already has a working default.
 | Variable | What it is |
 |---|---|
 | `SF_CLIENT_ID` | The Consumer Key from step 3d |
-| `SF_USERNAME` | The user the connector acts as — the one you pre-authorised |
+| `SF_USERNAME` | The user the connector acts as: the one you pre-authorised |
 | `SF_PRIVATE_KEY` | The contents of `salesforce.key`, header and footer lines included |
 
 **The private key needs care.** A `.env` file is line-oriented: a PEM pasted
@@ -269,7 +269,7 @@ a typo cannot send writes somewhere real.
 
 The connector reads `.env` from whatever directory it is started in, so the
 next step works with nothing exported. An environment variable of the same
-name wins over the file — that is what lets an MCP client hand the server its
+name wins over the file: that is what lets an MCP client hand the server its
 credentials without a `.env` in some unrelated folder overriding them.
 
 ---
@@ -299,14 +299,14 @@ On Windows PowerShell, set the variable first: `$env:PYTHONPATH="src"`.
 
 `test_connection` reads the org's limits endpoint and writes nothing, so it is
 safe to run as often as you like. A success tells you the credentials, the
-External Client App, and the pre-authorisation are all correct — which is the part
+External Client App, and the pre-authorisation are all correct, which is the part
 worth knowing before a client is involved.
 
 If it fails, the error says which of the three it was.
 
 ---
 
-## 6. Point a client at it — any client
+## 6. Point a client at it, any client
 
 **This is not a Claude tool.** It is a Model Context Protocol server speaking
 JSON-RPC over stdio, and nothing in it knows or cares which application is on
@@ -327,7 +327,7 @@ python scripts/install_client.py cursor --dry-run   # see it first, write nothin
 
 It reads your `.env`, finds that host's config file on this operating system,
 **backs it up**, adds one entry, and leaves everything else in the file
-untouched — those files usually hold other servers and a lot of unrelated
+untouched, those files usually hold other servers and a lot of unrelated
 settings. It prints where it wrote and what it kept, so undoing it is one file
 copy.
 
@@ -352,7 +352,7 @@ Run it from the project folder, then `claude mcp list` to confirm. Claude Code
 launches the server with the project as its working directory, so it finds
 `.env` on its own and no credentials go in the command.
 
-Only `claude-desktop` has been end-to-end verified from this repository — the
+Only `claude-desktop` has been end-to-end verified from this repository, the
 config it writes was launched, listed five tools, and ran a live search. The
 rest are written from each host's documented format, and the script says so
 when it writes one.
@@ -378,7 +378,7 @@ path and delete the variant you are not using.
 | Client | File or command |
 |---|---|
 | **Claude Desktop** | `%APPDATA%\Claude\claude_desktop_config.json` (Windows), `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
-| **Claude Code** | `claude mcp add` — see below |
+| **Claude Code** | `claude mcp add`, see below |
 | **Cursor** | `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for every project |
 | **VS Code** (Copilot agent mode) | `.vscode/mcp.json`, under a `servers` key rather than `mcpServers` |
 | **Cline / Roo** (VS Code extensions) | `cline_mcp_settings.json`, reachable from the extension's MCP panel |
@@ -386,8 +386,8 @@ path and delete the variant you are not using.
 | **Zed** | `settings.json`, under `context_servers` |
 | **LM Studio / Jan** | their MCP settings panel, same three fields |
 
-Key names differ — `mcpServers` in most, `servers` in VS Code,
-`context_servers` in Zed — but the contents do not. If a client is not listed,
+Key names differ, `mcpServers` in most, `servers` in VS Code,
+`context_servers` in Zed, but the contents do not. If a client is not listed,
 look for whatever it calls "MCP servers" and give it the command, the
 arguments, and the environment.
 
@@ -405,7 +405,7 @@ Check it with `claude mcp list`.
 
 The connector reads `.env` from its working directory, which works from a
 terminal in the project folder. A client launches the server from wherever the
-client happens to be, so `.env` is usually out of reach — that is why every
+client happens to be, so `.env` is usually out of reach: that is why every
 example above passes the values explicitly. An environment variable always
 wins over the file, so there is no ambiguity when both exist.
 
@@ -415,7 +415,7 @@ folder works too and keeps the credentials in one place.
 ### After editing any of them
 
 **Restart the client fully.** Most read their MCP config only at startup, and
-on Windows closing the window is not the same as quitting — use the tray icon.
+on Windows closing the window is not the same as quitting, use the tray icon.
 
 You should then see five tools: `salesforce_search_contact`,
 `salesforce_create_contact`, `salesforce_update_contact`,
@@ -427,8 +427,8 @@ Two other doors into the same core, neither of which needs MCP:
 
 - **`openapi.yaml`** describes all five actions as HTTP operations, generated
   from the same schemas the tools publish. There is no HTTP server in this
-  repository — see
-  [ADR-010](README.md#adr-010-stdio-and-docker-not-a-hosted-https-endpoint) —
+  repository, see
+  [ADR-010](docs/DECISIONS.md#adr-010-stdio-and-docker-not-a-hosted-https-endpoint),
   but the document is what you would put a server behind, and any OpenAPI
   tooling can read it.
 - **`SalesforceConnector`** is an ordinary Python class with four methods
@@ -456,7 +456,7 @@ Three things will happen that are deliberate, and are worth expecting:
 update, and note will put a confirmation to you before anything is written.
 Decline it and nothing happens. If your client does not support elicitation,
 the write is refused instead, and the refusal explains that `approved` must be
-set — that is the fallback for hosts that confirm elsewhere.
+set: that is the fallback for hosts that confirm elsewhere.
 
 **Retries do not duplicate.** Every write carries an idempotency key the model
 generates. If a call times out and is retried with the same key, you get the
@@ -478,7 +478,7 @@ instructions.
 
 **Search before you create.** A duplicate person is the costliest mistake this
 connector can make, and the tool descriptions push a model towards searching
-first — but it is worth knowing yourself.
+first, but it is worth knowing yourself.
 
 ### One thing that differs per org
 
@@ -511,12 +511,12 @@ Same three environment variables, passed through `--env-file`:
 docker run -i --rm --env-file .env salesforce-connector
 ```
 
-The `-i` matters — it keeps stdin open, which is how the client talks to it.
+The `-i` matters: it keeps stdin open, which is how the client talks to it.
 The container exits cleanly when the client closes the stream.
 
 For a client config, use the `salesforce-docker` block in
 `examples/mcp_client_config.json`. The image runs as a non-root user and
-contains only `src/`, `mcp/`, and `connector.yaml` — no `.env`, no keys, no
+contains only `src/`, `mcp/`, and `connector.yaml`: no `.env`, no keys, no
 git history.
 
 ---
@@ -527,12 +527,12 @@ git history.
 |---|---|
 | `user hasn't approved this consumer` | Step 3c's Permitted Users setting was skipped |
 | `user is not admin approved to access this app` | Permitted Users is set, but nobody was assigned |
-| `You can't create a connected app` | You are creating the wrong kind of app — see step 3b |
-| `invalid_grant` right after setup | The app's 2–10 minute propagation has not elapsed |
+| `You can't create a connected app` | You are creating the wrong kind of app, see step 3b |
+| `invalid_grant` right after setup | The app's 2 to 10 minute propagation has not elapsed |
 | `invalid_grant` later | The username, the Consumer Key, or the key/certificate pair do not match |
 | Refuses to start, mentions production | `SF_LOGIN_URL` points at `login.salesforce.com`; set `SF_ALLOW_PRODUCTION=true` only if you mean it |
 | Client shows no tools | Wrong path in the config, or the client was not restarted |
-| A write is refused as unapproved | Working as intended — see step 7 |
+| A write is refused as unapproved | Working as intended, see step 7 |
 
 Logs go to **stderr** as JSON, never to stdout, because stdout carries the
 protocol and nothing else. Secrets are masked before a line is written. To
@@ -542,10 +542,10 @@ read them while a client is running, check the client's own MCP server log.
 
 ## What this does not do
 
-Five actions, not the whole Salesforce API — the reasoning is
-[ADR-002](README.md#adr-002-five-actions-not-the-90-endpoint-salesforce-surface).
+Five actions, not the whole Salesforce API: the reasoning is
+[ADR-002](docs/DECISIONS.md#adr-002-five-actions-not-the-90-endpoint-salesforce-surface).
 stdio only, no hosted HTTPS endpoint
-([ADR-010](README.md#adr-010-stdio-and-docker-not-a-hosted-https-endpoint)).
+([ADR-010](docs/DECISIONS.md#adr-010-stdio-and-docker-not-a-hosted-https-endpoint)).
 Idempotency memory lives in the process and does not survive a restart. The
 full list is under
 [Known limitations](README.md#known-limitations-and-access-blockers), stated

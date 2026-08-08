@@ -1,8 +1,8 @@
-# Salesforce Connector — Architecture & Build Plan
+# Salesforce Connector: Architecture & Build Plan
 
 **Builder:** Ali Isa · **Mission:** Salesforce (Advanced, Enterprise CRM)
-**Program:** Builders League — Connector Test Suite, Cohort 01 (MK Lab × DOO)
-**Status:** PLAN — awaiting approval. No implementation code written.
+**Program:** Builders League, Connector Test Suite, Cohort 01 (MK Lab × DOO)
+**Status:** PLAN, awaiting approval. No implementation code written.
 **Date:** 2026-08-06
 
 ---
@@ -27,7 +27,7 @@ Five required actions, fixed by the program (verbatim IDs):
 
 ---
 
-## 2. Scoring map — every decision traces to a criterion
+## 2. Scoring map: every decision traces to a criterion
 
 | Criterion | Weight | What earns it here |
 |---|---|---|
@@ -40,11 +40,11 @@ Five required actions, fixed by the program (verbatim IDs):
 | Documentation and OpenAPI | 5% | `openapi.yaml` from the same schemas; comprehensive README + ADRs |
 | Demonstration and technical explanation | 5% | `examples/` runnable scripts + README design rationale |
 
-Auth/security is 20% — the second-largest single block, and larger than testing and docs combined. It gets first-class design, not a section at the end.
+Auth/security is 20%, the second-largest single block, and larger than testing and docs combined. It gets first-class design, not a section at the end.
 
 ---
 
-## 3. Definition of Done — traceability
+## 3. Definition of Done: traceability
 
 Each DoD item maps to an artifact. Nothing is "covered by" something else.
 
@@ -86,7 +86,7 @@ Three layers. Dependencies point inward; nothing in `actions/` knows MCP exists.
    └─────────┘   └─────────┘
 ```
 
-**The rule that protects 15% of the score:** the MCP server contains no Salesforce knowledge. It enumerates `list_actions()`, converts each to an MCP tool, and forwards to `execute()`. If a Salesforce URL, field name, or SOQL string ever appears in `mcp/server.py`, the design has failed. Same for the OpenAPI spec — generated from the same schema objects, never hand-maintained in parallel.
+**The rule that protects 15% of the score:** the MCP server contains no Salesforce knowledge. It enumerates `list_actions()`, converts each to an MCP tool, and forwards to `execute()`. If a Salesforce URL, field name, or SOQL string ever appears in `mcp/server.py`, the design has failed. Same for the OpenAPI spec, generated from the same schema objects, never hand-maintained in parallel.
 
 ### The core contract
 
@@ -96,7 +96,7 @@ def list_actions() -> list[ActionDescriptor]   # id, schemas, risk, idempotency
 def execute(action_id: str, params: dict) -> ActionResult
 ```
 
-**SDK version — build against v2, not the books.** The MCP Python SDK reached **v2.0.0 (2026-07-28)**: `FastMCP` was renamed to `MCPServer` and the v1 import path removed outright, transport config moved from the constructor to `run()`, and context injection changed. Every sample in our source books is v1-era and will not import (`research/07-reference-repos.md`). We pin the SDK version in `pyproject.toml` and verify the API against the installed package before writing the adapter — no code written from remembered or summarized APIs.
+**SDK version, build against v2, not the books.** The MCP Python SDK reached **v2.0.0 (2026-07-28)**: `FastMCP` was renamed to `MCPServer` and the v1 import path removed outright, transport config moved from the constructor to `run()`, and context injection changed. Every sample in our source books is v1-era and will not import (`research/07-reference-repos.md`). We pin the SDK version in `pyproject.toml` and verify the API against the installed package before writing the adapter, no code written from remembered or summarized APIs.
 
 `ActionResult` is uniform across all five actions:
 
@@ -141,22 +141,22 @@ salesforce-connector/
 └── examples/                   # runnable script per action
 ```
 
-Matches the program template exactly, with `.py` for `.ts` and a `src/salesforce_connector/` package (src-layout — an MCP host spawns the server as a subprocess with unpredictable CWD, so flat layout risks import shadowing; `research/05-packaging-and-readme.md`).
+Matches the program template exactly, with `.py` for `.ts` and a `src/salesforce_connector/` package (src-layout, an MCP host spawns the server as a subprocess with unpredictable CWD, so flat layout risks import shadowing; `research/05-packaging-and-readme.md`).
 
 ---
 
 ## 6. The five actions
 
-### 5.1 `search_contact` — read
+### 5.1 `search_contact`: read
 
 `POST /services/data/v67.0/parameterizedSearch` with a JSON body.
 
-**Why not SOQL/SOSL string building:** the obvious implementation concatenates user input into `FIND {…}` or `WHERE Name LIKE '%…%'`, which is injectable. The parameterized search endpoint takes a JSON body with `q`, `sobjects`, `fields` — no query string is ever assembled from user input. This is a direct answer to the 20% auth/security criterion and to the SOQL-injection control in `research/04-tool-design-and-security.md`.
+**Why not SOQL/SOSL string building:** the obvious implementation concatenates user input into `FIND {…}` or `WHERE Name LIKE '%…%'`, which is injectable. The parameterized search endpoint takes a JSON body with `q`, `sobjects`, `fields`, no query string is ever assembled from user input. This is a direct answer to the 20% auth/security criterion and to the SOQL-injection control in `research/04-tool-design-and-security.md`.
 
 Input: `query` (required, min length 2), `fields`, `limit` (default 20, max 200), `offset`.
 Output: `records[]`, `total_size`, `pagination`.
 
-### 5.2 `create_contact` — write, additive
+### 5.2 `create_contact`: write, additive
 
 `POST /services/data/v67.0/sobjects/Contact`
 
@@ -164,25 +164,25 @@ Required: `last_name` (Salesforce's only mandatory Contact field). Optional: `fi
 
 **Duplicate behaviour:** Salesforce duplicate rules may block or warn. We surface the rule result explicitly rather than silently succeeding. Optional `allow_duplicate` (default `false`); when false and a duplicate is detected, return a structured error listing the matched record IDs so the caller can decide.
 
-**Idempotency:** REST create is not idempotent — a timed-out retry can create two Contacts. We accept an `idempotency_key`, cache it against the resulting record ID for the process lifetime, and return the cached result on replay. Documented honestly in the README as process-scoped, not durable.
+**Idempotency:** REST create is not idempotent, a timed-out retry can create two Contacts. We accept an `idempotency_key`, cache it against the resulting record ID for the process lifetime, and return the cached result on replay. Documented honestly in the README as process-scoped, not durable.
 
-### 5.3 `update_contact` — write, mutating
+### 5.3 `update_contact`: write, mutating
 
 `PATCH /services/data/v67.0/sobjects/Contact/{id}`
 
-Naturally idempotent. Returns **204 No Content with no body** — so we re-fetch and return the updated record, otherwise callers get an empty success and cannot confirm what changed.
+Naturally idempotent. Returns **204 No Content with no body**, so we re-fetch and return the updated record, otherwise callers get an empty success and cannot confirm what changed.
 
 Requires at least one field beyond `contact_id`; an empty update is rejected as an input error, not sent.
 
-### 5.4 `create_opportunity` — write, additive
+### 5.4 `create_opportunity`: write, additive
 
 `POST /services/data/v67.0/sobjects/Opportunity`
 
-Required by Salesforce: `Name`, `StageName`, `CloseDate`. `StageName` is **org-specific picklist data** — hardcoding stage values is the classic failure. We fetch valid stages via describe, cache them, and validate before sending, returning the allowed set in the error when invalid.
+Required by Salesforce: `Name`, `StageName`, `CloseDate`. `StageName` is **org-specific picklist data**, hardcoding stage values is the classic failure. We fetch valid stages via describe, cache them, and validate before sending, returning the allowed set in the error when invalid.
 
-Optional `contact_id` creates the `OpportunityContactRole` link — a second call, so it is a multi-step write: if the role fails after the Opportunity is created, we return partial success naming exactly what exists and what does not. No silent rollback illusion.
+Optional `contact_id` creates the `OpportunityContactRole` link, a second call, so it is a multi-step write: if the role fails after the Opportunity is created, we return partial success naming exactly what exists and what does not. No silent rollback illusion.
 
-### 5.5 `add_activity_note` — write, additive · **OPEN DECISION**
+### 5.5 `add_activity_note`: write, additive · **OPEN DECISION**
 
 Ambiguous by name. Three plausible Salesforce mappings:
 
@@ -192,7 +192,7 @@ Ambiguous by name. Three plausible Salesforce mappings:
 | B | `Note` (classic) | Simple `ParentId` + `Body`; disabled in many modern orgs. |
 | C | `ContentNote` | Lightning notes; requires base64 body **and** a second `ContentDocumentLink` call. |
 
-Recommending **A**: it matches the word "activity", works in every org, and is a single call. Needs your confirmation — if the graders mean Lightning notes, C is the answer and costs an extra call plus link handling.
+Recommending **A**: it matches the word "activity", works in every org, and is a single call. Needs your confirmation, if the graders mean Lightning notes, C is the answer and costs an extra call plus link handling.
 
 ---
 
@@ -200,14 +200,14 @@ Recommending **A**: it matches the word "activity", works in every org, and is a
 
 **JWT Bearer flow** (primary), Client Credentials (fallback). Both headless.
 
-**Username-password flow is excluded by design.** Salesforce is retiring it starting Winter '27, with production rollout weekends of **29 Aug, 3 Oct, 10 Oct 2026** — the first is roughly three weeks from today. Building it would ship a connector that breaks during the cohort. Recorded as ADR-004.
+**Username-password flow is excluded by design.** Salesforce is retiring it starting Winter '27, with production rollout weekends of **29 Aug, 3 Oct, 10 Oct 2026**, the first is roughly three weeks from today. Building it would ship a connector that breaks during the cohort. Recorded as ADR-004.
 
 Rules:
-- `instance_url` comes from the token response and is authoritative — never assume it equals the login host.
+- `instance_url` comes from the token response and is authoritative, never assume it equals the login host.
 - Tokens live in memory only, with TTL and refresh-on-401-once. Never written to disk, never logged.
 - Secrets from environment only. `.env.example` lists every variable with placeholder values.
 - Least privilege: the Connected App requests only the scopes the five actions need, documented in `connector.yaml`.
-- `test_connection` calls `GET /limits` — authenticated, cheap, and provably side-effect free (DoD 2).
+- `test_connection` calls `GET /limits`, authenticated, cheap, and provably side-effect free (DoD 2).
 
 ---
 
@@ -223,11 +223,11 @@ Categories: `auth` · `input` · `not_found` · `permission` · `rate_limit` · 
 
 `request_id` comes from Salesforce's response headers where present, otherwise generated locally, and appears in every log line for that call.
 
-**Retry policy:** exponential backoff with jitter on `transient` and `rate_limit` only. Never retry `input`, `permission`, `conflict`. Writes retry only when an `idempotency_key` is present — otherwise a retry risks duplicate records, which is worse than a visible failure.
+**Retry policy:** exponential backoff with jitter on `transient` and `rate_limit` only. Never retry `input`, `permission`, `conflict`. Writes retry only when an `idempotency_key` is present, otherwise a retry risks duplicate records, which is worse than a visible failure.
 
 **Rate limits:** read `Sforce-Limit-Info` from every response and return it as `rate_limit` metadata. Free telemetry, no polling of `/limits`.
 
-**Pagination:** `nextRecordsUrl` is an opaque token — passed back verbatim, never reconstructed.
+**Pagination:** `nextRecordsUrl` is an opaque token, passed back verbatim, never reconstructed.
 
 **Timeouts:** 5s reads, 15s writes, enforced by the client, not left to library defaults.
 
@@ -253,10 +253,10 @@ Sandbox only. No production customer data at any point, including fixtures.
 
 Governed by `research/02-clean-code-standard.md` ("THE 20 RULES"). Enforced mechanically, because a standard nobody can check is decoration:
 
-- **ruff** — format + lint, line length 100
-- **mypy** — strict; every public function fully annotated
+- **ruff**, format + lint, line length 100
+- **mypy**, strict; every public function fully annotated
 - **pytest** + **pytest-cov**
-- **pre-commit** — runs all of the above plus a secret scan before every commit
+- **pre-commit**, runs all of the above plus a secret scan before every commit
 
 Non-negotiables carried into this project: functions small and doing one thing; one level of abstraction per function; no flag arguments; exceptions not error codes; no commented-out code; third-party APIs wrapped at a boundary (`client.py` is the only module that knows `httpx` exists); tests F.I.R.S.T.
 
@@ -271,7 +271,7 @@ Non-negotiables carried into this project: functions small and doing one thing; 
 | Contract | Client behaviour on 400/401/403/404/429/500, timeouts, malformed JSON | mocked |
 | Live sandbox | One end-to-end run of all five actions against a real Developer Edition org | real |
 
-Fixtures are recorded from a real sandbox then scrubbed of IDs, emails, and org identifiers — DoD 8 covers fixtures explicitly, and a real recorded response with a real org ID in it fails that.
+Fixtures are recorded from a real sandbox then scrubbed of IDs, emails, and org identifiers, DoD 8 covers fixtures explicitly, and a real recorded response with a real org ID in it fails that.
 
 ---
 
@@ -291,17 +291,17 @@ Mapped to the program's own milestones:
 
 | Milestone | Deliverable |
 |---|---|
-| **Kickoff** — "Mission accepted" | This plan, `connector.yaml`, five action schemas, access risks |
-| **First checkpoint** — "Build continues" | Repo skeleton, auth + `test_connection`, `search_contact`, fixtures |
-| **Week 1 demo** — "Integration candidate" | Two real actions, normalized errors, tests, initial MCP tools |
-| **Final handoff** — "v1.0.0 ready" | All five actions, OpenAPI, thin MCP server, examples, limitations, tag |
+| **Kickoff**, "Mission accepted" | This plan, `connector.yaml`, five action schemas, access risks |
+| **First checkpoint**, "Build continues" | Repo skeleton, auth + `test_connection`, `search_contact`, fixtures |
+| **Week 1 demo**, "Integration candidate" | Two real actions, normalized errors, tests, initial MCP tools |
+| **Final handoff**, "v1.0.0 ready" | All five actions, OpenAPI, thin MCP server, examples, limitations, tag |
 
 ---
 
 ## 14. Open questions & risks
 
-1. **`add_activity_note` mapping** — Task (recommended), Note, or ContentNote? §5.5. Blocks that action's schema.
-2. ~~**Deadline unknown**~~ — CLOSED (owner, 2026-08-06): disregard the deadline. Build to the milestone sequence in §13, not to a date.
-3. **`/presentation` slides 2–14 unread** — client-side deck, browser extension was disconnected. May contain requirements we have not seen.
-4. **Salesforce org access** — a Developer Edition org with a Connected App is needed for the live sandbox test (DoD 9). Not yet provisioned. This is the single largest schedule risk: everything else can proceed without it, but DoD 9 cannot.
-5. **Language deviation** — Python is a documented, defensible choice, but it is a deviation from the template's implied TypeScript. ADR-001 states the reasoning.
+1. **`add_activity_note` mapping**, Task (recommended), Note, or ContentNote? §5.5. Blocks that action's schema.
+2. ~~**Deadline unknown**~~, CLOSED (owner, 2026-08-06): disregard the deadline. Build to the milestone sequence in §13, not to a date.
+3. **`/presentation` slides 2 to 14 unread**, client-side deck, browser extension was disconnected. May contain requirements we have not seen.
+4. **Salesforce org access**, a Developer Edition org with a Connected App is needed for the live sandbox test (DoD 9). Not yet provisioned. This is the single largest schedule risk: everything else can proceed without it, but DoD 9 cannot.
+5. **Language deviation**, Python is a documented, defensible choice, but it is a deviation from the template's implied TypeScript. ADR-001 states the reasoning.
