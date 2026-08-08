@@ -63,5 +63,11 @@ both) into your host's `mcpServers` object, for example
   variables from `.env.example` are passed through the config's `env` block
   instead.
 
+`mcp_client_config.json` carries the same server under three key names, because
+that is the only thing clients disagree about: most read `mcpServers`, VS Code
+reads `servers`, and Zed reads `context_servers`. The command, the arguments,
+and the environment are identical in all three. Keep the block your client
+wants and delete the rest.
+
 Replace every `/absolute/path/to/salesforce-mcp` placeholder with the
 real path on your machine before pasting.

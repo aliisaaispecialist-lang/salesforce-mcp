@@ -306,39 +306,91 @@ If it fails, the error says which of the three it was.
 
 ---
 
-## 6. Point a client at it
+## 6. Point a client at it — any client
 
-Copy `examples/mcp_client_config.json` into your MCP client's configuration
-and replace every `/absolute/path/to/salesforce-mcp` with wherever you put the
-folder. It contains both variants; keep the one you want.
+**This is not a Claude tool.** It is a Model Context Protocol server speaking
+JSON-RPC over stdio, and nothing in it knows or cares which application is on
+the other end. There is no Anthropic SDK in the connector, no vendor client
+library, and no assumption about the host: `mcp_server.py` is 139 lines that
+open the connector, list what it offers, forward a call, and close. Point
+anything that speaks MCP at it and it works.
 
-**Claude Desktop** — `claude_desktop_config.json`:
+Every client below is configured the same way, because every client wants the
+same three things: **a command, its arguments, and some environment**.
 
-- macOS: `~/Library/Application Support/Claude/`
-- Windows: `%APPDATA%\Claude\`
-
-**Claude Code** — one command, run from the project folder:
-
-```bash
-claude mcp add salesforce \
-  -e SF_CLIENT_ID=<your consumer key> \
-  -e SF_USERNAME=<your integration user> \
-  -e SF_PRIVATE_KEY="<PEM, \n between lines>" \
-  -e PYTHONPATH=src \
-  -- python mcp/server.py
+```
+command:  python
+args:     <where you put it>/mcp/server.py
+env:      PYTHONPATH=<where you put it>/src
+          SF_CLIENT_ID, SF_USERNAME, SF_PRIVATE_KEY
 ```
 
-Check it with `claude mcp list`. The `-e` flags matter: Claude Code launches
-the server with its own environment, not yours, so the credentials have to be
-handed over here rather than left in `.env`.
+`examples/mcp_client_config.json` holds this ready to paste, in both the Python
+and Docker variants. Replace `/absolute/path/to/salesforce-mcp` with your own
+path and delete the variant you are not using.
 
-Anything else that speaks MCP over stdio works the same way: it launches
-`mcp/server.py` as a subprocess and talks JSON-RPC to it. Restart the client
-after editing its config — most read it only at startup.
+### Where each client keeps its config
 
-Once connected you should see five tools: `salesforce_search_contact`,
+| Client | File or command |
+|---|---|
+| **Claude Desktop** | `%APPDATA%\Claude\claude_desktop_config.json` (Windows), `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) |
+| **Claude Code** | `claude mcp add` — see below |
+| **Cursor** | `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for every project |
+| **VS Code** (Copilot agent mode) | `.vscode/mcp.json`, under a `servers` key rather than `mcpServers` |
+| **Cline / Roo** (VS Code extensions) | `cline_mcp_settings.json`, reachable from the extension's MCP panel |
+| **Windsurf** | `~/.codeium/windsurf/mcp_config.json` |
+| **Zed** | `settings.json`, under `context_servers` |
+| **LM Studio / Jan** | their MCP settings panel, same three fields |
+
+Key names differ — `mcpServers` in most, `servers` in VS Code,
+`context_servers` in Zed — but the contents do not. If a client is not listed,
+look for whatever it calls "MCP servers" and give it the command, the
+arguments, and the environment.
+
+**Claude Code** takes one command instead of a file, run from the project
+folder:
+
+```bash
+claude mcp add salesforce   -e SF_CLIENT_ID=<your consumer key>   -e SF_USERNAME=<your username>   -e SF_PRIVATE_KEY="<PEM, 
+ between lines>"   -e PYTHONPATH=src   -- python mcp/server.py
+```
+
+Check it with `claude mcp list`.
+
+### Why the credentials go in the config rather than `.env`
+
+The connector reads `.env` from its working directory, which works from a
+terminal in the project folder. A client launches the server from wherever the
+client happens to be, so `.env` is usually out of reach — that is why every
+example above passes the values explicitly. An environment variable always
+wins over the file, so there is no ambiguity when both exist.
+
+If your client lets you set a working directory, pointing it at the project
+folder works too and keeps the credentials in one place.
+
+### After editing any of them
+
+**Restart the client fully.** Most read their MCP config only at startup, and
+on Windows closing the window is not the same as quitting — use the tray icon.
+
+You should then see five tools: `salesforce_search_contact`,
 `salesforce_create_contact`, `salesforce_update_contact`,
 `salesforce_create_opportunity`, `salesforce_add_activity_note`.
+
+### Not an MCP client at all?
+
+Two other doors into the same core, neither of which needs MCP:
+
+- **`openapi.yaml`** describes all five actions as HTTP operations, generated
+  from the same schemas the tools publish. There is no HTTP server in this
+  repository — see
+  [ADR-010](README.md#adr-010-stdio-and-docker-not-a-hosted-https-endpoint) —
+  but the document is what you would put a server behind, and any OpenAPI
+  tooling can read it.
+- **`SalesforceConnector`** is an ordinary Python class with four methods
+  (`manifest`, `test_connection`, `list_actions`, `execute`). Import it and
+  call it. The MCP adapter is one consumer of that class, not the other way
+  round, and `examples/` has five runnable scripts doing exactly this.
 
 ---
 

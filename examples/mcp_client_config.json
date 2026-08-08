@@ -1,5 +1,29 @@
 {
+  "_comment": [
+    "Ready to paste into any MCP client. Replace /absolute/path/to/salesforce-mcp",
+    "with wherever you put the folder, then keep ONE of the two salesforce entries",
+    "and delete the other.",
+    "",
+    "Most clients read the `mcpServers` key below. Two do not, and they want the",
+    "same contents under a different name -- see the two `_alternate_key_*` blocks",
+    "at the bottom. Nothing about the server changes; only where the host looks."
+  ],
+
   "mcpServers": {
+    "salesforce": {
+      "command": "python",
+      "args": ["/absolute/path/to/salesforce-mcp/mcp/server.py"],
+      "env": {
+        "PYTHONPATH": "/absolute/path/to/salesforce-mcp/src",
+        "SF_CLIENT_ID": "<Consumer Key of the External Client App>",
+        "SF_USERNAME": "integration.user@example.com.sandbox",
+        "SF_PRIVATE_KEY": "<PEM private key, \\n between lines>",
+        "SF_LOGIN_URL": "https://test.salesforce.com",
+        "SF_ALLOW_PRODUCTION": "false",
+        "SF_API_VERSION": "v67.0"
+      }
+    },
+
     "salesforce-docker": {
       "command": "docker",
       "args": [
@@ -10,19 +34,59 @@
         "/absolute/path/to/salesforce-mcp/.env",
         "salesforce-connector"
       ]
-    },
-    "salesforce-python": {
-      "command": "python",
-      "args": ["/absolute/path/to/salesforce-mcp/mcp/server.py"],
-      "env": {
-        "PYTHONPATH": "/absolute/path/to/salesforce-mcp/src",
-        "SF_CLIENT_ID": "<consumer key of the Connected App>",
-        "SF_USERNAME": "integration.user@example.com.sandbox",
-        "SF_PRIVATE_KEY": "<PEM private key, \\n between lines>",
-        "SF_LOGIN_URL": "https://test.salesforce.com",
-        "SF_ALLOW_PRODUCTION": "false",
-        "SF_API_VERSION": "v67.0"
+    }
+  },
+
+  "_alternate_key_vscode": {
+    "_comment": "VS Code (.vscode/mcp.json) calls it `servers`, not `mcpServers`.",
+    "servers": {
+      "salesforce": {
+        "command": "python",
+        "args": ["/absolute/path/to/salesforce-mcp/mcp/server.py"],
+        "env": {
+          "PYTHONPATH": "/absolute/path/to/salesforce-mcp/src",
+          "SF_CLIENT_ID": "<Consumer Key>",
+          "SF_USERNAME": "integration.user@example.com.sandbox",
+          "SF_PRIVATE_KEY": "<PEM, \\n between lines>"
+        }
       }
     }
-  }
+  },
+
+  "_alternate_key_zed": {
+    "_comment": "Zed (settings.json) calls it `context_servers`.",
+    "context_servers": {
+      "salesforce": {
+        "command": {
+          "path": "python",
+          "args": ["/absolute/path/to/salesforce-mcp/mcp/server.py"],
+          "env": {
+            "PYTHONPATH": "/absolute/path/to/salesforce-mcp/src",
+            "SF_CLIENT_ID": "<Consumer Key>",
+            "SF_USERNAME": "integration.user@example.com.sandbox",
+            "SF_PRIVATE_KEY": "<PEM, \\n between lines>"
+          }
+        }
+      }
+    }
+  },
+
+  "_notes": [
+    "The private key goes on ONE line with \\n between its PEM lines. JSON has no",
+    "multi-line strings, and the connector restores the newlines on the way in.",
+    "",
+    "Credentials are passed here rather than left in .env because a client starts",
+    "the server from its own working directory, where .env is usually out of",
+    "reach. An environment variable always wins over the file, so there is no",
+    "ambiguity if both exist. If your client lets you set a working directory,",
+    "pointing it at the project folder works too.",
+    "",
+    "SF_LOGIN_URL defaults to the sandbox host. A Developer Edition org",
+    "authenticates at https://login.salesforce.com and additionally needs",
+    "SF_ALLOW_PRODUCTION=true -- deliberately explicit, so a typo cannot send",
+    "writes to a real production org.",
+    "",
+    "The Docker variant needs -i to keep stdin open; that is how the client",
+    "talks to it. Build the image once with `docker build -t salesforce-connector .`"
+  ]
 }
