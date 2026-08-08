@@ -25,6 +25,7 @@ from salesforce_connector.schemas import (
     create_opportunity,
     link_contact_to_opportunity,
     search_contact,
+    soql_query,
     update_contact,
 )
 
@@ -32,6 +33,10 @@ MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "salesforce.search_contact": (
         search_contact.SearchContactInput,
         search_contact.SearchContactOutput,
+    ),
+    "salesforce.soql_query": (
+        soql_query.SoqlQueryInput,
+        soql_query.SoqlQueryOutput,
     ),
     "salesforce.create_contact": (
         create_contact.CreateContactInput,

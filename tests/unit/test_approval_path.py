@@ -133,7 +133,7 @@ class TestEveryWriteAgrees:
         reads = [d for d in described() if d.kind is ActionKind.READ]
 
         assert len(writes) == 5
-        assert len(reads) == 1
+        assert len(reads) == 2
         for action in writes:
             assert "approved" in action.input_schema["properties"]
         for action in reads:

@@ -60,7 +60,7 @@ class TestPublishedTools:
     def test_every_action_is_published_with_its_own_schema(self) -> None:
         published = [mcp_translate.as_tool(d) for d in descriptors()]
 
-        assert len(published) == 6
+        assert len(published) == 7
         for tool, described in zip(published, descriptors(), strict=True):
             # The published input schema is the authored one plus `examples`,
             # a JSON Schema annotation rather than a change to what validates.
@@ -78,6 +78,7 @@ class TestPublishedTools:
     def test_names_are_the_provider_safe_ones(self) -> None:
         assert {tool.name for tool in (mcp_translate.as_tool(d) for d in descriptors())} == {
             "salesforce_search_contact",
+            "salesforce_soql_query",
             "salesforce_create_contact",
             "salesforce_update_contact",
             "salesforce_create_opportunity",

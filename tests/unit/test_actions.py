@@ -72,7 +72,7 @@ async def run(client: SalesforceClient, action_id: str, **params: Any) -> Any:
 
 class TestTheRegistry:
     def test_it_offers_the_five_assigned_actions_plus_the_link_split_from_one(self) -> None:
-        assert len(registry.BY_ID) == 6
+        assert len(registry.BY_ID) == 7
 
     def test_the_order_is_stable_rather_than_incidental(self) -> None:
         assert list(registry.BY_ID) == sorted(registry.BY_ID)
@@ -80,7 +80,7 @@ class TestTheRegistry:
     def test_descriptors_carry_the_rendered_description(self) -> None:
         described = registry.descriptors()
 
-        assert len(described) == 6
+        assert len(described) == 7
         assert all("Do not use this when:" in item.description for item in described)
 
     def test_an_unknown_action_names_the_ones_that_exist(self, client: SalesforceClient) -> None:

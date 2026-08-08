@@ -25,6 +25,7 @@ actions:
   - salesforce.create_opportunity
   - salesforce.link_contact_to_opportunity
   - salesforce.search_contact
+  - salesforce.soql_query
   - salesforce.update_contact
 
 capabilities:

@@ -40,7 +40,7 @@ class TestTheDocument:
         paths = document["paths"]
 
         assert isinstance(paths, dict)
-        assert len(paths) == 6
+        assert len(paths) == 7
         assert set(paths) == {f"/actions/{a}" for a in registry.BY_ID}
 
     def test_each_operation_carries_the_schema_the_tool_publishes(

@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     approval_ttl_seconds: int = Field(default=600, gt=0)
     """How long a person's approval of a write stays valid."""
 
+    max_query_rows: int = Field(default=200, gt=0, le=2000)
+    """The ceiling a SOQL query is held to when it names no limit of its own."""
+
     @field_validator("private_key", mode="before")
     @classmethod
     def _restore_newlines(cls, value: object) -> object:

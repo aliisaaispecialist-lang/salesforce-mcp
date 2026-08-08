@@ -1051,6 +1051,186 @@ paths:
                         name: Grace Hopper
                         title: CTO
                       returned: 1
+  /actions/salesforce.soql_query:
+    post:
+      operationId: salesforce_soql_query
+      summary: Query Salesforce with SOQL
+      description: "Run a read-only SOQL query against any Salesforce object, to list, filter,\
+        \ sort, or count records.\n\nUse this when: the user described a condition rather\
+        \ than a name: how many of something there are, which records match a filter, the\
+        \ newest or largest few, or anything about an object other than Contact and Opportunity.\n\
+        Do not use this when: the user named a person and you are trying to find them, which\
+        \ is the search action and matches fuzzily where this matches exactly; or you already\
+        \ hold the record id, in which case read it directly. This tool cannot change anything,\
+        \ so never reach for it to create or update.\n\nExample -- Count something\n  call:\
+        \ {\"soql\": \"SELECT COUNT() FROM Contact WHERE LastName LIKE '%Demo'\"}\n  returns:\
+        \ {\"records\": [], \"returned\": 0, \"total_size\": 7}\n\nFailures and what to do:\n\
+        - connector.invalid_input: The statement is not a SELECT, or is too short to be a\
+        \ query. This endpoint only reads. Rewrite it as a SELECT. To create or change a record,\
+        \ use one of the write tools instead.\n- salesforce.invalid_input: Salesforce rejected\
+        \ the SOQL: a bad field name, object, or syntax. The error names the position and\
+        \ the problem. A field that does not exist is the usual cause, so call describe on\
+        \ the object to see its real field names rather than guessing again.\n- salesforce.permission_denied:\
+        \ This user may not read that object or one of the named fields. Do not retry. Report\
+        \ which object was refused and that an administrator must grant read access.\n- salesforce.rate_limited:\
+        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
+        \ then repeat. Consider adding a tighter LIMIT: a query paging thousands of rows spends\
+        \ the allowance quickly.\n- salesforce.transport_failed: Salesforce did not answer\
+        \ in time. Wait briefly and repeat the same query. Reading again is always safe. A\
+        \ query that repeatedly times out is usually too broad; add a WHERE clause or a smaller\
+        \ LIMIT."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: The question, written in SOQL.
+              properties:
+                soql:
+                  description: 'Required. A SOQL SELECT statement. Compose it from what the
+                    user asked for: they describe a condition in words and you turn it into
+                    the query.
+
+
+                    SOQL is not SQL. There are no joins and no SELECT *, so name every field
+                    you want. Related fields are reached through the relationship, as in Account.Name.
+                    Date literals are built in and worth using: THIS_MONTH, LAST_N_DAYS:30,
+                    TODAY.
+
+
+                    Only SELECT is accepted; the endpoint cannot write, and anything else
+                    is refused before it is sent. If you do not add a LIMIT one is added for
+                    you, because an unbounded query pages an entire object and spends the
+                    org''s API allowance.
+
+
+                    Examples: SELECT Id, Name, Email FROM Contact WHERE LastName LIKE ''%Demo''
+                    ORDER BY CreatedDate DESC LIMIT 20 -- or -- SELECT COUNT() FROM Opportunity
+                    WHERE Amount > 50000 AND CloseDate = THIS_MONTH'
+                  examples:
+                  - SELECT Id, Name, Email FROM Contact ORDER BY CreatedDate DESC LIMIT 20
+                  - SELECT COUNT() FROM Opportunity WHERE CloseDate = THIS_MONTH
+                  maxLength: 4000
+                  minLength: 10
+                  title: Soql
+                  type: string
+                cursor:
+                  anyOf:
+                  - type: string
+                  - type: 'null'
+                  default: null
+                  description: 'Optional. To read the next page, send back the exact cursor
+                    from the previous result. Treat it as opaque: do not parse or edit it.
+                    Omit it for the first page. A result with no cursor is the last page.
+                    When paging, send the same soql as well.'
+                  title: Cursor
+              required:
+              - soql
+              title: SoqlQueryInput
+              type: object
+            examples:
+              Count something:
+                summary: Count something
+                value:
+                  soql: SELECT COUNT() FROM Contact WHERE LastName LIKE '%Demo'
+              List with a filter and an order:
+                summary: List with a filter and an order
+                value:
+                  soql: SELECT Id, Name, Email FROM Contact WHERE Email LIKE '%example.com'
+                    ORDER BY CreatedDate DESC LIMIT 2
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: What matched, how many there are, and where the page stopped.
+                    properties:
+                      records:
+                        description: The matching rows, each holding exactly the fields the
+                          query named. Empty for a COUNT() query, and empty when nothing matched
+                          -- read total_size to tell those apart.
+                        items:
+                          additionalProperties: true
+                          type: object
+                        title: Records
+                        type: array
+                      returned:
+                        description: How many rows are in this response.
+                        title: Returned
+                        type: integer
+                      total_size:
+                        description: How many rows match the query in total, across every
+                          page. For a COUNT() query this is the answer and records is empty.
+                        title: Total Size
+                        type: integer
+                      next_cursor:
+                        anyOf:
+                        - type: string
+                        - type: 'null'
+                        default: null
+                        description: Send back verbatim for the next page. Absent means no
+                          more pages.
+                        title: Next Cursor
+                    required:
+                    - records
+                    - returned
+                    - total_size
+                    title: SoqlQueryOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Count something:
+                  summary: Count something
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      records: []
+                      returned: 0
+                      total_size: 7
+                List with a filter and an order:
+                  summary: List with a filter and an order
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      records:
+                      - Id: 003xx000004TmiQAAS
+                        Name: Ada Lovelace
+                        Email: ada@example.com
+                      - Id: 003xx000004TmiRAAS
+                        Name: Grace Hopper
+                        Email: grace@example.com
+                      returned: 2
+                      total_size: 7
+                      next_cursor: /services/data/v67.0/query/01gxx000000abcd
   /actions/salesforce.update_contact:
     post:
       operationId: salesforce_update_contact

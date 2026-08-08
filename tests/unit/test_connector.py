@@ -71,6 +71,7 @@ class TestTheManifest:
 
         assert set(manifest.actions) == {
             "salesforce.search_contact",
+            "salesforce.soql_query",
             "salesforce.create_contact",
             "salesforce.update_contact",
             "salesforce.create_opportunity",
@@ -98,7 +99,7 @@ class TestListActions:
         first = connector.list_actions()
         second = connector.list_actions()
 
-        assert len(first) == 6
+        assert len(first) == 7
         assert [a.action_id for a in first] == [a.action_id for a in second]
 
 
