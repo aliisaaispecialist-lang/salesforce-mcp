@@ -15,8 +15,10 @@ from typing import Final
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.actions.add_activity_note import AddActivityNote
+from salesforce_connector.actions.count_records import CountRecords
 from salesforce_connector.actions.create_contact import CreateContact
 from salesforce_connector.actions.create_opportunity import CreateOpportunity
+from salesforce_connector.actions.get_related import GetRelated
 from salesforce_connector.actions.link_contact_to_opportunity import LinkContactToOpportunity
 from salesforce_connector.actions.search_contact import SearchContact
 from salesforce_connector.actions.soql_query import SoqlQuery
@@ -27,6 +29,8 @@ from salesforce_connector.errors.model import ErrorContext, InvalidInputError
 
 _ACTIONS: Final[tuple[type[Action], ...]] = (
     SearchContact,
+    CountRecords,
+    GetRelated,
     SoqlQuery,
     CreateContact,
     UpdateContact,

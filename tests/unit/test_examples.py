@@ -21,8 +21,10 @@ from salesforce_connector.contract import ActionDescriptor, ActionKind
 from salesforce_connector.mcp_translate import as_tool
 from salesforce_connector.schemas import (
     add_activity_note,
+    count_records,
     create_contact,
     create_opportunity,
+    get_related,
     link_contact_to_opportunity,
     search_contact,
     soql_query,
@@ -30,6 +32,14 @@ from salesforce_connector.schemas import (
 )
 
 MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
+    "salesforce.count_records": (
+        count_records.CountRecordsInput,
+        count_records.CountRecordsOutput,
+    ),
+    "salesforce.get_related": (
+        get_related.GetRelatedInput,
+        get_related.GetRelatedOutput,
+    ),
     "salesforce.search_contact": (
         search_contact.SearchContactInput,
         search_contact.SearchContactOutput,

@@ -262,6 +262,169 @@ paths:
                       subject: Quote sent
                       related_to_id: 006xx000004TmiQAAS
                       created: true
+  /actions/salesforce.count_records:
+    post:
+      operationId: salesforce_count_records
+      summary: Count Salesforce records by object
+      description: "Report how many records exist for one or more Salesforce objects, without\
+        \ reading the records themselves.\n\nUse this when: the user asked how much of something\
+        \ there is in total, across a whole object: how many contacts, how many opportunities,\
+        \ how big is the database. Several objects can be counted in one call.\nDo not use\
+        \ this when: the question has any condition attached, such as how many were created\
+        \ this month or how many belong to one account. This counts everything and cannot\
+        \ filter; salesforce_soql_query with SELECT COUNT() and a WHERE clause is the tool\
+        \ for that. Also not for reading the records themselves.\n\nExample -- Count one object\n\
+        \  call: {\"objects\": [\"Contact\"]}\n  returns: {\"counts\": [{\"count\": 7, \"\
+        name\": \"Contact\"}], \"not_counted\": null}\n\nFailures and what to do:\n- connector.invalid_input:\
+        \ No object was named, or too many were asked for at once. Name at least one object,\
+        \ and no more than twenty per call.\n- salesforce.permission_denied: This user may\
+        \ not read one of the objects named. Do not retry. The result lists the objects that\
+        \ were readable; report which was refused and that an administrator must grant read\
+        \ access.\n- salesforce.rate_limited: The org has spent its API allowance for now.\
+        \ Wait the stated number of seconds, then repeat the same call.\n- salesforce.transport_failed:\
+        \ Salesforce did not answer in time. Wait briefly and repeat. Counting changes nothing,\
+        \ so retrying is always safe."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which objects to count.
+              properties:
+                objects:
+                  description: 'Required. Salesforce object names to count, spelled as Salesforce
+                    spells them: Contact, Opportunity, Lead, Account, Task, or a custom object
+                    ending __c. Ask for several at once rather than calling repeatedly; one
+                    call answers for all of them.
+
+
+                    This counts every record of that type. It cannot count a subset. For ''how
+                    many contacts at Acme'' or ''how many deals closed this month'', use salesforce_soql_query
+                    with SELECT COUNT() and a WHERE clause instead.'
+                  examples:
+                  - - Contact
+                  - - Contact
+                    - Opportunity
+                    - Lead
+                  items:
+                    type: string
+                  maxItems: 20
+                  minItems: 1
+                  title: Objects
+                  type: array
+              required:
+              - objects
+              title: CountRecordsInput
+              type: object
+            examples:
+              Count one object:
+                summary: Count one object
+                value:
+                  objects:
+                  - Contact
+              Count several at once:
+                summary: Count several at once
+                value:
+                  objects:
+                  - Contact
+                  - Opportunity
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    $defs:
+                      ObjectCount:
+                        additionalProperties: false
+                        description: One object and how many records it holds.
+                        properties:
+                          name:
+                            description: The object, as Salesforce names it.
+                            title: Name
+                            type: string
+                          count:
+                            description: How many records of this type exist.
+                            title: Count
+                            type: integer
+                        required:
+                        - name
+                        - count
+                        title: ObjectCount
+                        type: object
+                    additionalProperties: false
+                    description: A count for each object that was asked about.
+                    properties:
+                      counts:
+                        description: One entry per object Salesforce could count. These counts
+                          are cached and approximate, not live. An object asked for but absent
+                          here was not counted, which is not the same as having no records.
+                        items:
+                          $ref: '#/$defs/ObjectCount'
+                        title: Counts
+                        type: array
+                      not_counted:
+                        anyOf:
+                        - type: string
+                        - type: 'null'
+                        default: null
+                        description: Present when Salesforce declined to count something that
+                          was asked for, naming which objects and the tool that can answer
+                          exactly. Absent when everything asked for came back.
+                        title: Not Counted
+                    required:
+                    - counts
+                    title: CountRecordsOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Count one object:
+                  summary: Count one object
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      counts:
+                      - name: Contact
+                        count: 7
+                      not_counted: null
+                Count several at once:
+                  summary: Count several at once
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      counts:
+                      - name: Contact
+                        count: 7
+                      - name: Opportunity
+                        count: 2
+                      not_counted: null
   /actions/salesforce.create_contact:
     post:
       operationId: salesforce_create_contact
@@ -674,6 +837,169 @@ paths:
                       next_action: This deal has no contact attached. If it is for a specific
                         person, call salesforce_link_contact_to_opportunity with opportunity_id=006xx000004TmiQAAS
                         and their contact id.
+  /actions/salesforce.get_related:
+    post:
+      operationId: salesforce_get_related
+      summary: Follow a Salesforce relationship
+      description: "Read the records a Salesforce record is attached to, such as a contact's\
+        \ account or an opportunity's contact roles.\n\nUse this when: you hold a record and\
+        \ need what it points at: the account behind a contact's account id, the contacts\
+        \ under an account, the roles on a deal. One call rather than reading an id and then\
+        \ reading the record it names.\nDo not use this when: you want the record itself rather\
+        \ than what it is attached to; or you need fields from both sides at once, or any\
+        \ filtering or sorting, which salesforce_soql_query does with a relationship field\
+        \ such as Account.Name. This follows exactly one hop and applies no conditions.\n\n\
+        Example -- The account a contact belongs to\n  call: {\"object_name\": \"Contact\"\
+        , \"record_id\": \"003xx000004TmiQAAS\", \"relationship\": \"Account\"}\n  returns:\
+        \ {\"records\": [{\"Id\": \"001xx000003DGb2AAG\", \"Name\": \"Example Corp\"}], \"\
+        returned\": 1}\n\nFailures and what to do:\n- salesforce.record_not_found: No record\
+        \ has that id, or the relationship name does not exist. Check the id first by searching\
+        \ for the record. If the id is right, the relationship name is wrong: call salesforce_describe_object\
+        \ on the starting object and use a relationshipName it actually lists.\n- connector.invalid_input:\
+        \ The id is malformed, or the object name is empty. Correct the named field and call\
+        \ again.\n- salesforce.permission_denied: This user may not read the object on the\
+        \ other side. Do not retry. Reading a contact does not imply permission to read its\
+        \ account. Report which object was refused.\n- salesforce.rate_limited: The org has\
+        \ spent its API allowance for now. Wait the stated number of seconds, then repeat\
+        \ the same call.\n- salesforce.transport_failed: Salesforce did not answer in time.\
+        \ Wait briefly and repeat. Reading again is always safe."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which record, and which relationship to follow.
+              properties:
+                object_name:
+                  description: 'Required. The object you are starting from, spelled as Salesforce
+                    spells it: Contact, Opportunity, Account, or a custom object ending __c.'
+                  maxLength: 80
+                  minLength: 1
+                  title: Object Name
+                  type: string
+                record_id:
+                  description: Required. The record to start from. Search for it first if
+                    you do not have the id; never guess one, because a valid-looking id may
+                    belong to a different record entirely.
+                  maxLength: 18
+                  minLength: 15
+                  title: Record Id
+                  type: string
+                relationship:
+                  description: 'Required. The relationship to follow, named as Salesforce
+                    names it. Following a lookup field drops the Id: a Contact''s AccountId
+                    is followed as ''Account''. Child collections keep their plural name,
+                    such as ''Contacts'' on an Account or ''OpportunityContactRoles'' on an
+                    Opportunity.
+
+
+                    If you are unsure what a relationship is called, call salesforce_describe_object
+                    on the starting object and read its relationshipName values rather than
+                    guessing.'
+                  examples:
+                  - Account
+                  - Contacts
+                  - OpportunityContactRoles
+                  maxLength: 80
+                  minLength: 1
+                  title: Relationship
+                  type: string
+              required:
+              - object_name
+              - record_id
+              - relationship
+              title: GetRelatedInput
+              type: object
+            examples:
+              The account a contact belongs to:
+                summary: The account a contact belongs to
+                value:
+                  object_name: Contact
+                  record_id: 003xx000004TmiQAAS
+                  relationship: Account
+              The contacts under an account:
+                summary: The contacts under an account
+                value:
+                  object_name: Account
+                  record_id: 001xx000003DGb2AAG
+                  relationship: Contacts
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: What the relationship led to.
+                    properties:
+                      records:
+                        description: What was found. A lookup returns exactly one record;
+                          a child collection returns many, or none. Empty means the relationship
+                          exists but nothing is attached, which is different from the relationship
+                          not existing at all.
+                        items:
+                          additionalProperties: true
+                          type: object
+                        title: Records
+                        type: array
+                      returned:
+                        description: How many records are in this response.
+                        title: Returned
+                        type: integer
+                    required:
+                    - records
+                    - returned
+                    title: GetRelatedOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                The account a contact belongs to:
+                  summary: The account a contact belongs to
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      records:
+                      - Id: 001xx000003DGb2AAG
+                        Name: Example Corp
+                      returned: 1
+                The contacts under an account:
+                  summary: The contacts under an account
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      records:
+                      - Id: 003xx000004TmiQAAS
+                        Name: Ada Lovelace
+                      - Id: 003xx000004TmiRAAS
+                        Name: Grace Hopper
+                      returned: 2
   /actions/salesforce.link_contact_to_opportunity:
     post:
       operationId: salesforce_link_contact_to_opportunity
