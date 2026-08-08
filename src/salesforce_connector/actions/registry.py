@@ -18,13 +18,19 @@ from salesforce_connector.actions.add_activity_note import AddActivityNote
 from salesforce_connector.actions.count_records import CountRecords
 from salesforce_connector.actions.create_contact import CreateContact
 from salesforce_connector.actions.create_opportunity import CreateOpportunity
+from salesforce_connector.actions.create_opportunity_with_contact import (
+    CreateOpportunityWithContact,
+)
 from salesforce_connector.actions.describe_object import DescribeObject
 from salesforce_connector.actions.get_record import GetRecord
 from salesforce_connector.actions.get_related import GetRelated
 from salesforce_connector.actions.link_contact_to_opportunity import LinkContactToOpportunity
 from salesforce_connector.actions.search_contact import SearchContact
+from salesforce_connector.actions.search_records import SearchRecords
 from salesforce_connector.actions.soql_query import SoqlQuery
 from salesforce_connector.actions.update_contact import UpdateContact
+from salesforce_connector.actions.update_record import UpdateRecord
+from salesforce_connector.actions.upsert_record import UpsertRecord
 from salesforce_connector.client import SalesforceClient
 from salesforce_connector.contract import ActionDescriptor
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
@@ -35,6 +41,10 @@ _ACTIONS: Final[tuple[type[Action], ...]] = (
     GetRelated,
     GetRecord,
     DescribeObject,
+    SearchRecords,
+    UpdateRecord,
+    UpsertRecord,
+    CreateOpportunityWithContact,
     SoqlQuery,
     CreateContact,
     UpdateContact,

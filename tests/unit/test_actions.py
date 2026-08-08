@@ -4,6 +4,7 @@ respx intercepts at the transport layer, so these exercise the real request
 objects the connector would put on the wire, without a socket.
 """
 
+import json
 from typing import Any
 
 import httpx
@@ -72,7 +73,7 @@ async def run(client: SalesforceClient, action_id: str, **params: Any) -> Any:
 
 class TestTheRegistry:
     def test_it_offers_the_five_assigned_actions_plus_the_link_split_from_one(self) -> None:
-        assert len(registry.BY_ID) == 11
+        assert len(registry.BY_ID) == 15
 
     def test_the_order_is_stable_rather_than_incidental(self) -> None:
         assert list(registry.BY_ID) == sorted(registry.BY_ID)
@@ -80,7 +81,7 @@ class TestTheRegistry:
     def test_descriptors_carry_the_rendered_description(self) -> None:
         described = registry.descriptors()
 
-        assert len(described) == 11
+        assert len(described) == 15
         assert all("Do not use this when:" in item.description for item in described)
 
     def test_an_unknown_action_names_the_ones_that_exist(self, client: SalesforceClient) -> None:
@@ -429,3 +430,106 @@ class TestCreateOpportunity:
             assert result.error is not None
             assert result.error.category.value == "resource"
             assert result.error.next_step
+
+
+@pytest.mark.asyncio
+class TestCreateOpportunityWithContact:
+    """The atomic pair, and the failure Salesforce hides inside a success."""
+
+    async def test_both_records_come_back_from_one_call(self, client: SalesforceClient) -> None:
+        async with client, respx.mock:
+            token_route()
+            route = respx.post(f"{DATA}/composite").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "compositeResponse": [
+                            {
+                                "body": {"id": "006new", "success": True},
+                                "httpStatusCode": 201,
+                                "referenceId": "newOpportunity",
+                            },
+                            {
+                                "body": {"id": "00Knew", "success": True},
+                                "httpStatusCode": 201,
+                                "referenceId": "contactRole",
+                            },
+                        ]
+                    },
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.create_opportunity_with_contact",
+                name="Example Corp - renewal",
+                stage_name="Qualify",
+                close_date="2026-12-01",
+                contact_id="003xx000004TmiQAAS",
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert result.ok
+            assert result.data["id"] == "006new"
+            assert result.data["contact_role_id"] == "00Knew"
+            sent = json.loads(route.calls.last.request.content)
+            assert sent["allOrNone"] is True
+            # The role names an opportunity that has no id yet.
+            assert sent["compositeRequest"][1]["body"]["OpportunityId"] == "@{newOpportunity.id}"
+
+    async def test_a_failure_inside_a_200_is_still_a_failure(
+        self, client: SalesforceClient
+    ) -> None:
+        """The bug this tool would otherwise ship with.
+
+        A composite that rolled everything back answers HTTP 200. Read by
+        status alone, this is a success whose ids are empty strings, and the
+        caller is told a deal exists that does not.
+        """
+        async with client, respx.mock:
+            token_route()
+            respx.post(f"{DATA}/composite").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "compositeResponse": [
+                            {
+                                "body": [
+                                    {
+                                        "errorCode": "FIELD_CUSTOM_VALIDATION_EXCEPTION",
+                                        "message": "bad stage",
+                                        "fields": ["StageName"],
+                                    }
+                                ],
+                                "httpStatusCode": 400,
+                                "referenceId": "newOpportunity",
+                            },
+                            {
+                                "body": [
+                                    {"errorCode": "PROCESSING_HALTED", "message": "rolled back"}
+                                ],
+                                "httpStatusCode": 400,
+                                "referenceId": "contactRole",
+                            },
+                        ]
+                    },
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.create_opportunity_with_contact",
+                name="Example Corp - renewal",
+                stage_name="Nonexistent",
+                close_date="2026-12-01",
+                contact_id="003xx000004TmiQAAS",
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            # Blamed on the subrequest that failed, not the one it halted.
+            assert "bad stage" in result.error.reason
+            assert "PROCESSING_HALTED" not in result.error.reason

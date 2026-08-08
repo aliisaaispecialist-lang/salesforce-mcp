@@ -639,12 +639,14 @@ paths:
       description: "Create a sales opportunity in Salesforce, optionally linked to an account\
         \ and a contact, and return its record id.\n\nUse this when: the user wants to record\
         \ a new deal, renewal, or piece of pipeline, and you have a name, a stage, and an\
-        \ expected close date.\nDo not use this when: the deal already exists and needs changing;\
-        \ you only want to log a conversation, which is the activity note; or you are missing\
-        \ the stage or close date, in which case ask the user rather than inventing them.\n\
-        \nExample -- Open a deal\n  call: {\"account_id\": \"001xx000003DGb2AAG\", \"amount\"\
-        : 45000, \"approved\": true, \"close_date\": \"2026-12-01\", \"idempotency_key\":\
-        \ \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\", \"name\": \"Example Corp - annual renewal\"\
+        \ expected close date.\nDo not use this when: you already have the contact id and\
+        \ the deal is for that person, in which case salesforce_create_opportunity_with_contact\
+        \ does both in one write that cannot half-fail; the deal already exists and needs\
+        \ changing; you only want to log a conversation, which is the activity note; or you\
+        \ are missing the stage or close date, in which case ask the user rather than inventing\
+        \ them.\n\nExample -- Open a deal\n  call: {\"account_id\": \"001xx000003DGb2AAG\"\
+        , \"amount\": 45000, \"approved\": true, \"close_date\": \"2026-12-01\", \"idempotency_key\"\
+        : \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\", \"name\": \"Example Corp - annual renewal\"\
         , \"stage_name\": \"Qualify\"}\n  returns: {\"created\": true, \"id\": \"006xx000004TmiQAAS\"\
         , \"name\": \"Example Corp - annual renewal\", \"next_action\": \"This deal has no\
         \ contact attached. If it is for a specific person, call salesforce_link_contact_to_opportunity\
@@ -837,6 +839,222 @@ paths:
                       next_action: This deal has no contact attached. If it is for a specific
                         person, call salesforce_link_contact_to_opportunity with opportunity_id=006xx000004TmiQAAS
                         and their contact id.
+  /actions/salesforce.create_opportunity_with_contact:
+    post:
+      operationId: salesforce_create_opportunity_with_contact
+      summary: Create a Salesforce opportunity and attach its contact together
+      description: "Open a deal and attach the person it is for in a single write that either\
+        \ fully succeeds or changes nothing at all.\n\nUse this when: the user asked to open\
+        \ a deal for a specific person and you already have that person's contact id. One\
+        \ call, and no moment where the deal exists without them.\nDo not use this when: you\
+        \ do not have the contact id yet, in which case use salesforce_create_opportunity\
+        \ now and attach the contact afterwards with salesforce_link_contact_to_opportunity;\
+        \ the deal is not for a particular person, which is salesforce_create_opportunity\
+        \ on its own; or the deal already exists and only needs a contact attached, which\
+        \ is salesforce_link_contact_to_opportunity.\n\nExample -- Open a deal for a known\
+        \ contact\n  call: {\"amount\": 45000, \"approved\": true, \"close_date\": \"2026-12-01\"\
+        , \"contact_id\": \"003xx000004TmiQAAS\", \"idempotency_key\": \"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d\"\
+        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Qualify\"}\n  returns:\
+        \ {\"contact_id\": \"003xx000004TmiQAAS\", \"contact_role_id\": \"00Kxx0000011AAAI\"\
+        , \"created\": true, \"id\": \"006xx000004TmiQAAS\", \"name\": \"Example Corp - annual\
+        \ renewal\", \"stage_name\": \"Qualify\"}\n\nFailures and what to do:\n- connector.invalid_input:\
+        \ The stage or role is not a value this org accepts, or a required field is missing.\
+        \ The message names which of the two writes was rejected. Nothing was created, so\
+        \ fix the named value and call again with the same idempotency key. For a rejected\
+        \ stage or role, call salesforce_describe_object on Opportunity and use a value it\
+        \ lists.\n- salesforce.record_not_found: The contact id or account id does not refer\
+        \ to a record that exists. Nothing was created. Search for the contact again rather\
+        \ than retrying the same id, then call again.\n- salesforce.permission_denied: This\
+        \ user may not create opportunities or contact roles. Do not retry. Report which of\
+        \ the two was refused and that an administrator must grant create access.\n- salesforce.rate_limited:\
+        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
+        \ then repeat with the same idempotency key.\n- salesforce.transport_failed: Salesforce\
+        \ did not answer in time. Repeat with the same idempotency key. Either both records\
+        \ exist or neither does, so there is no partial state to inspect first.\n- connector.escalate_to_human:\
+        \ The write failed three times in a row and will not succeed by retrying. Stop calling\
+        \ this tool. Tell the user it must be done by hand and how."
+      tags:
+      - write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: The deal, and the person it is for.
+              properties:
+                name:
+                  description: Required. What the deal is called. Use something a person would
+                    recognise in a list, usually the account and what it is for.
+                  examples:
+                  - Example Corp - annual renewal
+                  maxLength: 120
+                  minLength: 1
+                  title: Name
+                  type: string
+                stage_name:
+                  description: 'Required. The sales stage. Stages are configured per org,
+                    so do not assume the Salesforce defaults: call salesforce_describe_object
+                    on Opportunity and use a value it reports. A stage this org does not have
+                    fails the whole write, including the contact link.'
+                  maxLength: 80
+                  minLength: 1
+                  title: Stage Name
+                  type: string
+                close_date:
+                  description: Required. Expected close date, as YYYY-MM-DD. Ask the user
+                    rather than inventing one; a date invented here becomes a forecast somebody
+                    relies on.
+                  format: date
+                  title: Close Date
+                  type: string
+                contact_id:
+                  description: Required. The person the deal is for. Find them with salesforce_search_contact
+                    first. A contact id starts 003; if you do not have one, use salesforce_create_opportunity
+                    instead and attach the contact afterwards.
+                  maxLength: 18
+                  minLength: 15
+                  title: Contact Id
+                  type: string
+                amount:
+                  anyOf:
+                  - minimum: 0
+                    type: number
+                  - type: 'null'
+                  default: null
+                  description: Optional. Value of the deal, in the org's currency.
+                  title: Amount
+                account_id:
+                  anyOf:
+                  - maxLength: 18
+                    minLength: 15
+                    type: string
+                  - type: 'null'
+                  default: null
+                  description: Optional. The company the deal belongs to. An account id starts
+                    001.
+                  title: Account Id
+                role:
+                  anyOf:
+                  - maxLength: 80
+                    type: string
+                  - type: 'null'
+                  default: null
+                  description: 'Optional. The contact''s part in the deal, such as Decision
+                    Maker. Leave it out unless the user said one: roles are a restricted picklist
+                    in most orgs, and a value this org does not have fails the whole write.'
+                  title: Role
+                idempotency_key:
+                  description: Required. A unique string for this deal. Reuse it when retrying
+                    so the same deal is not opened twice.
+                  maxLength: 128
+                  minLength: 8
+                  title: Idempotency Key
+                  type: string
+                approved:
+                  default: false
+                  description: Confirmation that the user asked for this deal to be created.
+                  title: Approved
+                  type: boolean
+              required:
+              - name
+              - stage_name
+              - close_date
+              - contact_id
+              - idempotency_key
+              title: CreateOpportunityWithContactInput
+              type: object
+            examples:
+              Open a deal for a known contact:
+                summary: Open a deal for a known contact
+                value:
+                  name: Example Corp - annual renewal
+                  stage_name: Qualify
+                  close_date: '2026-12-01'
+                  contact_id: 003xx000004TmiQAAS
+                  amount: 45000
+                  idempotency_key: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                  approved: true
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: The deal and the link, both of which now exist or neither
+                      of which does.
+                    properties:
+                      id:
+                        description: Record id of the created opportunity.
+                        title: Id
+                        type: string
+                      name:
+                        description: Name as stored.
+                        title: Name
+                        type: string
+                      stage_name:
+                        description: Stage as stored.
+                        title: Stage Name
+                        type: string
+                      contact_id:
+                        description: The contact that was attached.
+                        title: Contact Id
+                        type: string
+                      contact_role_id:
+                        description: Record id of the contact role joining the two.
+                        title: Contact Role Id
+                        type: string
+                      created:
+                        description: True if this call created the deal. False means the identical
+                          key had already created it and this is the original outcome.
+                        title: Created
+                        type: boolean
+                    required:
+                    - id
+                    - name
+                    - stage_name
+                    - contact_id
+                    - contact_role_id
+                    - created
+                    title: CreateOpportunityWithContactOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Open a deal for a known contact:
+                  summary: Open a deal for a known contact
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 006xx000004TmiQAAS
+                      name: Example Corp - annual renewal
+                      stage_name: Qualify
+                      contact_id: 003xx000004TmiQAAS
+                      contact_role_id: 00Kxx0000011AAAI
+                      created: true
   /actions/salesforce.describe_object:
     post:
       operationId: salesforce_describe_object
@@ -1712,6 +1930,193 @@ paths:
                         name: Grace Hopper
                         title: CTO
                       returned: 1
+  /actions/salesforce.search_records:
+    post:
+      operationId: salesforce_search_records
+      summary: Search any Salesforce object by words
+      description: "Find records of any object by free text, the way a search box finds them,\
+        \ and return the fields that were asked for.\n\nUse this when: the user named something\
+        \ in words and you need to find it: an account by company name, a lead by surname,\
+        \ a case by its subject. Use it to turn a name into a record id before a tool that\
+        \ needs one.\nDo not use this when: the object is Contact, which is salesforce_search_contact\
+        \ and returns the fields the contact tools expect; the user described a condition\
+        \ rather than words, such as everything closing this month, which is salesforce_soql_query;\
+        \ or you already hold the record id, in which case salesforce_get_record reads it\
+        \ directly.\n\nExample -- Find an account by name\n  call: {\"fields\": [\"Id\", \"\
+        Name\", \"Industry\"], \"object_name\": \"Account\", \"query\": \"Example Corp\"}\n\
+        \  returns: {\"next_cursor\": null, \"records\": [{\"Id\": \"001xx000003DGb2AAG\"\
+        , \"Industry\": \"Technology\", \"Name\": \"Example Corp\"}], \"returned\": 1}\n\n\
+        Failures and what to do:\n- connector.invalid_input: The object does not exist, one\
+        \ of the named fields does not exist on it, or the search term is too short. Search\
+        \ for at least two characters. If a field was rejected, call salesforce_describe_object\
+        \ on the object and use names it actually lists rather than retrying the same list.\n\
+        - salesforce.permission_denied: This user may not search that object. Do not retry.\
+        \ Report which object was refused and that an administrator must grant read access.\n\
+        - salesforce.rate_limited: The org has spent its API allowance for now. Wait the stated\
+        \ number of seconds, then repeat the same call.\n- salesforce.transport_failed: Salesforce\
+        \ did not answer in time. Wait briefly and repeat. Searching changes nothing, so retrying\
+        \ is safe."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: What to look for, and where.
+              properties:
+                object_name:
+                  description: 'Required. The object to search, spelled as Salesforce spells
+                    it: Account, Lead, Opportunity, Case, Task, or a custom object ending
+                    __c. For Contact use salesforce_search_contact instead, which returns
+                    the contact fields the contact tools need.'
+                  examples:
+                  - Account
+                  - Lead
+                  - Opportunity
+                  maxLength: 80
+                  minLength: 1
+                  title: Object Name
+                  type: string
+                query:
+                  description: 'Required. The words to search for, as the user said them:
+                    a company name, a subject line, part of a title. This matches the way
+                    a search box matches, not the way a filter matches, so a partial word
+                    finds records containing it.
+
+
+                    For a condition rather than words, such as a date range or an amount over
+                    a threshold, use salesforce_soql_query.'
+                  examples:
+                  - Example Corp
+                  - renewal
+                  maxLength: 200
+                  minLength: 2
+                  title: Query
+                  type: string
+                fields:
+                  default:
+                  - Id
+                  - Name
+                  description: 'Optional, defaults to Id and Name. The fields to return, named
+                    as Salesforce names them. Not every object has Name: a Task calls it Subject,
+                    and asking for a field an object does not have fails the search. Call
+                    salesforce_describe_object first if you are unsure.'
+                  examples:
+                  - - Id
+                    - Name
+                    - Industry
+                  - - Id
+                    - Subject
+                    - Status
+                  items:
+                    type: string
+                  maxItems: 25
+                  title: Fields
+                  type: array
+                limit:
+                  default: 20
+                  description: Optional, defaults to 20. How many records to return at most.
+                  maximum: 200
+                  minimum: 1
+                  title: Limit
+                  type: integer
+                cursor:
+                  anyOf:
+                  - type: string
+                  - type: 'null'
+                  default: null
+                  description: Optional. To read the next page, send back the exact cursor
+                    from the previous result. Treat it as opaque. Omit it for the first page;
+                    a result with no cursor is the last page.
+                  title: Cursor
+              required:
+              - object_name
+              - query
+              title: SearchRecordsInput
+              type: object
+            examples:
+              Find an account by name:
+                summary: Find an account by name
+                value:
+                  object_name: Account
+                  query: Example Corp
+                  fields:
+                  - Id
+                  - Name
+                  - Industry
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: What the search found.
+                    properties:
+                      records:
+                        description: The matching records, each holding the fields that were
+                          asked for. Empty means nothing matched, which for a search is an
+                          answer rather than a failure.
+                        items:
+                          additionalProperties: true
+                          type: object
+                        title: Records
+                        type: array
+                      returned:
+                        description: How many records are in this response.
+                        title: Returned
+                        type: integer
+                      next_cursor:
+                        anyOf:
+                        - type: string
+                        - type: 'null'
+                        default: null
+                        description: Send back verbatim for the next page. Absent means no
+                          more pages.
+                        title: Next Cursor
+                    required:
+                    - records
+                    - returned
+                    title: SearchRecordsOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Find an account by name:
+                  summary: Find an account by name
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      records:
+                      - Id: 001xx000003DGb2AAG
+                        Name: Example Corp
+                        Industry: Technology
+                      returned: 1
+                      next_cursor: null
   /actions/salesforce.soql_query:
     post:
       operationId: salesforce_soql_query
@@ -1726,16 +2131,16 @@ paths:
         \ so never reach for it to create or update.\n\nExample -- Count something\n  call:\
         \ {\"soql\": \"SELECT COUNT() FROM Contact WHERE LastName LIKE '%Demo'\"}\n  returns:\
         \ {\"records\": [], \"returned\": 0, \"total_size\": 7}\n\nFailures and what to do:\n\
-        - connector.invalid_input: The statement is not a SELECT, or is too short to be a\
-        \ query. This endpoint only reads. Rewrite it as a SELECT. To create or change a record,\
-        \ use one of the write tools instead.\n- salesforce.invalid_input: Salesforce rejected\
-        \ the SOQL: a bad field name, object, or syntax. The error names the position and\
-        \ the problem. A field that does not exist is the usual cause, so call describe on\
-        \ the object to see its real field names rather than guessing again.\n- salesforce.permission_denied:\
-        \ This user may not read that object or one of the named fields. Do not retry. Report\
-        \ which object was refused and that an administrator must grant read access.\n- salesforce.rate_limited:\
-        \ The org has spent its API allowance for now. Wait the stated number of seconds,\
-        \ then repeat. Consider adding a tighter LIMIT: a query paging thousands of rows spends\
+        - connector.invalid_input: The statement is not a SELECT, or Salesforce rejected the\
+        \ SOQL itself: a bad field name, object, or syntax. This endpoint only reads, so anything\
+        \ other than a SELECT must be rewritten as one. If the SOQL was rejected, the error\
+        \ names the position and the problem; a field that does not exist is the usual cause,\
+        \ so call salesforce_describe_object on the object to see its real field names rather\
+        \ than guessing again.\n- salesforce.permission_denied: This user may not read that\
+        \ object or one of the named fields. Do not retry. Report which object was refused\
+        \ and that an administrator must grant read access.\n- salesforce.rate_limited: The\
+        \ org has spent its API allowance for now. Wait the stated number of seconds, then\
+        \ repeat. Consider adding a tighter LIMIT: a query paging thousands of rows spends\
         \ the allowance quickly.\n- salesforce.transport_failed: Salesforce did not answer\
         \ in time. Wait briefly and repeat the same query. Reading again is always safe. A\
         \ query that repeatedly times out is usually too broad; add a WHERE clause or a smaller\
@@ -2104,6 +2509,387 @@ paths:
                       changed_fields:
                       - title
                       title: Chief Analyst
+  /actions/salesforce.update_record:
+    post:
+      operationId: salesforce_update_record
+      summary: Update a Salesforce record
+      description: "Change named fields on an existing record of any object, then read back\
+        \ what they now hold.\n\nUse this when: the user wants to correct or move on something\
+        \ that already exists: an account's industry, a deal's stage, a case's status. You\
+        \ must already know the record id and the Salesforce field names.\nDo not use this\
+        \ when: the record is a Contact, which is salesforce_update_contact and takes plain\
+        \ field names; the record does not exist yet, which is a create tool; or you are not\
+        \ certain the field name is right, in which case call salesforce_describe_object first\
+        \ rather than trying a name to see.\n\nExample -- Move a deal to a new stage\n  call:\
+        \ {\"approved\": true, \"fields\": {\"StageName\": \"Negotiate\"}, \"idempotency_key\"\
+        : \"f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b\", \"object_name\": \"Opportunity\", \"record_id\"\
+        : \"006xx000004TmiQAAS\"}\n  returns: {\"changed_fields\": [\"StageName\"], \"id\"\
+        : \"006xx000004TmiQAAS\", \"object_name\": \"Opportunity\", \"record\": {\"Id\": \"\
+        006xx000004TmiQAAS\", \"StageName\": \"Negotiate\"}}\n\nFailures and what to do:\n\
+        - salesforce.record_not_found: No record of that object has that id. Search for the\
+        \ record again rather than retrying. An id from a different object gives this same\
+        \ error.\n- connector.invalid_input: A field name does not exist, or a value is not\
+        \ one this org accepts. Call salesforce_describe_object on this object, use a field\
+        \ name it lists, and for a picklist use one of the values it reports. Then call again\
+        \ with the same idempotency key.\n- salesforce.permission_denied: This user may not\
+        \ edit that object, or that field on it. Do not retry. Report which field was refused\
+        \ and that an administrator must grant edit access.\n- salesforce.rate_limited: The\
+        \ org has spent its API allowance for now. Wait the stated number of seconds, then\
+        \ repeat with the same idempotency key.\n- salesforce.transport_failed: Salesforce\
+        \ did not answer in time. Repeat with the same idempotency key. The change may already\
+        \ have been applied, and the key is what stops it being applied twice.\n- connector.escalate_to_human:\
+        \ The update failed three times in a row and will not succeed by retrying. Stop calling\
+        \ this tool. Tell the user it must be done by hand and how."
+      tags:
+      - write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which record to change, and to what.
+              properties:
+                object_name:
+                  description: 'Required. The object the record belongs to, spelled as Salesforce
+                    spells it: Account, Lead, Opportunity, Case, or a custom object ending
+                    __c. For Contact use salesforce_update_contact, which takes plain field
+                    names and needs no lookup first.'
+                  examples:
+                  - Account
+                  - Opportunity
+                  maxLength: 80
+                  minLength: 1
+                  title: Object Name
+                  type: string
+                record_id:
+                  description: 'Required. The record to change. Find it first with salesforce_search_records
+                    if you do not have the id. Never guess one: a valid-looking id belongs
+                    to some other record, and this tool would change it.'
+                  maxLength: 18
+                  minLength: 15
+                  title: Record Id
+                  type: string
+                fields:
+                  additionalProperties: true
+                  description: 'Required. The fields to set, keyed by Salesforce''s own API
+                    names, not plain English: Industry, StageName, CloseDate, Description.
+                    Call salesforce_describe_object on this object first if you are not certain
+                    of a name or of the values a picklist accepts.
+
+
+                    Only the fields named here are touched; everything else on the record
+                    is left alone. Do not send a field to clear it unless the user asked for
+                    it to be cleared.'
+                  examples:
+                  - Industry: Technology
+                  - StageName: Closed Won
+                  minProperties: 1
+                  title: Fields
+                  type: object
+                idempotency_key:
+                  description: Required. A unique string for this specific change. Reuse the
+                    same one when retrying so the same edit is not applied twice; generate
+                    a new one for a genuinely different change.
+                  maxLength: 128
+                  minLength: 8
+                  title: Idempotency Key
+                  type: string
+                approved:
+                  default: false
+                  description: Confirmation that the user asked for this change. This writes
+                    to a record that already exists and there is no undo.
+                  title: Approved
+                  type: boolean
+              required:
+              - object_name
+              - record_id
+              - fields
+              - idempotency_key
+              title: UpdateRecordInput
+              type: object
+            examples:
+              Move a deal to a new stage:
+                summary: Move a deal to a new stage
+                value:
+                  object_name: Opportunity
+                  record_id: 006xx000004TmiQAAS
+                  fields:
+                    StageName: Negotiate
+                  idempotency_key: f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b
+                  approved: true
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: What the record holds now.
+                    properties:
+                      id:
+                        description: Record id of the record that was changed.
+                        title: Id
+                        type: string
+                      object_name:
+                        description: The object it belongs to.
+                        title: Object Name
+                        type: string
+                      record:
+                        additionalProperties: true
+                        description: The changed fields as they now read, fetched back after
+                          the write. Salesforce answers an update with an empty response,
+                          so this is a second read and is what makes the result mean something.
+                        title: Record
+                        type: object
+                      changed_fields:
+                        description: The field names that were sent, in the order they were
+                          given.
+                        items:
+                          type: string
+                        title: Changed Fields
+                        type: array
+                    required:
+                    - id
+                    - object_name
+                    - record
+                    - changed_fields
+                    title: UpdateRecordOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Move a deal to a new stage:
+                  summary: Move a deal to a new stage
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 006xx000004TmiQAAS
+                      object_name: Opportunity
+                      record:
+                        Id: 006xx000004TmiQAAS
+                        StageName: Negotiate
+                      changed_fields:
+                      - StageName
+  /actions/salesforce.upsert_record:
+    post:
+      operationId: salesforce_upsert_record
+      summary: Create or update a Salesforce record by external id
+      description: "Write a record identified by an outside system's id: creates it if that\
+        \ id is new to Salesforce, updates it if a record already carries it.\n\nUse this\
+        \ when: you are syncing records from another system that has its own identifiers,\
+        \ and you cannot tell whether Salesforce already holds this one. Also when a write\
+        \ must be safe to repeat: the same external id always lands on the same record, however\
+        \ many times it is sent.\nDo not use this when: the user asked to add somebody new,\
+        \ which is salesforce_create_contact and will not silently overwrite; the user asked\
+        \ to change a record you already hold the id of, which is salesforce_update_record;\
+        \ or you do not have an external id from a real system. Do not invent an external\
+        \ id to use this tool: a value that happens to exist overwrites that record.\n\nExample\
+        \ -- Sync a contact from another system\n  call: {\"approved\": true, \"external_id_field\"\
+        : \"External_Id__c\", \"external_id_value\": \"CRM-4471\", \"fields\": {\"Email\"\
+        : \"ada@example.com\", \"LastName\": \"Lovelace\"}, \"idempotency_key\": \"b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e\"\
+        , \"object_name\": \"Contact\"}\n  returns: {\"created\": true, \"external_id_value\"\
+        : \"CRM-4471\", \"id\": \"003xx000004TmiQAAS\", \"object_name\": \"Contact\"}\n\n\
+        Failures and what to do:\n- connector.invalid_input: The field is not marked External\
+        \ Id on this object, or a field name or picklist value in the write is not one this\
+        \ org accepts. Call salesforce_describe_object and use a field it lists. Only a field\
+        \ configured as an External Id can be used here; if none exists, an administrator\
+        \ must create one, and until then use salesforce_update_record with the Salesforce\
+        \ id instead.\n- salesforce.conflict: More than one record already carries that external\
+        \ id. Do not retry. The org has duplicate data that only a person can resolve. Report\
+        \ the external id and that it matches several records.\n- salesforce.permission_denied:\
+        \ This user may not create or edit that object, or see the external id field. Do not\
+        \ retry. Field-level security hides the external id field even when the object is\
+        \ writable. Report which was refused.\n- salesforce.rate_limited: The org has spent\
+        \ its API allowance for now. Wait the stated number of seconds, then repeat the same\
+        \ call.\n- salesforce.transport_failed: Salesforce did not answer in time. Repeat\
+        \ the same call. The external id makes this safe: whether or not the first attempt\
+        \ landed, the second one writes the same record.\n- connector.escalate_to_human: The\
+        \ write failed three times in a row and will not succeed by retrying. Stop calling\
+        \ this tool. Tell the user it must be done by hand and how."
+      tags:
+      - write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which record the external id names, and what it should hold.
+              properties:
+                object_name:
+                  description: 'Required. The object, spelled as Salesforce spells it: Contact,
+                    Opportunity, Account, or a custom object ending __c.'
+                  examples:
+                  - Contact
+                  - Opportunity
+                  maxLength: 80
+                  minLength: 1
+                  title: Object Name
+                  type: string
+                external_id_field:
+                  description: Required. The field that carries the outside system's identifier.
+                    It must be marked External Id on the object; an ordinary text field is
+                    refused. Custom fields end __c, as in External_Id__c. Call salesforce_describe_object
+                    if you do not know which field this org uses.
+                  examples:
+                  - External_Id__c
+                  maxLength: 80
+                  minLength: 1
+                  title: External Id Field
+                  type: string
+                external_id_value:
+                  description: 'Required. The identifier itself, as the other system knows
+                    it. This decides everything: a value already on a record updates that
+                    record, and a value not on any record creates a new one. Never invent
+                    one, because inventing a value that happens to exist overwrites somebody
+                    else''s record.'
+                  examples:
+                  - CRM-4471
+                  maxLength: 255
+                  minLength: 1
+                  title: External Id Value
+                  type: string
+                fields:
+                  additionalProperties: true
+                  description: 'Required. The fields to set, keyed by Salesforce''s own API
+                    names: LastName, Email, StageName, CloseDate. On a create these must include
+                    everything the object requires, or the write fails. On an update only
+                    what is named here changes.
+
+
+                    Call salesforce_describe_object first to see which fields are required
+                    and which values a picklist accepts.'
+                  examples:
+                  - Email: ada@example.com
+                    LastName: Lovelace
+                  minProperties: 1
+                  title: Fields
+                  type: object
+                idempotency_key:
+                  description: Required. A unique string for this specific write. The external
+                    id already prevents duplicate records; this prevents a retry being counted
+                    as a second change.
+                  maxLength: 128
+                  minLength: 8
+                  title: Idempotency Key
+                  type: string
+                approved:
+                  default: false
+                  description: Confirmation that the user asked for this. This can overwrite
+                    an existing record and there is no undo.
+                  title: Approved
+                  type: boolean
+              required:
+              - object_name
+              - external_id_field
+              - external_id_value
+              - fields
+              - idempotency_key
+              title: UpsertRecordInput
+              type: object
+            examples:
+              Sync a contact from another system:
+                summary: Sync a contact from another system
+                value:
+                  object_name: Contact
+                  external_id_field: External_Id__c
+                  external_id_value: CRM-4471
+                  fields:
+                    LastName: Lovelace
+                    Email: ada@example.com
+                  idempotency_key: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+                  approved: true
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    additionalProperties: false
+                    description: The record the external id now names.
+                    properties:
+                      id:
+                        description: Salesforce record id of the record written.
+                        title: Id
+                        type: string
+                      object_name:
+                        description: The object it belongs to.
+                        title: Object Name
+                        type: string
+                      external_id_value:
+                        description: The identifier that decided which record.
+                        title: External Id Value
+                        type: string
+                      created:
+                        description: True when no record carried that external id and one
+                          was created. False when a record already carried it and was updated
+                          instead. Salesforce decides this, not the caller.
+                        title: Created
+                        type: boolean
+                    required:
+                    - id
+                    - object_name
+                    - external_id_value
+                    - created
+                    title: UpsertRecordOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Sync a contact from another system:
+                  summary: Sync a contact from another system
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      id: 003xx000004TmiQAAS
+                      object_name: Contact
+                      external_id_value: CRM-4471
+                      created: true
 components:
   schemas:
     Pagination:

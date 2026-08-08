@@ -76,6 +76,10 @@ class TestTheManifest:
             "salesforce.get_related",
             "salesforce.describe_object",
             "salesforce.get_record",
+            "salesforce.search_records",
+            "salesforce.update_record",
+            "salesforce.upsert_record",
+            "salesforce.create_opportunity_with_contact",
             "salesforce.create_contact",
             "salesforce.update_contact",
             "salesforce.create_opportunity",
@@ -103,7 +107,7 @@ class TestListActions:
         first = connector.list_actions()
         second = connector.list_actions()
 
-        assert len(first) == 11
+        assert len(first) == 15
         assert [a.action_id for a in first] == [a.action_id for a in second]
 
 

@@ -126,9 +126,11 @@ SPEC = ActionSpec(
         "have a name, a stage, and an expected close date."
     ),
     when_not_to_use=(
-        "the deal already exists and needs changing; you only want to log a "
-        "conversation, which is the activity note; or you are missing the stage or "
-        "close date, in which case ask the user rather than inventing them."
+        "you already have the contact id and the deal is for that person, in which "
+        "case salesforce_create_opportunity_with_contact does both in one write that "
+        "cannot half-fail; the deal already exists and needs changing; you only want "
+        "to log a conversation, which is the activity note; or you are missing the "
+        "stage or close date, in which case ask the user rather than inventing them."
     ),
     kind=ActionKind.WRITE,
     risk=RiskLevel.MEDIUM,

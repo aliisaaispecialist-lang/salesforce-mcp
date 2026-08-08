@@ -24,19 +24,39 @@ from salesforce_connector.schemas import (
     count_records,
     create_contact,
     create_opportunity,
+    create_opportunity_with_contact,
     describe_object,
     get_record,
     get_related,
     link_contact_to_opportunity,
     search_contact,
+    search_records,
     soql_query,
     update_contact,
+    update_record,
+    upsert_record,
 )
 
 MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "salesforce.count_records": (
         count_records.CountRecordsInput,
         count_records.CountRecordsOutput,
+    ),
+    "salesforce.create_opportunity_with_contact": (
+        create_opportunity_with_contact.CreateOpportunityWithContactInput,
+        create_opportunity_with_contact.CreateOpportunityWithContactOutput,
+    ),
+    "salesforce.search_records": (
+        search_records.SearchRecordsInput,
+        search_records.SearchRecordsOutput,
+    ),
+    "salesforce.update_record": (
+        update_record.UpdateRecordInput,
+        update_record.UpdateRecordOutput,
+    ),
+    "salesforce.upsert_record": (
+        upsert_record.UpsertRecordInput,
+        upsert_record.UpsertRecordOutput,
     ),
     "salesforce.describe_object": (
         describe_object.DescribeObjectInput,

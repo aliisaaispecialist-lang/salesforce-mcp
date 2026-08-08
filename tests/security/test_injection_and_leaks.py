@@ -280,7 +280,7 @@ class TestWritesCannotHappenQuietly:
         # action cannot be registered, published, or called.
         writes = [d for d in registry.descriptors() if d.kind.value == "write"]
 
-        assert len(writes) == 5
+        assert len(writes) == 8
         for described in writes:
             assert "idempotency_key" in described.input_schema["required"]
 

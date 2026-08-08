@@ -186,19 +186,16 @@ SPEC = ActionSpec(
     errors=(
         ErrorGuidance(
             code="connector.invalid_input",
-            when="The statement is not a SELECT, or is too short to be a query.",
-            remedy=(
-                "This endpoint only reads. Rewrite it as a SELECT. To create or "
-                "change a record, use one of the write tools instead."
+            when=(
+                "The statement is not a SELECT, or Salesforce rejected the SOQL "
+                "itself: a bad field name, object, or syntax."
             ),
-        ),
-        ErrorGuidance(
-            code="salesforce.invalid_input",
-            when="Salesforce rejected the SOQL: a bad field name, object, or syntax.",
             remedy=(
-                "The error names the position and the problem. A field that does "
-                "not exist is the usual cause, so call describe on the object to "
-                "see its real field names rather than guessing again."
+                "This endpoint only reads, so anything other than a SELECT must be "
+                "rewritten as one. If the SOQL was rejected, the error names the "
+                "position and the problem; a field that does not exist is the usual "
+                "cause, so call salesforce_describe_object on the object to see its "
+                "real field names rather than guessing again."
             ),
         ),
         ErrorGuidance(

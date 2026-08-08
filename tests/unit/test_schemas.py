@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from salesforce_connector.contract import ActionKind
+from salesforce_connector.errors import model
 from salesforce_connector.schemas import (
     add_activity_note,
     create_contact,
@@ -30,6 +31,18 @@ ALL_SPECS: tuple[ActionSpec, ...] = (
 )
 
 WRITES = tuple(spec for spec in ALL_SPECS if spec.kind is ActionKind.WRITE)
+
+
+def _raiseable_codes() -> frozenset[str]:
+    """Every code an error class in this connector can actually carry."""
+    return frozenset(
+        found.code
+        for found in vars(model).values()
+        if isinstance(found, type) and issubclass(found, model.ConnectorError)
+    )
+
+
+RAISEABLE = _raiseable_codes()
 
 
 class TestNamesCannotBeConfused:
@@ -208,3 +221,16 @@ class TestSchemasAreUsableByTheProtocol:
         ]
 
         assert not silent, f"{spec.tool_name}: {silent} do not say they are optional"
+
+    @pytest.mark.parametrize("spec", ALL_SPECS, ids=lambda s: s.tool_name)
+    def test_every_documented_error_is_one_the_connector_can_raise(self, spec: ActionSpec) -> None:
+        """A remedy for a code nothing emits is a remedy nobody ever reads.
+
+        Four specs documented `salesforce.invalid_input`, which no error class
+        carries; the real code for a rejected field is `connector.invalid_input`.
+        A model matching on the code would have found no guidance at exactly the
+        moment the guidance existed for.
+        """
+        invented = [error.code for error in spec.errors if error.code not in RAISEABLE]
+
+        assert not invented, f"{spec.tool_name} documents codes nothing raises: {invented}"
