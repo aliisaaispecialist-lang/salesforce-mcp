@@ -1,16 +1,64 @@
 # Download it, set it up, use it
 
-Written for someone who has never seen this repository. It assumes you have a
-Salesforce sandbox or Developer Edition org and administrator rights on it,
-because step 3 is the only part that genuinely takes time.
+Written for someone who has never seen this repository.
 
 There are two ways to run it — Python directly, or Docker. Both speak the same
 protocol over the same transport. Docker is here for reproducibility: it is
 still a local subprocess reading stdin and writing stdout, not a server you
 deploy and point clients at.
 
+---
+
+## The whole thing, before the detail
+
+Seven steps, one of them in four parts. Only one is slow, and it is not any of
+the code.
+
+| # | What you do | What you end up holding | How long |
+|---|---|---|---|
+| **1** | Unzip or clone the repository | The project folder | 1 min |
+| **2** | `pip install .` (or `docker build`) | A working install | 3 min |
+| **3a** | Generate a certificate and private key with `openssl` | `salesforce.key` (yours) + `salesforce.crt` (Salesforce's) | 2 min |
+| **3b** | Create an **External Client App** in your org, uploading `salesforce.crt` | An app that trusts your key | 10 min |
+| **3c** | Pre-authorise your user for that app | Permission to log in without a browser | 5 min |
+| **3d** | Copy the **Consumer Key** from the app | `SF_CLIENT_ID` | 1 min |
+| **4** | Put three values in `.env` | A configured connector | 3 min |
+| **5** | Run the connection check | Proof it works, before any client | 1 min |
+| **6** | Point Claude (or any MCP client) at it | Five Salesforce tools | 2 min |
+| **7** | Ask it something in plain language | A working assistant | — |
+
+### The three values everything comes down to
+
+There is no single "API key" in Salesforce. You collect three things, and only
+one of them is a secret:
+
+| Value | Secret? | Comes from | Goes to |
+|---|---|---|---|
+| **Consumer Key** (`SF_CLIENT_ID`) | No — it only identifies the app | Step 3d | `.env` |
+| **Username** (`SF_USERNAME`) | No | Your org's user record | `.env` |
+| **Private key** (`SF_PRIVATE_KEY`) | **Yes** | Step 3a, `openssl`, on your machine | `.env`, and nowhere else |
+
+The private key never leaves your machine and never travels to Salesforce.
+Salesforce holds only the *certificate* — its public half — and uses it to
+check a signature the connector makes. That is what "no password, no secret in
+transit" means here, and it is why step 3a comes before everything else.
+
+> **Nothing in this repository contains a credential, and nothing you download
+> from anyone else should.** `.env`, `*.key`, `*.pem`, `*.crt` and `secrets/`
+> are all gitignored and excluded from the Docker image, and `gitleaks` runs
+> over the full history in CI. You bring your own org and your own key.
+
+### What if you only want to review it?
+
+Steps 1 and 2 are enough. `pytest` runs 443 tests with **no credentials, no
+org, and no network** — they are mocked end to end. You can read
+`openapi.yaml`, inspect the five tool schemas, and build the Docker image
+without ever touching Salesforce. Credentials are needed only from step 5
+onward, the moment you want to touch a real org.
+
 **Time:** about ten minutes for steps 1–2, twenty to forty for step 3 the
-first time you ever configure an External Client App.
+first time you ever configure an External Client App. Step 3 is the only part
+that genuinely takes time, and none of it is this connector's fault.
 
 ---
 
@@ -321,6 +369,41 @@ original record back rather than a second one.
 **Record text is fenced.** Anything read out of Salesforce arrives marked as
 data, because notes and descriptions are written by other people and are not
 instructions.
+
+### The five tools, and when each is the right one
+
+| Tool | Does | Needs approval |
+|---|---|---|
+| `salesforce_search_contact` | Finds people by name, email, phone, or account | no |
+| `salesforce_create_contact` | Adds a person | yes |
+| `salesforce_update_contact` | Changes fields on an existing person | yes |
+| `salesforce_create_opportunity` | Opens a deal, optionally linked to a contact | yes |
+| `salesforce_add_activity_note` | Logs a call, email, meeting, or note against a contact or a deal | yes |
+
+**Search before you create.** A duplicate person is the costliest mistake this
+connector can make, and the tool descriptions push a model towards searching
+first — but it is worth knowing yourself.
+
+### One thing that differs per org
+
+`create_opportunity` needs a **sales stage your org actually has**. There is no
+universal list; every org configures its own. Send a wrong one and the error
+returns the exact values your org accepts, so a model corrects itself in one
+step rather than guessing:
+
+```
+'Prospecting' is not a sales stage in this Salesforce org.
+Use one of these exact values: Qualify, Meet & Present, Propose,
+Negotiate, Closed Won, Closed Lost.
+```
+
+Most Salesforce documentation uses `Prospecting` as its example. Plenty of orgs
+do not have it. To see yours before you start:
+
+```bash
+sf data query --query "SELECT Id FROM Opportunity LIMIT 1"   # any query, to confirm access
+sf org open --path lightning/setup/ObjectManager/Opportunity/FieldsAndRelationships/view
+```
 
 ---
 

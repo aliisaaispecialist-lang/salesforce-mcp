@@ -36,10 +36,25 @@ See also [`SECURITY.md`](SECURITY.md) for the full threat model and
 
 ## Quick start
 
-**Never set this up before?** [QUICKSTART.md](QUICKSTART.md) walks the whole
-thing end to end, including the External Client App and certificate on the
-Salesforce side, which is the part that actually takes time. What follows here
-assumes you already have credentials.
+### → Setting this up for the first time? Read [**QUICKSTART.md**](QUICKSTART.md), not this section.
+
+It walks the whole path from an empty folder to a working assistant, and opens
+with a one-page map of the seven steps: what you do, what you end up holding,
+and how long each takes. The Salesforce side — an External Client App and a
+certificate — is the only slow part, and it is the part no README section can
+skip over honestly.
+
+Two things worth knowing before you start:
+
+- **There is no single "API key".** You collect three values, and only one of
+  them is secret: a Consumer Key and a username (neither secret) and a private
+  key you generate yourself, which never leaves your machine. Salesforce holds
+  only its public half.
+- **You need none of them to review this.** `pytest` runs 443 tests with no
+  credentials, no org, and no network. Credentials matter only when you want
+  to touch a real org.
+
+What follows here assumes you already have all three.
 
 Both paths below were run against this repository: `docker build`, a container
 start/stop on closed stdin, `pytest -q`, `ruff check .`, `mypy src tests`, and
