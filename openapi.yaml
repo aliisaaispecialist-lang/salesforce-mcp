@@ -70,6 +70,7 @@ paths:
                     not have it. A note on the wrong record is worse than no note.'
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Related To Id
                   type: string
                 subject:
@@ -926,6 +927,7 @@ paths:
                     instead and attach the contact afterwards.
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Contact Id
                   type: string
                 amount:
@@ -943,6 +945,7 @@ paths:
                   anyOf:
                   - maxLength: 18
                     minLength: 15
+                    pattern: ^[a-zA-Z0-9]{15,18}$
                     type: string
                   - type: 'null'
                   default: null
@@ -1115,6 +1118,7 @@ paths:
                   - Opportunity
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: Object Name
                   type: string
                 only_writable:
@@ -1306,6 +1310,7 @@ paths:
                     Opportunity, Account, Lead, Task, or a custom object ending __c.'
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: Object Name
                   type: string
                 record_id:
@@ -1314,6 +1319,7 @@ paths:
                     else returns that something else, quietly.'
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Record Id
                   type: string
                 fields:
@@ -1447,6 +1453,7 @@ paths:
                     spells it: Contact, Opportunity, Account, or a custom object ending __c.'
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: Object Name
                   type: string
                 record_id:
@@ -1455,6 +1462,7 @@ paths:
                     belong to a different record entirely.
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Record Id
                   type: string
                 relationship:
@@ -1474,6 +1482,7 @@ paths:
                   - OpportunityContactRoles
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: Relationship
                   type: string
               required:
@@ -1617,6 +1626,7 @@ paths:
                     search for it if it already exists.'
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Opportunity Id
                   type: string
                 contact_id:
@@ -1626,6 +1636,7 @@ paths:
                     attach the wrong person to the deal.'
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Contact Id
                   type: string
                 idempotency_key:
@@ -2746,6 +2757,7 @@ paths:
                     somebody else''s record.'
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Contact Id
                   type: string
                 idempotency_key:
@@ -2965,6 +2977,7 @@ paths:
                   - Opportunity
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: Object Name
                   type: string
                 record_id:
@@ -2973,6 +2986,7 @@ paths:
                     to some other record, and this tool would change it.'
                   maxLength: 18
                   minLength: 15
+                  pattern: ^[a-zA-Z0-9]{15,18}$
                   title: Record Id
                   type: string
                 fields:
@@ -3153,6 +3167,7 @@ paths:
                   - Opportunity
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: Object Name
                   type: string
                 external_id_field:
@@ -3164,6 +3179,7 @@ paths:
                   - External_Id__c
                   maxLength: 80
                   minLength: 1
+                  pattern: ^[A-Za-z][A-Za-z0-9_]*$
                   title: External Id Field
                   type: string
                 external_id_value:

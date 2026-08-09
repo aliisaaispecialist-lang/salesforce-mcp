@@ -12,6 +12,8 @@ Three families:
 
 import json
 import logging
+from datetime import UTC, datetime
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -19,16 +21,28 @@ import respx
 import structlog
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from pydantic import SecretStr, ValidationError
 
-from salesforce_connector.actions import registry
+from salesforce_connector.actions import registry, soql_query
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
+from salesforce_connector.auth.strategy import Token
+from salesforce_connector.client import SalesforceClient, _within_the_org
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import ActionRequest, ActionResult
 from salesforce_connector.errors.mapping import to_connector_error
+from salesforce_connector.errors.model import InvalidInputError
 from salesforce_connector.errors.retry import RetryPolicy
 from salesforce_connector.mcp_translate import as_result
 from salesforce_connector.observability import censor_secrets, configure_logging, get_logger
+from salesforce_connector.schemas import (
+    get_record as get_record_schema,
+)
+from salesforce_connector.schemas import (
+    get_related as get_related_schema,
+)
+from salesforce_connector.schemas import (
+    upsert_record,
+)
 
 INSTANCE = "https://mycompany--dev.sandbox.my.salesforce.com"
 DATA = f"{INSTANCE}/services/data/v67.0"
@@ -305,3 +319,141 @@ class TestWritesCannotHappenQuietly:
             # Five calls, one person. The damage this connector most easily
             # does is a duplicate contact, and the key is what prevents it.
             assert route.call_count == 1
+
+
+class TestTheTokenCannotLeaveTheOrg:
+    """Every request carries the org's bearer token, so where it goes matters."""
+
+    def test_a_cursor_naming_another_host_is_refused(self) -> None:
+        """The SOQL cursor was passed through as an absolute URL, verbatim.
+
+        The client attaches the token without looking at the destination, so a
+        cursor pointing anywhere else posted the token there. Records hold text
+        other people wrote, which is why responses are fenced at all, so the
+        value could arrive from the org itself.
+        """
+        for elsewhere in (
+            "https://attacker.example/collect",
+            "http://169.254.169.254/latest/meta-data/",
+            "//attacker.example/collect",
+        ):
+            with pytest.raises(InvalidInputError):
+                soql_query._paged_at(elsewhere)
+
+    def test_a_cursor_salesforce_issued_is_accepted(self) -> None:
+        issued = "/services/data/v67.0/query/01gxx0000000abcAAA-2000"
+
+        assert soql_query._paged_at(issued) == issued
+
+    def test_a_cursor_cannot_climb_out_of_the_query_endpoint(self) -> None:
+        with pytest.raises(InvalidInputError):
+            soql_query._paged_at("/services/data/v67.0/query/../../oauth2/revoke")
+
+    def test_the_client_refuses_any_address_outside_this_org(self) -> None:
+        """The same guard again, one layer lower, so a new action cannot reopen it."""
+        token = Token(
+            access_token=SecretStr("secret"),
+            instance_url="https://example.my.salesforce.com",
+            issued_at=datetime.now(UTC),
+        )
+        outside = (
+            "https://attacker.example/x",
+            # A host that merely starts the same way: the prefix check is on
+            # the whole origin plus the data path, not on a substring.
+            "https://example.my.salesforce.com.attacker.example/services/data/v67.0/x",
+            # Same host, but an endpoint outside the data API.
+            "https://example.my.salesforce.com/services/oauth2/revoke",
+        )
+        for address in outside:
+            with pytest.raises(InvalidInputError):
+                _within_the_org(address, token)
+
+        allowed = "https://example.my.salesforce.com/services/data/v67.0/query/01g"
+        assert _within_the_org(allowed, token) == allowed
+        assert _within_the_org(None, token) is None
+
+
+class TestPathsCannotBeSteered:
+    """Object names and ids are interpolated into the REST path."""
+
+    def test_dot_segments_in_an_identifier_are_refused(self) -> None:
+        """Httpx resolves `..` when it parses the URL.
+
+        Enough of them collapse the path back past /sobjects/ and the call
+        lands on a different endpoint entirely, still authenticated.
+        """
+        climbing = "../../../../../../services/oauth2/revoke"
+        with pytest.raises(ValidationError):
+            get_related_schema.GetRelatedInput(
+                object_name="Account", record_id="003xx000004TmiQAAS", relationship=climbing
+            )
+        with pytest.raises(ValidationError):
+            get_record_schema.GetRecordInput(object_name=climbing, record_id="003xx000004TmiQAAS")
+
+    def test_an_id_that_is_not_base62_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            get_record_schema.GetRecordInput(object_name="Contact", record_id="../../../limits")
+
+    def test_real_names_including_custom_objects_still_pass(self) -> None:
+        parsed = get_record_schema.GetRecordInput(
+            object_name="My_Thing__c", record_id="a0Bxx0000000001"
+        )
+
+        assert parsed.object_name == "My_Thing__c"
+
+    def test_an_external_id_containing_a_slash_is_encoded_not_refused(self) -> None:
+        """A real order number can contain slashes, so rejecting them is wrong."""
+        parsed = upsert_record.UpsertRecordInput(
+            object_name="Contact",
+            external_id_field="External_Id__c",
+            external_id_value="ORD/2024/441",
+            fields={"LastName": "Lovelace"},
+            idempotency_key="key-12345678",
+        )
+
+        assert parsed.external_id_value == "ORD/2024/441"
+        assert quote(parsed.external_id_value, safe="") == "ORD%2F2024%2F441"
+
+
+def _a_query_ending_in(clause: str) -> str:
+    """Build a query with a trailing clause, without tripping the linter."""
+    return " ".join(("SELECT", "Id", "FROM", "Contact", clause))
+
+
+class TestTheRowCeilingCannotBeStepped:
+    """The only cost control soql_query has."""
+
+    def test_a_count_inside_a_string_literal_no_longer_skips_the_limit(self) -> None:
+        """The count check searched the whole query, not the select list.
+
+        `WHERE Name LIKE '%COUNT()%'` matched, took the count branch, and the
+        query went to Salesforce with no LIMIT at all.
+        """
+        query = "SELECT Id, Name FROM Account WHERE Name LIKE '%COUNT()%'"
+
+        assert soql_query._bounded(query, 200).endswith("LIMIT 200")
+
+    def test_a_real_count_still_gets_no_limit(self) -> None:
+        query = "SELECT COUNT() FROM Contact"
+
+        assert soql_query._bounded(query, 200) == query
+
+    def test_clamping_a_limit_keeps_the_offset(self) -> None:
+        query = "SELECT Id FROM Contact LIMIT 5000 OFFSET 40"
+
+        assert soql_query._bounded(query, 200) == "SELECT Id FROM Contact LIMIT 200 OFFSET 40"
+
+    @pytest.mark.parametrize("clause", ["FOR UPDATE", "FOR VIEW", "FOR REFERENCE"])
+    def test_a_clause_that_writes_is_refused(self, clause: str) -> None:
+        """SOQL is not purely a read, whatever the endpoint's reputation.
+
+        FOR UPDATE locks rows. FOR VIEW and FOR REFERENCE write
+        LastViewedDate and LastReferencedDate on everything they match.
+        """
+        with pytest.raises(InvalidInputError):
+            soql_query._reads_only(_a_query_ending_in(clause))
+
+    def test_an_ordinary_select_is_untouched(self) -> None:
+        query = "SELECT Id FROM Contact WHERE Name = 'For view'"
+
+        assert soql_query._reads_only(query) == query

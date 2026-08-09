@@ -30,6 +30,7 @@ from salesforce_connector.errors.model import (
     ConnectorError,
     ErrorContext,
     EscalationError,
+    InvalidInputError,
     TransportError,
 )
 from salesforce_connector.errors.retry import RetryPolicy, build_retrying
@@ -151,7 +152,7 @@ class SalesforceClient:
         try:
             raw = await self._http.request(
                 spec.method,
-                spec.absolute_url or self._url(token, spec.path),
+                _within_the_org(spec.absolute_url, token) or self._url(token, spec.path),
                 params=dict(spec.params) or None,
                 json=dict(spec.json_body) if spec.json_body is not None else None,
                 headers={**self._headers(token, request_id), **spec.headers},
@@ -269,6 +270,37 @@ def _escalated(failure: ConnectorError, attempted: int, allowed: int) -> Connect
                 f"({original.code}) so they can pass it on if they need support."
             ),
             invalid_fields=original.invalid_fields,
+        ),
+    )
+
+
+def _within_the_org(url: str | None, token: Token) -> str | None:
+    """Refuse an absolute URL that does not belong to this org.
+
+    The last line of defence, and the only one that covers every action at
+    once. Every request made here carries the org's bearer token, and the
+    token is attached without looking at where the request is going -- so a URL
+    that came from anywhere other than Salesforce would post that token to
+    whoever supplied it.
+
+    That is not hypothetical. The SOQL cursor was passed through verbatim on
+    the reasoning that its contents were Salesforce's business, and the records
+    this connector reads contain text written by other people, which is the
+    whole reason responses are fenced. Guarding it in the action closed that
+    one path; guarding it here means the next action cannot reopen it.
+    """
+    if url is None:
+        return None
+    within = f"{token.instance_url.rstrip('/')}/services/data/"
+    if url.startswith(within):
+        return url
+    raise InvalidInputError(
+        "That address does not belong to this Salesforce org, so it will not be called.",
+        ErrorContext(
+            next_step=(
+                "Only addresses Salesforce itself issued can be followed. Start "
+                "the request again rather than supplying one."
+            ),
         ),
     )
 

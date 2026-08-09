@@ -36,6 +36,7 @@ class UpdateContactInput(BaseModel):
         Field(
             min_length=15,
             max_length=18,
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. Salesforce record id of the contact to change, starting "
                 "003, for example 003xx000004TmiQAAS. Find it with the search action "

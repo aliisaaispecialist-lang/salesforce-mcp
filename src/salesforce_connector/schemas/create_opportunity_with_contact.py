@@ -78,6 +78,7 @@ class CreateOpportunityWithContactInput(BaseModel):
         Field(
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The person the deal is for. Find them with "
                 "salesforce_search_contact first. A contact id starts 003; if you do "
@@ -104,6 +105,7 @@ class CreateOpportunityWithContactInput(BaseModel):
             default=None,
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description="Optional. The company the deal belongs to. An account id starts 001.",
         ),
     ] = None

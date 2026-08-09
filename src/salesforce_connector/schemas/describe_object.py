@@ -36,6 +36,7 @@ class DescribeObjectInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object, spelled as Salesforce spells it: Contact, "
                 "Opportunity, Account, Lead, Task, or a custom object ending __c."

@@ -35,6 +35,7 @@ class GetRecordInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object, spelled as Salesforce spells it: Contact, "
                 "Opportunity, Account, Lead, Task, or a custom object ending __c."
@@ -46,6 +47,7 @@ class GetRecordInput(BaseModel):
         Field(
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The record's Salesforce id. Search for it first if you "
                 "do not have it. Never guess: a well-formed id that belongs to "

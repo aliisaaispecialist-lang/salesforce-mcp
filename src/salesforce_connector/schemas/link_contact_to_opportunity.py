@@ -40,6 +40,7 @@ class LinkContactToOpportunityInput(BaseModel):
         Field(
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The deal to attach someone to, id starting 006. If you "
                 "have just created the opportunity, this is the id it returned. If "
@@ -53,6 +54,7 @@ class LinkContactToOpportunityInput(BaseModel):
         Field(
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The person to attach, id starting 003. Search for the "
                 "contact by name or email if you do not have their id. Never guess "

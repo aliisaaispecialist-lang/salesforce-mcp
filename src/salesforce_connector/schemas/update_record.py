@@ -37,6 +37,7 @@ class UpdateRecordInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object the record belongs to, spelled as Salesforce "
                 "spells it: Account, Lead, Opportunity, Case, or a custom object "
@@ -51,6 +52,7 @@ class UpdateRecordInput(BaseModel):
         Field(
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The record to change. Find it first with "
                 "salesforce_search_records if you do not have the id. Never guess "

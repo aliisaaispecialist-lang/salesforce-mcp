@@ -38,6 +38,7 @@ class GetRelatedInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object you are starting from, spelled as Salesforce "
                 "spells it: Contact, Opportunity, Account, or a custom object "
@@ -50,6 +51,7 @@ class GetRelatedInput(BaseModel):
         Field(
             min_length=_ID_LENGTH[0],
             max_length=_ID_LENGTH[1],
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The record to start from. Search for it first if you do "
                 "not have the id; never guess one, because a valid-looking id may "
@@ -62,6 +64,7 @@ class GetRelatedInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The relationship to follow, named as Salesforce names "
                 "it. Following a lookup field drops the Id: a Contact's AccountId "

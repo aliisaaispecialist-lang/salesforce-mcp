@@ -15,6 +15,7 @@ body is absent on some updates.
 
 from collections.abc import Mapping
 from typing import Any, ClassVar, Final
+from urllib.parse import quote
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.exchange import RequestSpec
@@ -34,9 +35,13 @@ class UpsertRecord(Action):
         response = await self._client.request(
             RequestSpec(
                 method="PATCH",
+                # The value is somebody else's identifier and may contain a
+                # slash -- ORD/2024/441 is an ordinary order number. Encoded
+                # rather than refused, so it stays one path segment and cannot
+                # steer the call at a different endpoint.
                 path=(
                     f"sobjects/{params.object_name}/"
-                    f"{params.external_id_field}/{params.external_id_value}"
+                    f"{params.external_id_field}/{quote(params.external_id_value, safe='')}"
                 ),
                 json_body=dict(params.fields),
                 is_write=True,

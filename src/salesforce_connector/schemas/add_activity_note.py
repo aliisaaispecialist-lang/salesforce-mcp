@@ -48,6 +48,7 @@ class AddActivityNoteInput(BaseModel):
         Field(
             min_length=15,
             max_length=18,
+            pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. Record the note belongs to: a contact id starting 003, or "
                 "an opportunity id starting 006. Search for it first if you do not "

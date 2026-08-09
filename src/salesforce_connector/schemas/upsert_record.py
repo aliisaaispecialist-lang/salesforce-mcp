@@ -45,6 +45,7 @@ class UpsertRecordInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object, spelled as Salesforce spells it: Contact, "
                 "Opportunity, Account, or a custom object ending __c."
@@ -57,6 +58,7 @@ class UpsertRecordInput(BaseModel):
         Field(
             min_length=1,
             max_length=80,
+            pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The field that carries the outside system's identifier. "
                 "It must be marked External Id on the object; an ordinary text "
