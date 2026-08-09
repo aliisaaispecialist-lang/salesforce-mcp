@@ -14,9 +14,9 @@ precisely because the failure is quiet.
 from collections.abc import Mapping, Sequence
 from typing import Final
 
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.errors.model import ConnectorError, ErrorContext, InvalidInputError
-from salesforce_connector.exchange import RequestSpec
+from salesforce_connector.transport.client import SalesforceClient
+from salesforce_connector.transport.exchange import RequestSpec
 
 DESCRIBE_PATH: Final = "sobjects/Opportunity/describe"
 

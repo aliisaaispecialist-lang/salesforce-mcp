@@ -28,10 +28,10 @@ from mcp.server.elicitation import AcceptedElicitation, elicit_with_validation
 from mcp.types import CallToolResult
 from pydantic import BaseModel, Field
 
-from salesforce_connector.approval import ApprovalGate, PendingWrite
+from salesforce_connector.approval.gate import ApprovalGate, PendingWrite
 from salesforce_connector.contract import ActionDescriptor, ActionRequest
-from salesforce_connector.mcp_translate import refuse
 from salesforce_connector.observability import get_logger
+from salesforce_connector.protocol.translate import refuse
 
 DECLINED: Final = "connector.approval_declined"
 TAMPERED: Final = "connector.approval_invalid"

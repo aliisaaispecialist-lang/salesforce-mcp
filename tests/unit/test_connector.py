@@ -11,15 +11,15 @@ import respx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from salesforce_connector.approval import ApprovalGate, PendingWrite, digest_of
+from salesforce_connector.approval.gate import ApprovalGate, PendingWrite, digest_of
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import Settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionRequest
 from salesforce_connector.errors.model import RateLimitError
 from salesforce_connector.errors.retry import RetryPolicy
-from salesforce_connector.ratelimit import CallBudget
+from salesforce_connector.transport.client import SalesforceClient
+from salesforce_connector.transport.ratelimit import CallBudget
 
 INSTANCE = "https://mycompany--dev.sandbox.my.salesforce.com"
 DATA = f"{INSTANCE}/services/data/v67.0"
@@ -48,7 +48,7 @@ def settings() -> Settings:
 @pytest.fixture
 def connector(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> SalesforceConnector:
     monkeypatch.setattr(
-        "salesforce_connector.client.RetryPolicy",
+        "salesforce_connector.transport.client.RetryPolicy",
         # The waits are made tiny; whatever the caller passes for attempts and
         # budget is honoured, so a test of exhaustion still sees the real count.
         lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),

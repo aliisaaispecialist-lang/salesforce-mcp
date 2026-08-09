@@ -19,17 +19,17 @@ from typing import Any
 import pytest
 from mcp.types import CallToolRequestParams, CallToolResult, ElicitResult, TextContent
 
-from salesforce_connector import mcp_server
 from salesforce_connector.actions import registry
-from salesforce_connector.approval import ApprovalGate
-from salesforce_connector.contract import ActionRequest, ActionResult
-from salesforce_connector.mcp_approval import (
+from salesforce_connector.approval.elicit import (
     DECLINED,
     TAMPERED,
     UNREADABLE,
     ConfirmWrite,
     WriteApproval,
 )
+from salesforce_connector.approval.gate import ApprovalGate
+from salesforce_connector.contract import ActionRequest, ActionResult
+from salesforce_connector.protocol import server as mcp_server
 
 CONTACT_ARGUMENTS: Mapping[str, Any] = {
     "last_name": "Lovelace",

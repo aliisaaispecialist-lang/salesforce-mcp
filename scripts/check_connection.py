@@ -15,13 +15,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import load_settings
 from salesforce_connector.connector import (
     SalesforceConnector,
     load_manifest,
 )
 from salesforce_connector.errors.model import ConfigurationError
+from salesforce_connector.transport.client import SalesforceClient
 
 CAUSES = {
     "user hasn't approved this consumer": (

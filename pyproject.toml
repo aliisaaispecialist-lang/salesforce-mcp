@@ -24,7 +24,7 @@ dependencies = [
     "pydantic[email]>=2.7",  # schemas: reject a malformed address before sending it
     "aiolimiter>=1.2",  # ratelimit.py: the leaky bucket, done properly
     "itsdangerous>=2.2",  # approval.py: signs state that passes through the client
-    "mcp>=2.0.0,<3.0.0",  # mcp_server.py: the protocol itself
+    "mcp>=2.0.0,<3.0.0",  # protocol/server.py: the protocol itself
 ]
 
 [project.optional-dependencies]

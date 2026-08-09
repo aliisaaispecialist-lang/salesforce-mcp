@@ -15,11 +15,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from salesforce_connector.actions import registry
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import ActionRequest
 from salesforce_connector.errors.model import InvalidInputError
 from salesforce_connector.errors.retry import RetryPolicy
+from salesforce_connector.transport.client import SalesforceClient
 
 INSTANCE = "https://mycompany--dev.sandbox.my.salesforce.com"
 DATA = f"{INSTANCE}/services/data/v67.0"
@@ -40,7 +40,7 @@ PRIVATE_KEY = (
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> SalesforceClient:
     monkeypatch.setattr(
-        "salesforce_connector.client.RetryPolicy",
+        "salesforce_connector.transport.client.RetryPolicy",
         # The waits are made tiny; whatever the caller passes for attempts and
         # budget is honoured, so a test of exhaustion still sees the real count.
         lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),

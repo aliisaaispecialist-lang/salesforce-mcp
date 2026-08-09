@@ -6,9 +6,9 @@ remembers what it already achieved, and a step that finished stays finished.
 
 import pytest
 
-from salesforce_connector.checkpoint import Journal
-from salesforce_connector.idempotency import IdempotencyLedger, KeyState
 from salesforce_connector.immutable import freeze
+from salesforce_connector.replay.journal import Journal
+from salesforce_connector.replay.ledger import IdempotencyLedger, KeyState
 
 
 class TestFreezing:

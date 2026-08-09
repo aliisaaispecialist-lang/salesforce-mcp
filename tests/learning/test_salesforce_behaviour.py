@@ -17,7 +17,7 @@ in an ADR if it changes a decision.
 import pytest
 
 from salesforce_connector.errors.model import ConnectorError
-from salesforce_connector.exchange import RequestSpec
+from salesforce_connector.transport.exchange import RequestSpec
 from tests.live_org import Org, needs_an_org, unwrap
 
 pytestmark = [pytest.mark.learning, needs_an_org]

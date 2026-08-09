@@ -20,8 +20,8 @@ from typing import Any, ClassVar, Final
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
-from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import soql_query as schema
+from salesforce_connector.transport.exchange import RequestSpec
 
 _PATH: Final = "query"
 _SELECT: Final = re.compile(r"^\s*SELECT\s", re.IGNORECASE)

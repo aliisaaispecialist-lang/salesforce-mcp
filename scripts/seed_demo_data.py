@@ -20,17 +20,31 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import load_settings
-from salesforce_connector.exchange import RequestSpec
+from salesforce_connector.transport.client import SalesforceClient
+from salesforce_connector.transport.exchange import RequestSpec
 
 CONTACTS = [
-    {"FirstName": "Ada", "LastName": "LovelaceDemo", "Email": "ada@example.com",
-     "Phone": "+973 1111 1111", "Title": "Chief Analyst"},
-    {"FirstName": "Grace", "LastName": "HopperDemo", "Email": "grace@example.com",
-     "Phone": "+973 2222 2222", "Title": "Rear Admiral"},
-    {"FirstName": "Alan", "LastName": "TuringDemo", "Email": "alan@example.com",
-     "Title": "Cryptanalyst"},
+    {
+        "FirstName": "Ada",
+        "LastName": "LovelaceDemo",
+        "Email": "ada@example.com",
+        "Phone": "+973 1111 1111",
+        "Title": "Chief Analyst",
+    },
+    {
+        "FirstName": "Grace",
+        "LastName": "HopperDemo",
+        "Email": "grace@example.com",
+        "Phone": "+973 2222 2222",
+        "Title": "Rear Admiral",
+    },
+    {
+        "FirstName": "Alan",
+        "LastName": "TuringDemo",
+        "Email": "alan@example.com",
+        "Title": "Cryptanalyst",
+    },
     # Four sharing a surname, so a paged search has more than one page to walk.
     {"FirstName": "Katherine", "LastName": "PagerDemo", "Email": "kat@example.com"},
     {"FirstName": "Dorothy", "LastName": "PagerDemo", "Email": "dot@example.com"},
@@ -46,7 +60,7 @@ async def load(client: SalesforceClient) -> None:
         response = await client.request(
             RequestSpec(method="POST", path="sobjects/Contact", json_body=fields, is_write=True)
         )
-        made.append((response.body["id"], f"{fields.get('FirstName','')} {fields['LastName']}"))
+        made.append((response.body["id"], f"{fields.get('FirstName', '')} {fields['LastName']}"))
 
     print(f"Created {len(made)} contacts:\n")
     for record_id, name in made:

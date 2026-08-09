@@ -26,14 +26,13 @@ from pydantic import SecretStr, ValidationError
 from salesforce_connector.actions import registry, soql_query
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
 from salesforce_connector.auth.strategy import Token
-from salesforce_connector.client import SalesforceClient, _within_the_org
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import ActionRequest, ActionResult
 from salesforce_connector.errors.mapping import to_connector_error
 from salesforce_connector.errors.model import InvalidInputError
 from salesforce_connector.errors.retry import RetryPolicy
-from salesforce_connector.mcp_translate import as_result
 from salesforce_connector.observability import censor_secrets, configure_logging, get_logger
+from salesforce_connector.protocol.translate import as_result
 from salesforce_connector.schemas import (
     get_record as get_record_schema,
 )
@@ -43,6 +42,7 @@ from salesforce_connector.schemas import (
 from salesforce_connector.schemas import (
     upsert_record,
 )
+from salesforce_connector.transport.client import SalesforceClient, _within_the_org
 
 INSTANCE = "https://mycompany--dev.sandbox.my.salesforce.com"
 DATA = f"{INSTANCE}/services/data/v67.0"
@@ -83,7 +83,7 @@ def settings() -> Settings:
 @pytest.fixture
 def client(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> SalesforceClient:
     monkeypatch.setattr(
-        "salesforce_connector.client.RetryPolicy",
+        "salesforce_connector.transport.client.RetryPolicy",
         # The waits are made tiny; whatever the caller passes for attempts and
         # budget is honoured, so a test of exhaustion still sees the real count.
         lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),

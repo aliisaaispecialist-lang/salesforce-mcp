@@ -31,7 +31,7 @@ from salesforce_connector.actions import registry
 from salesforce_connector.config import Settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import DooConnector
-from salesforce_connector.mcp_translate import as_tool
+from salesforce_connector.protocol.translate import as_tool
 
 ROOT = Path(__file__).resolve().parents[2]
 

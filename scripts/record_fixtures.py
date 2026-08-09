@@ -27,10 +27,10 @@ from pathlib import Path
 from typing import Any
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import load_settings
 from salesforce_connector.errors.model import ConnectorError
-from salesforce_connector.exchange import RequestSpec
+from salesforce_connector.transport.client import SalesforceClient
+from salesforce_connector.transport.exchange import RequestSpec
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 

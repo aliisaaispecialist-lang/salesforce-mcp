@@ -18,7 +18,6 @@ from typing import Any, ClassVar, Final
 
 from pydantic import BaseModel, ValidationError
 
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.contract import ActionError, ActionRequest, ActionResult, Pagination
 from salesforce_connector.errors.model import (
     ConnectorError,
@@ -31,6 +30,7 @@ from salesforce_connector.immutable import freeze
 from salesforce_connector.observability import bind_request, clear_request, get_logger
 from salesforce_connector.schemas import plain_types
 from salesforce_connector.schemas.envelope import ActionSpec
+from salesforce_connector.transport.client import SalesforceClient
 
 _MILLISECONDS: Final = 1000.0
 

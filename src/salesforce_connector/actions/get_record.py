@@ -4,8 +4,8 @@ from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from salesforce_connector.actions.action import Action
-from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import get_record as schema
+from salesforce_connector.transport.exchange import RequestSpec
 
 
 class GetRecord(Action):

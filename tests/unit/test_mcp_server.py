@@ -14,10 +14,12 @@ from types import ModuleType
 import pytest
 from mcp.types import CallToolResult, TextContent
 
-from salesforce_connector import mcp_approval, mcp_server, mcp_translate
 from salesforce_connector.actions import registry
+from salesforce_connector.approval import elicit as mcp_approval
 from salesforce_connector.contract import ActionDescriptor, ActionError, ActionKind, ActionResult
 from salesforce_connector.errors.model import RateLimitError
+from salesforce_connector.protocol import server as mcp_server
+from salesforce_connector.protocol import translate as mcp_translate
 
 
 def text_of(result: CallToolResult) -> str:
@@ -52,7 +54,7 @@ class TestTheAdapterKnowsNothingAboutSalesforce:
 
         body = launcher.read_text(encoding="utf-8")
 
-        assert "salesforce_connector.mcp_server" in body
+        assert "salesforce_connector.protocol.server" in body
         assert len(body.splitlines()) < 20
 
 

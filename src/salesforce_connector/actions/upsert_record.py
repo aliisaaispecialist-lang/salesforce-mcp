@@ -19,8 +19,8 @@ from urllib.parse import quote
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.actions.action import created_id as created_id_of
-from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import upsert_record as schema
+from salesforce_connector.transport.exchange import RequestSpec
 
 _CREATED_STATUS: Final = 201
 

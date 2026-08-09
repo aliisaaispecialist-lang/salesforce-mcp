@@ -11,7 +11,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import Settings
 from salesforce_connector.contract import ErrorCategory
 from salesforce_connector.errors.model import (
@@ -23,7 +22,8 @@ from salesforce_connector.errors.model import (
     TransportError,
 )
 from salesforce_connector.errors.retry import RetryPolicy
-from salesforce_connector.exchange import RequestSpec, parse_rate_limit
+from salesforce_connector.transport.client import SalesforceClient
+from salesforce_connector.transport.exchange import RequestSpec, parse_rate_limit
 
 INSTANCE = "https://mycompany--dev.sandbox.my.salesforce.com"
 TOKEN_URL = "https://test.salesforce.com/services/oauth2/token"
@@ -53,7 +53,7 @@ def settings() -> Settings:
 def client(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> SalesforceClient:
     """A client whose retries are instant, so tests do not wait."""
     monkeypatch.setattr(
-        "salesforce_connector.client.RetryPolicy",
+        "salesforce_connector.transport.client.RetryPolicy",
         # The waits are made tiny; whatever the caller passes for attempts and
         # budget is honoured, so a test of exhaustion still sees the real count.
         lambda **passed: RetryPolicy(**passed, initial_wait_seconds=0.001, max_wait_seconds=0.002),

@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionKind
-from salesforce_connector.mcp_translate import as_tool
+from salesforce_connector.protocol.translate import as_tool
 from salesforce_connector.schemas import (
     add_activity_note,
     count_records,

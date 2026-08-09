@@ -30,12 +30,12 @@ import pytest
 import pytest_asyncio
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import PRODUCTION_LOGIN_URL, Settings, load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionRequest, ActionResult
 from salesforce_connector.errors.model import ConfigurationError
-from salesforce_connector.exchange import RequestSpec
+from salesforce_connector.transport.client import SalesforceClient
+from salesforce_connector.transport.exchange import RequestSpec
 
 REQUIRED = ("SF_CLIENT_ID", "SF_USERNAME", "SF_PRIVATE_KEY")
 

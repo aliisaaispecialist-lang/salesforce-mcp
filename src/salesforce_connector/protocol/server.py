@@ -27,15 +27,15 @@ from mcp.server import Server, ServerRequestContext
 from mcp.types import CallToolRequestParams, CallToolResult, ListToolsResult, PaginatedRequestParams
 
 from salesforce_connector import __version__
-from salesforce_connector.approval import ApprovalGate
+from salesforce_connector.approval.elicit import WriteApproval
+from salesforce_connector.approval.gate import ApprovalGate
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.config import load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionDescriptor, ActionRequest
-from salesforce_connector.mcp_approval import WriteApproval
-from salesforce_connector.mcp_translate import as_result, as_tool, refuse
 from salesforce_connector.observability import configure_logging, get_logger
+from salesforce_connector.protocol.translate import as_result, as_tool, refuse
+from salesforce_connector.transport.client import SalesforceClient
 
 SERVER_NAME: Final = "salesforce_mcp"
 

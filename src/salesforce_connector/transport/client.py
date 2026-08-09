@@ -34,7 +34,10 @@ from salesforce_connector.errors.model import (
     TransportError,
 )
 from salesforce_connector.errors.retry import RetryPolicy, build_retrying
-from salesforce_connector.exchange import (
+from salesforce_connector.immutable import freeze
+from salesforce_connector.observability import Metrics, get_logger
+from salesforce_connector.replay.ledger import IdempotencyLedger
+from salesforce_connector.transport.exchange import (
     LIMIT_HEADER,
     NO_CONTENT,
     RequestSpec,
@@ -42,9 +45,6 @@ from salesforce_connector.exchange import (
     parse_rate_limit,
     retry_after_of,
 )
-from salesforce_connector.idempotency import IdempotencyLedger
-from salesforce_connector.immutable import freeze
-from salesforce_connector.observability import Metrics, get_logger
 
 _MAX_KEEPALIVE: Final = 5
 _MAX_CONNECTIONS: Final = 10

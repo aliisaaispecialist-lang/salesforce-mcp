@@ -33,9 +33,9 @@ from salesforce_connector.actions.tool_schema import ToolSchema
 from salesforce_connector.actions.update_contact import UpdateContact
 from salesforce_connector.actions.update_record import UpdateRecord
 from salesforce_connector.actions.upsert_record import UpsertRecord
-from salesforce_connector.client import SalesforceClient
 from salesforce_connector.contract import ActionDescriptor
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
+from salesforce_connector.transport.client import SalesforceClient
 
 _ACTIONS: Final[tuple[type[Action], ...]] = (
     ListTools,
