@@ -14,14 +14,16 @@ from pydantic import ValidationError
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionKind
 from salesforce_connector.errors import model
-from salesforce_connector.schemas import (
+from salesforce_connector.schemas.envelope import ActionSpec
+from salesforce_connector.schemas.read import (
+    search_contact,
+)
+from salesforce_connector.schemas.write import (
     add_activity_note,
     create_contact,
     create_opportunity,
-    search_contact,
     update_contact,
 )
-from salesforce_connector.schemas.envelope import ActionSpec
 
 ALL_SPECS: tuple[ActionSpec, ...] = tuple(action.spec for action in registry.BY_ID.values())
 """Every spec, derived rather than listed.

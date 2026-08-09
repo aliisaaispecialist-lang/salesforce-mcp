@@ -26,7 +26,7 @@ from salesforce_connector.errors.model import (
     EscalationError,
     TransportError,
 )
-from salesforce_connector.schemas import create_opportunity_with_contact as schema
+from salesforce_connector.schemas.write import create_opportunity_with_contact as schema
 from salesforce_connector.transport.exchange import RequestSpec
 
 _PATH: Final = "composite"

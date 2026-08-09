@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar, Final
 
 from salesforce_connector.actions.action import Action
-from salesforce_connector.schemas import update_contact as schema
+from salesforce_connector.schemas.write import update_contact as schema
 from salesforce_connector.transport.exchange import RequestSpec
 
 _FIELD_NAMES: Final = {

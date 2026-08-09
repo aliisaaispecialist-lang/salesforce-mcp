@@ -17,7 +17,7 @@ from salesforce_connector.actions.action import Action
 from salesforce_connector.contract import ActionDescriptor
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
 from salesforce_connector.schemas import plain_types
-from salesforce_connector.schemas import tool_schema as schema
+from salesforce_connector.schemas.read import tool_schema as schema
 
 
 class ToolSchema(Action):

@@ -12,7 +12,7 @@ from typing import Any, ClassVar
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.contract import ActionDescriptor, ActionKind
-from salesforce_connector.schemas import list_tools as schema
+from salesforce_connector.schemas.read import list_tools as schema
 
 NEXT_ACTION = (
     "Call salesforce_tool_schema with the tool_name you chose to see its fields "

@@ -18,7 +18,7 @@ from salesforce_connector.actions import stages
 from salesforce_connector.actions.action import Action
 from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.replay.journal import Journal
-from salesforce_connector.schemas import create_opportunity as schema
+from salesforce_connector.schemas.write import create_opportunity as schema
 from salesforce_connector.transport.client import SalesforceClient
 from salesforce_connector.transport.exchange import RequestSpec
 

@@ -16,7 +16,7 @@ from typing import Any, ClassVar, Final
 from salesforce_connector.actions.action import Action
 from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
-from salesforce_connector.schemas import add_activity_note as schema
+from salesforce_connector.schemas.write import add_activity_note as schema
 from salesforce_connector.transport.exchange import RequestSpec
 
 _PATH: Final = "sobjects/Task"

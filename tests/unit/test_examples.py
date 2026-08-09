@@ -19,21 +19,23 @@ from pydantic import BaseModel
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionKind
 from salesforce_connector.protocol.translate import as_tool
-from salesforce_connector.schemas import (
-    add_activity_note,
+from salesforce_connector.schemas.read import (
     count_records,
-    create_contact,
-    create_opportunity,
-    create_opportunity_with_contact,
     describe_object,
     get_record,
     get_related,
-    link_contact_to_opportunity,
     list_tools,
     search_contact,
     search_records,
     soql_query,
     tool_schema,
+)
+from salesforce_connector.schemas.write import (
+    add_activity_note,
+    create_contact,
+    create_opportunity,
+    create_opportunity_with_contact,
+    link_contact_to_opportunity,
     update_contact,
     update_record,
     upsert_record,

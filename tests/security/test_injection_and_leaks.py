@@ -33,13 +33,9 @@ from salesforce_connector.errors.model import InvalidInputError
 from salesforce_connector.errors.retry import RetryPolicy
 from salesforce_connector.observability import censor_secrets, configure_logging, get_logger
 from salesforce_connector.protocol.translate import as_result
-from salesforce_connector.schemas import (
-    get_record as get_record_schema,
-)
-from salesforce_connector.schemas import (
-    get_related as get_related_schema,
-)
-from salesforce_connector.schemas import (
+from salesforce_connector.schemas.read import get_record as get_record_schema
+from salesforce_connector.schemas.read import get_related as get_related_schema
+from salesforce_connector.schemas.write import (
     upsert_record,
 )
 from salesforce_connector.transport.client import SalesforceClient, _within_the_org

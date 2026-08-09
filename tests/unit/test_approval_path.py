@@ -21,11 +21,13 @@ from pydantic import BaseModel
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionKind
 from salesforce_connector.protocol.server import _as_request, _descriptor
-from salesforce_connector.schemas import (
+from salesforce_connector.schemas.read import (
+    search_contact,
+)
+from salesforce_connector.schemas.write import (
     add_activity_note,
     create_contact,
     create_opportunity,
-    search_contact,
     update_contact,
 )
 

@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from salesforce_connector.actions.action import Action
-from salesforce_connector.schemas import get_related as schema
+from salesforce_connector.schemas.read import get_related as schema
 from salesforce_connector.transport.exchange import RequestSpec
 
 

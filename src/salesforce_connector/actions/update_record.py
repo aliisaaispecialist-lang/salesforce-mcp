@@ -15,7 +15,7 @@ from typing import Any, ClassVar
 
 from salesforce_connector.actions.action import Action
 from salesforce_connector.errors.model import ConnectorError
-from salesforce_connector.schemas import update_record as schema
+from salesforce_connector.schemas.write import update_record as schema
 from salesforce_connector.transport.exchange import RequestSpec
 
 
