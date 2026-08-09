@@ -15,12 +15,12 @@ drift apart again.
 """
 
 import pytest
-from mcp.types import CallToolRequestParams
 from pydantic import BaseModel
 
 from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionDescriptor, ActionKind
-from salesforce_connector.protocol.server import _as_request, _descriptor
+from salesforce_connector.protocol import surface
+from salesforce_connector.protocol.server import _as_request
 from salesforce_connector.schemas.read import (
     search_contact,
 )
@@ -64,7 +64,7 @@ def described() -> tuple[ActionDescriptor, ...]:
 
 
 def for_tool(tool_name: str) -> ActionDescriptor:
-    found = _descriptor(tool_name, described())
+    found = surface.resolved(tool_name, {}, described()).described
     assert found is not None
     return found
 
@@ -95,9 +95,7 @@ class TestTheClientsPath:
     def test_arguments_carrying_approval_survive_validation(self, tool_name: str) -> None:
         arguments = {**WRITE_ARGUMENTS[tool_name], "approved": True}
 
-        request = _as_request(
-            CallToolRequestParams(name=tool_name, arguments=arguments), for_tool(tool_name)
-        )
+        request = _as_request(arguments, for_tool(tool_name))
 
         assert request.approved is True
         # The step that used to fail: the action validates what the client sent.
@@ -108,7 +106,7 @@ class TestTheClientsPath:
         self, tool_name: str
     ) -> None:
         request = _as_request(
-            CallToolRequestParams(name=tool_name, arguments=WRITE_ARGUMENTS[tool_name]),
+            WRITE_ARGUMENTS[tool_name],
             for_tool(tool_name),
         )
 
@@ -119,14 +117,14 @@ class TestTheClientsPath:
         arguments = {**WRITE_ARGUMENTS["salesforce_create_contact"], "approved": True}
 
         request = _as_request(
-            CallToolRequestParams(name="salesforce_create_contact", arguments=arguments),
+            arguments,
             for_tool("salesforce_create_contact"),
         )
 
         assert request.idempotency_key == "key-12345678"
 
     def test_an_unknown_tool_is_recognised_before_a_request_is_built(self) -> None:
-        assert _descriptor("nonsense", described()) is None
+        assert surface.resolved("nonsense", {}, described()).described is None
 
 
 class TestEveryWriteAgrees:

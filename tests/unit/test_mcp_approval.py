@@ -104,6 +104,7 @@ def server_context(session: FakeSession, connector: SpyConnector) -> Any:
         lifespan_context=mcp_server.AppContext(
             connector=connector,  # type: ignore[arg-type]
             approval=WriteApproval(ApprovalGate()),
+            surface="full",
         ),
     )
 

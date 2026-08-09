@@ -33,8 +33,10 @@ from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
 from salesforce_connector.config import load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionDescriptor, ActionRequest
+from salesforce_connector.errors.model import InvalidInputError
 from salesforce_connector.observability import configure_logging, get_logger
-from salesforce_connector.protocol.translate import as_result, as_tool, refuse
+from salesforce_connector.protocol import surface
+from salesforce_connector.protocol.translate import as_result, refuse
 from salesforce_connector.transport.client import SalesforceClient
 
 SERVER_NAME: Final = "salesforce_mcp"
@@ -58,6 +60,7 @@ class AppContext:
 
     connector: SalesforceConnector
     approval: WriteApproval
+    surface: str
 
 
 @asynccontextmanager
@@ -77,6 +80,7 @@ async def lifespan(_: Server[AppContext]) -> AsyncIterator[AppContext]:
         log.info("server.started", name=SERVER_NAME, org=settings.redacted())
         yield AppContext(
             connector=SalesforceConnector(client, load_manifest(settings)),
+            surface=settings.tool_surface,
             # One gate per process. Its signing key dies with the process, so a
             # restart invalidates every approval in flight, which is correct.
             approval=WriteApproval(ApprovalGate()),
@@ -90,9 +94,16 @@ async def list_tools(
     ctx: ServerRequestContext[AppContext],
     _params: PaginatedRequestParams | None,
 ) -> ListToolsResult:
-    """Publish the tools, identically on every connection."""
-    described = ctx.lifespan_context.connector.list_actions()
-    return ListToolsResult(tools=[as_tool(action) for action in described])
+    """Publish the tools, identically on every connection.
+
+    Which tools depends on the configured surface and on nothing else. It is
+    not per-caller and cannot become so: this server keeps no state about who
+    is asking, and a list that varied by conversation would be exactly that.
+    """
+    context = ctx.lifespan_context
+    return ListToolsResult(
+        tools=surface.published(context.connector.list_actions(), context.surface)
+    )
 
 
 async def call_tool(
@@ -105,26 +116,23 @@ async def call_tool(
     down must not reach the connector at all.
     """
     context = ctx.lifespan_context
-    described = _descriptor(params.name, context.connector.list_actions())
-    if described is None:
+    opened = surface.resolved(params.name, params.arguments or {}, context.connector.list_actions())
+    if opened.refusal is not None:
+        return refuse(opened.refusal, code=InvalidInputError.code)
+    if opened.described is None:
         return refuse(f"{params.name!r} is not a tool this server offers.")
-    settled = await context.approval.granted(ctx, described, _as_request(params, described))
+    # From here nothing knows whether a door was used. The approval is the
+    # inner action's own, and so is the validation that follows it.
+    settled = await context.approval.granted(
+        ctx, opened.described, _as_request(opened.arguments, opened.described)
+    )
     if isinstance(settled, CallToolResult):
         return settled
     return as_result(await context.connector.execute(settled))
 
 
-def _descriptor(
-    tool_name: str,
-    described: tuple[ActionDescriptor, ...],
-) -> ActionDescriptor | None:
-    """Find the action a tool name stands for, if this server offers one."""
-    return next((d for d in described if d.tool_name == tool_name), None)
-
-
-def _as_request(params: CallToolRequestParams, described: ActionDescriptor) -> ActionRequest:
+def _as_request(arguments: Mapping[str, Any], described: ActionDescriptor) -> ActionRequest:
     """Translate a tool call into an action call."""
-    arguments: Mapping[str, Any] = params.arguments or {}
     return ActionRequest(
         action_id=described.action_id,
         params=arguments,

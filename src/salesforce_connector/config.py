@@ -13,7 +13,7 @@ that starts and then fails every call is harder to diagnose than one that
 refuses to start.
 """
 
-from typing import Final, Self
+from typing import Final, Literal, Self
 
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -84,6 +84,17 @@ class Settings(BaseSettings):
     approval_ttl_seconds: int = Field(default=600, gt=0)
     """How long a person's approval of a write stays valid."""
 
+    tool_surface: Literal["full", "router"] = Field(
+        default="full",
+        description=(
+            "Which tools a client is shown when it connects. 'full' publishes "
+            "every tool with its own schema, which is what this connector "
+            "declares it offers. 'router' publishes four -- the two that "
+            "describe the others, and one door for reading and one for writing "
+            "-- so a model asks for the shortlist instead of being handed all "
+            "seventeen. Same validation and the same approval either way."
+        ),
+    )
     max_query_rows: int = Field(default=200, gt=0, le=2000)
     """The ceiling a SOQL query is held to when it names no limit of its own."""
 
