@@ -18,6 +18,7 @@ from typing import Any, ClassVar, Final
 from urllib.parse import quote
 
 from salesforce_connector.actions.action import Action
+from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import upsert_record as schema
 
@@ -50,7 +51,7 @@ class UpsertRecord(Action):
         )
         body = response.body if isinstance(response.body, Mapping) else {}
         return {
-            "id": str(body.get("id", "")),
+            "id": _written_id(response.status, body),
             "object_name": params.object_name,
             "external_id_value": params.external_id_value,
             "created": _was_created(response.status, body),
@@ -69,3 +70,15 @@ def _was_created(status: int, body: Mapping[str, Any]) -> bool:
     if isinstance(stated, bool):
         return stated
     return status == _CREATED_STATUS
+
+
+def _written_id(status: int, body: Mapping[str, Any]) -> str:
+    """Return the record id, insisting on one only where Salesforce promises it.
+
+    A create answers 201 carrying the new id. An update frequently answers 204
+    with no body at all, so an absent id there is ordinary and the caller still
+    has the external id, which is what named the record in the first place.
+    """
+    if _was_created(status, body):
+        return created_id_of(body)
+    return str(body.get("id", ""))

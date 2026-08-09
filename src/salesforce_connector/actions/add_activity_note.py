@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Any, ClassVar, Final
 
 from salesforce_connector.actions.action import Action
+from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import add_activity_note as schema
@@ -44,7 +45,7 @@ class AddActivityNote(Action):
                 idempotency_key=params.idempotency_key,
             )
         )
-        created_id = str(response.body.get("id", "")) if isinstance(response.body, Mapping) else ""
+        created_id = created_id_of(response.body)
         return {
             "id": created_id,
             "subject": params.subject,

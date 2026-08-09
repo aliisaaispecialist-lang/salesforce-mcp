@@ -18,8 +18,14 @@ shape.
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar, Final
 
-from salesforce_connector.actions.action import Action
+from salesforce_connector.actions import stages
+from salesforce_connector.actions.action import Action, created_id
 from salesforce_connector.errors.mapping import to_connector_error
+from salesforce_connector.errors.model import (
+    ErrorContext,
+    EscalationError,
+    TransportError,
+)
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import create_opportunity_with_contact as schema
 
@@ -31,6 +37,9 @@ _FAILED: Final = 400
 # consequence of some other subrequest failing, never the cause, so it is the
 # last thing to blame for the failure.
 _HALTED: Final = "PROCESSING_HALTED"
+# How many subrequests are sent. A shorter answer than this means
+# something was lost, not that something succeeded.
+_SUBREQUESTS: Final = 2
 
 
 class CreateOpportunityWithContact(Action):
@@ -41,6 +50,10 @@ class CreateOpportunityWithContact(Action):
     output_model: ClassVar[type] = schema.CreateOpportunityWithContactOutput
 
     async def _execute(self, params: schema.CreateOpportunityWithContactInput) -> Mapping[str, Any]:
+        # The same check create_opportunity makes. This tool's own description
+        # tells the caller a wrong stage "fails the whole write, including the
+        # contact link", which was a promise nothing here kept.
+        await stages.reject_unknown(self._client, params.stage_name)
         response = await self._client.request(
             RequestSpec(
                 method="POST",
@@ -134,11 +147,53 @@ def _raise_if_any_failed(parts: Sequence[Mapping[str, Any]]) -> None:
     halted by it, so the caller is told the real reason rather than told that
     something else went wrong.
     """
+    if len(parts) != _SUBREQUESTS:
+        raise TransportError(
+            f"Salesforce answered with {len(parts)} results for {_SUBREQUESTS} "
+            f"requests, so what was written cannot be established from here."
+        )
     failures = [part for part in parts if int(part.get("httpStatusCode", 200)) >= _FAILED]
     if not failures:
         return
+    _raise_if_partly_applied(parts, failures)
     blamed = next((part for part in failures if not _is_halted(part)), failures[0])
     raise to_connector_error(int(blamed.get("httpStatusCode", _FAILED)), blamed.get("body"))
+
+
+def _raise_if_partly_applied(
+    parts: Sequence[Mapping[str, Any]], failures: Sequence[Mapping[str, Any]]
+) -> None:
+    """Check the all-or-nothing promise instead of assuming it.
+
+    This tool tells a person, in its own recovery instructions, that nothing
+    was left half-done and there is no orphaned deal to clean up. That is a
+    claim about Salesforce's behaviour, and it was never verified: the code
+    raised the first failure it found and stopped, so a subrequest reporting
+    success beside a failure would have gone unmentioned while the caller was
+    told to expect nothing.
+
+    If that ever happens the right answer is a person, not a retry, because a
+    record exists that nobody is expecting.
+    """
+    applied = [
+        part
+        for part in parts
+        if part not in failures and int(part.get("httpStatusCode", 200)) < _FAILED
+    ]
+    if not applied:
+        return
+    left = ", ".join(_id_of(part) or part.get("referenceId", "?") for part in applied)
+    raise EscalationError(
+        f"Salesforce rolled back part of this write but not all of it. "
+        f"These records still exist: {left}.",
+        ErrorContext(
+            next_step=(
+                "Do not retry. Open Salesforce and delete the records named "
+                "above, which were created without the rest of the write they "
+                "belonged to."
+            ),
+        ),
+    )
 
 
 def _is_halted(part: Mapping[str, Any]) -> bool:
@@ -149,11 +204,22 @@ def _is_halted(part: Mapping[str, Any]) -> bool:
 
 
 def _id_from(parts: Sequence[Mapping[str, Any]], reference: str) -> str:
-    """Read the record id one subrequest created."""
+    """Read the record id one subrequest created, insisting there is one.
+
+    An empty string here used to be returned as a success: `created: true`
+    beside an id nobody can look up. Both records are reported, so both must
+    have arrived.
+    """
     for part in parts:
-        if part.get("referenceId") != reference:
-            continue
-        body = part.get("body")
-        if isinstance(body, Mapping):
-            return str(body.get("id", ""))
-    return ""
+        if part.get("referenceId") == reference:
+            return created_id(part.get("body"))
+    raise TransportError(
+        f"Salesforce did not answer the {reference!r} part of this write, so "
+        f"what it wrote cannot be established from here."
+    )
+
+
+def _id_of(part: Mapping[str, Any]) -> str:
+    """Read a subrequest's record id without insisting on one."""
+    body = part.get("body")
+    return str(body.get("id", "")) if isinstance(body, Mapping) else ""

@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar, Final
 
 from salesforce_connector.actions.action import Action
+from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import create_contact as schema
 
@@ -70,4 +71,4 @@ def salesforce_fields(params: schema.CreateContactInput) -> Mapping[str, Any]:
 
 def _created_id(body: object) -> str:
     """Read the id Salesforce assigned."""
-    return str(body.get("id", "")) if isinstance(body, Mapping) else ""
+    return created_id_of(body)

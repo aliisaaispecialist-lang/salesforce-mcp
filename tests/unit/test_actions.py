@@ -304,20 +304,25 @@ class TestAddActivityNote:
             assert "003" in result.error.next_step
 
 
+def describing_stages(stages: tuple[str, ...]) -> httpx.Response:
+    """The describe response the stage check reads."""
+    return httpx.Response(
+        200,
+        json={
+            "fields": [
+                {
+                    "name": "StageName",
+                    "picklistValues": [{"value": s, "active": True} for s in stages],
+                }
+            ]
+        },
+    )
+
+
 @pytest.mark.asyncio
 class TestCreateOpportunity:
     def describe(self, stages: tuple[str, ...]) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "fields": [
-                    {
-                        "name": "StageName",
-                        "picklistValues": [{"value": s, "active": True} for s in stages],
-                    }
-                ]
-            },
-        )
+        return describing_stages(stages)
 
     async def test_a_stage_this_org_does_not_use_is_refused_with_the_ones_it_does(
         self, client: SalesforceClient
@@ -439,6 +444,9 @@ class TestCreateOpportunityWithContact:
     async def test_both_records_come_back_from_one_call(self, client: SalesforceClient) -> None:
         async with client, respx.mock:
             token_route()
+            respx.get(f"{DATA}/sobjects/Opportunity/describe").mock(
+                return_value=describing_stages(("Qualify", "Negotiate"))
+            )
             route = respx.post(f"{DATA}/composite").mock(
                 return_value=httpx.Response(
                     200,
@@ -489,6 +497,9 @@ class TestCreateOpportunityWithContact:
         """
         async with client, respx.mock:
             token_route()
+            respx.get(f"{DATA}/sobjects/Opportunity/describe").mock(
+                return_value=describing_stages(("Qualify", "Nonexistent"))
+            )
             respx.post(f"{DATA}/composite").mock(
                 return_value=httpx.Response(
                     200,
@@ -674,3 +685,197 @@ class TestWrongTypesAreExplainedNotJustRejected:
             assert not result.ok
             assert result.error is not None
             assert "Call, Email, Meeting, Other" in result.error.reason
+
+
+@pytest.mark.asyncio
+class TestASuccessMustCarryAnId:
+    """A 2xx with no record id is not a success anybody can use."""
+
+    async def test_a_create_with_no_id_is_a_failure_not_an_empty_success(
+        self, client: SalesforceClient
+    ) -> None:
+        """Nothing declared `id` non-empty, so `""` validated and came back ok.
+
+        Reported as retryable, because the write may have landed and the
+        caller's idempotency key is what makes asking again safe.
+        """
+        async with client, respx.mock:
+            token_route()
+            respx.post(f"{DATA}/sobjects/Contact").mock(
+                return_value=httpx.Response(201, json={"success": True})
+            )
+
+            result = await run(
+                client,
+                "salesforce.create_contact",
+                last_name="Lovelace",
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            assert "no record id" in result.error.reason
+
+    async def test_an_upsert_that_updated_may_answer_without_a_body(
+        self, client: SalesforceClient
+    ) -> None:
+        """An update answers 204 and nothing, which is ordinary, not a fault."""
+        async with client, respx.mock:
+            token_route()
+            respx.patch(f"{DATA}/sobjects/Contact/External_Id__c/CRM-4471").mock(
+                return_value=httpx.Response(204)
+            )
+
+            result = await run(
+                client,
+                "salesforce.upsert_record",
+                object_name="Contact",
+                external_id_field="External_Id__c",
+                external_id_value="CRM-4471",
+                fields={"LastName": "Lovelace"},
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert result.ok
+            assert result.data["created"] is False
+
+
+@pytest.mark.asyncio
+class TestAWriteIsNotUndoneByTheReadAfterIt:
+    async def test_a_failed_read_back_still_reports_the_write(
+        self, client: SalesforceClient
+    ) -> None:
+        """The PATCH landed. Only the confirmation read failed.
+
+        This used to fail the whole action, telling the caller the update had
+        not happened when it had -- and a retry on that advice would apply it
+        twice.
+        """
+        async with client, respx.mock:
+            token_route()
+            respx.patch(f"{DATA}/sobjects/Account/001xx000003DGb2AAG").mock(
+                return_value=httpx.Response(204)
+            )
+            respx.get(f"{DATA}/sobjects/Account/001xx000003DGb2AAG").mock(
+                side_effect=httpx.ReadTimeout("too slow")
+            )
+
+            result = await run(
+                client,
+                "salesforce.update_record",
+                object_name="Account",
+                record_id="001xx000003DGb2AAG",
+                fields={"Industry": "Technology"},
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert result.ok
+            assert result.data["changed_fields"] == ["Industry"]
+            assert result.warnings
+            assert "was applied" in result.warnings[0]
+            assert "Do not repeat" in result.warnings[0]
+
+
+@pytest.mark.asyncio
+class TestTheAtomicityClaimIsChecked:
+    """The tool tells a person nothing was left half-done. Now it verifies it."""
+
+    async def test_a_success_beside_a_failure_goes_to_a_human(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Opportunity/describe").mock(
+                return_value=describing_stages(("Qualify",))
+            )
+            respx.post(f"{DATA}/composite").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "compositeResponse": [
+                            {
+                                "body": {"id": "006orphan", "success": True},
+                                "httpStatusCode": 201,
+                                "referenceId": "newOpportunity",
+                            },
+                            {
+                                "body": [{"errorCode": "INVALID_CROSS_REFERENCE_KEY"}],
+                                "httpStatusCode": 400,
+                                "referenceId": "contactRole",
+                            },
+                        ]
+                    },
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.create_opportunity_with_contact",
+                name="Renewal",
+                stage_name="Qualify",
+                close_date="2026-12-01",
+                contact_id="003xx000004TmiQAAS",
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            assert result.error.code == "connector.escalate_to_human"
+            # Names the record nobody is expecting.
+            assert "006orphan" in result.error.reason
+
+    async def test_a_short_response_is_not_read_as_success(self, client: SalesforceClient) -> None:
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Opportunity/describe").mock(
+                return_value=describing_stages(("Qualify",))
+            )
+            respx.post(f"{DATA}/composite").mock(
+                return_value=httpx.Response(200, json={"compositeResponse": []})
+            )
+
+            result = await run(
+                client,
+                "salesforce.create_opportunity_with_contact",
+                name="Renewal",
+                stage_name="Qualify",
+                close_date="2026-12-01",
+                contact_id="003xx000004TmiQAAS",
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            assert "0 results for 2" in result.error.reason
+
+    async def test_the_stage_is_checked_here_too(self, client: SalesforceClient) -> None:
+        """The description promised this. Only the other tool delivered it."""
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Opportunity/describe").mock(
+                return_value=describing_stages(("Qualify", "Closed Won"))
+            )
+            composite = respx.post(f"{DATA}/composite").mock(
+                return_value=httpx.Response(200, json={"compositeResponse": []})
+            )
+
+            result = await run(
+                client,
+                "salesforce.create_opportunity_with_contact",
+                name="Renewal",
+                stage_name="Prospecting",
+                close_date="2026-12-01",
+                contact_id="003xx000004TmiQAAS",
+                idempotency_key=KEY,
+                approved=True,
+            )
+
+            assert not result.ok
+            assert not composite.called
+            assert result.error is not None
+            assert "Qualify, Closed Won" in result.error.next_step

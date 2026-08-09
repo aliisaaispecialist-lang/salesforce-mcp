@@ -14,10 +14,11 @@ write into a corrected argument.
 from collections.abc import Mapping
 from typing import Any, ClassVar, Final
 
+from salesforce_connector.actions import stages
 from salesforce_connector.actions.action import Action
+from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.checkpoint import Journal
 from salesforce_connector.client import SalesforceClient
-from salesforce_connector.errors.model import ConnectorError, ErrorContext, InvalidInputError
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import create_opportunity as schema
 
@@ -39,7 +40,7 @@ class CreateOpportunity(Action):
         self._journal = Journal()
 
     async def _execute(self, params: schema.CreateOpportunityInput) -> Mapping[str, Any]:
-        await self._reject_unknown_stage(params.stage_name)
+        await stages.reject_unknown(self._client, params.stage_name)
         opportunity_id = await self._create(params)
 
         return {
@@ -73,37 +74,9 @@ class CreateOpportunity(Action):
                 idempotency_key=params.idempotency_key,
             )
         )
-        created_id = str(response.body.get("id", "")) if isinstance(response.body, Mapping) else ""
+        created_id = created_id_of(response.body)
         self._journal.record(_CREATED, {"id": created_id})
         return created_id
-
-    async def _reject_unknown_stage(self, stage: str) -> None:
-        """Refuse a stage this org does not use, and say which it does."""
-        allowed = await self._stages()
-        if allowed and stage not in allowed:
-            raise InvalidInputError(
-                f"{stage!r} is not a sales stage in this Salesforce org.",
-                ErrorContext(
-                    next_step=(
-                        f"Use one of these exact values: {', '.join(allowed)}. "
-                        f"Ask the user which they meant if none is obviously right."
-                    ),
-                    invalid_fields=("stage_name",),
-                ),
-            )
-
-    async def _stages(self) -> tuple[str, ...]:
-        """Read the org's configured stages, tolerating a describe we cannot do.
-
-        A profile may be allowed to create opportunities but not to describe
-        them. Losing the check is better than losing the action, so an
-        unreadable picklist simply skips validation and lets Salesforce judge.
-        """
-        try:
-            response = await self._client.request(RequestSpec(method="GET", path=_DESCRIBE_PATH))
-        except ConnectorError:
-            return ()
-        return _picklist_values(response.body, "StageName")
 
 
 def _fields(params: schema.CreateOpportunityInput) -> Mapping[str, Any]:
@@ -120,26 +93,3 @@ def _fields(params: schema.CreateOpportunityInput) -> Mapping[str, Any]:
     if params.description is not None:
         fields["Description"] = params.description
     return fields
-
-
-def _picklist_values(body: object, field_name: str) -> tuple[str, ...]:
-    """Pull the active values of one picklist out of a describe response."""
-    if not isinstance(body, Mapping):
-        return ()
-    fields = body.get("fields", ())
-    if not isinstance(fields, (list, tuple)):
-        return ()
-    field = next(
-        (item for item in fields if isinstance(item, Mapping) and item.get("name") == field_name),
-        None,
-    )
-    if field is None:
-        return ()
-    values = field.get("picklistValues", ())
-    if not isinstance(values, (list, tuple)):
-        return ()
-    return tuple(
-        str(value["value"])
-        for value in values
-        if isinstance(value, Mapping) and value.get("active", True) and "value" in value
-    )

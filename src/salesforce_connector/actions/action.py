@@ -25,6 +25,7 @@ from salesforce_connector.errors.model import (
     ErrorContext,
     EscalationError,
     InvalidInputError,
+    TransportError,
 )
 from salesforce_connector.immutable import freeze
 from salesforce_connector.observability import bind_request, clear_request, get_logger
@@ -36,6 +37,29 @@ _MILLISECONDS: Final = 1000.0
 # Two blank lines, so the human instructions read as their own paragraph
 # rather than running on from advice written for a model.
 BY_HAND = "\n\nTo do it by hand: "
+
+
+def created_id(body: object) -> str:
+    """Read the record id a write returned, rather than inventing an empty one.
+
+    Salesforce answers a successful create with the new id. Six actions read it
+    as `body.get("id", "")`, and that default is not neutral: no output model
+    declares `id` non-empty, so a 2xx whose body was not the expected shape
+    validated cleanly and came back as a success carrying an id nobody can look
+    up. `create_opportunity` then wrote that empty string into its journal, so
+    every later replay of the same key returned it again, permanently.
+
+    Raised as a transport failure rather than a fatal one. The write may well
+    have landed, and the caller's idempotency key is exactly what makes asking
+    again safe.
+    """
+    found = body.get("id", "") if isinstance(body, Mapping) else ""
+    if found:
+        return str(found)
+    raise TransportError(
+        "Salesforce reported success but returned no record id, so there is no "
+        "way to confirm what was written."
+    )
 
 
 class Action(ABC):
@@ -52,6 +76,18 @@ class Action(ABC):
     def __init__(self, client: SalesforceClient) -> None:
         self._client = client
         self._log = get_logger()
+        # One action object is built per call, so this cannot leak between
+        # callers. See `Connector.execute`, which builds a fresh one each time.
+        self._warnings: list[str] = []
+
+    def warn(self, message: str) -> None:
+        """Say something the caller should know, without failing the call.
+
+        The channel for anything true but not fatal: a value that looks wrong,
+        a field about to be cleared, a result Salesforce reduced on the way.
+        It rides back with the successful answer rather than replacing it.
+        """
+        self._warnings.append(message)
 
     async def run(self, request: ActionRequest) -> ActionResult:
         """Perform this action, returning the outcome either way.
@@ -63,6 +99,7 @@ class Action(ABC):
             The uniform envelope, successful or not. Never raises.
         """
         started = time.monotonic()
+        self._warnings.clear()
         bind_request(request.request_id, self.spec.action_id)
         try:
             return await self._attempt(request, started)
@@ -158,6 +195,7 @@ class Action(ABC):
             data=data,
             pagination=_pagination_of(data),
             rate_limit=self._client.last_rate_limit,
+            warnings=tuple(self._warnings),
         )
 
     def _failed(

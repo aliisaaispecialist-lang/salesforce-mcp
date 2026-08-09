@@ -11,7 +11,7 @@ stopped being reusable.
 
 import json
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
 from mcp.types import CallToolResult, TextContent, Tool, ToolAnnotations
@@ -31,6 +31,9 @@ _NONCE_BYTES: Final = 6
 META_PREFIX: Final = "salesforce-connector"
 
 UNKNOWN_TOOL: Final = "connector.unknown_tool"
+
+# Labelled, so a model can tell advice from the answer it asked for.
+ADVISORY: Final = "Note, before you use the result below:"
 
 
 def as_tool(described: ActionDescriptor) -> Tool:
@@ -96,11 +99,31 @@ def as_result(outcome: ActionResult) -> CallToolResult:
         )
     payload = dict(outcome.data)
     return CallToolResult(
-        content=[TextContent(type="text", text=wrapped(payload))],
+        content=[*noted(outcome.warnings), TextContent(type="text", text=wrapped(payload))],
         structured_content=payload,
         is_error=False,
         meta=meta_of(outcome),
     )
+
+
+def noted(warnings: Sequence[str]) -> list[TextContent]:
+    """Put anything the caller must know where the caller will actually read it.
+
+    The specification calls `content` the result of the call and says errors
+    belong inside it rather than in a protocol error, because otherwise the
+    model cannot see them and correct itself. The same reasoning applies to a
+    warning: `_meta` is for out-of-band bookkeeping such as paging, and the
+    logging notification needs the client to opt in and is deprecated from the
+    2026-07-28 revision. Neither reaches a model reliably.
+
+    So a warning is its own content block, ahead of the data. Outside the
+    untrusted fence deliberately: this text is ours, not a record's, and the
+    fence exists to mark the difference.
+    """
+    if not warnings:
+        return []
+    said = "\n".join(f"- {one}" for one in warnings)
+    return [TextContent(type="text", text=f"{ADVISORY}\n{said}")]
 
 
 def meta_of(outcome: ActionResult) -> dict[str, Any] | None:

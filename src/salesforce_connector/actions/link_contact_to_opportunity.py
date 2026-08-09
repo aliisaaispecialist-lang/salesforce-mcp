@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar, Final
 
 from salesforce_connector.actions.action import Action
+from salesforce_connector.actions.action import created_id as created_id_of
 from salesforce_connector.errors.model import ErrorContext, InvalidInputError
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import link_contact_to_opportunity as schema
@@ -41,7 +42,7 @@ class LinkContactToOpportunity(Action):
                 idempotency_key=params.idempotency_key,
             )
         )
-        created = response.body.get("id", "") if isinstance(response.body, Mapping) else ""
+        created = created_id_of(response.body)
         return {
             "id": str(created),
             "opportunity_id": params.opportunity_id,

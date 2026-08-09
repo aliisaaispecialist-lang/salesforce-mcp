@@ -14,6 +14,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from salesforce_connector.actions.action import Action
+from salesforce_connector.errors.model import ConnectorError
 from salesforce_connector.exchange import RequestSpec
 from salesforce_connector.schemas import update_record as schema
 
@@ -39,9 +40,31 @@ class UpdateRecord(Action):
         return {
             "id": params.record_id,
             "object_name": params.object_name,
-            "record": await self._read_back(path, tuple(params.fields)),
+            "record": await self._confirmed(path, tuple(params.fields)),
             "changed_fields": tuple(params.fields),
         }
+
+    async def _confirmed(self, path: str, written: tuple[str, ...]) -> dict[str, Any]:
+        """Read the record back, without letting that read undo the write.
+
+        The write has already happened by this point. A failure in the read
+        that follows used to escape and fail the whole action, so a caller was
+        told the update did not happen when it had -- and a retry on that
+        advice would apply it a second time.
+
+        So the read is allowed to fail on its own. The write is still reported,
+        and the caller is told plainly that the confirmation is missing rather
+        than being shown an empty record and left to guess.
+        """
+        try:
+            return await self._read_back(path, written)
+        except ConnectorError as unconfirmed:
+            self.warn(
+                f"The change was applied, but reading the record back afterwards "
+                f"failed: {unconfirmed.to_action_error().reason} Do not repeat this "
+                f"call; read the record separately to confirm what it now holds."
+            )
+            return {}
 
     async def _read_back(self, path: str, written: tuple[str, ...]) -> dict[str, Any]:
         """Fetch the fields that were just set, and nothing else."""
