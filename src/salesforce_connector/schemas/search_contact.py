@@ -52,8 +52,10 @@ class SearchContactInput(BaseModel):
             description=(
                 f"Optional. How many contacts to return, 1 to {MAX_PAGE_SIZE}. "
                 f"Defaults to {DEFAULT_PAGE_SIZE}. Ask for more only when you intend "
-                "to read them all; large results cost context and rarely help."
+                "to read them all; large results cost context and rarely help. "
+                "Written in digits."
             ),
+            examples=[20],
         ),
     ] = DEFAULT_PAGE_SIZE
     cursor: Annotated[

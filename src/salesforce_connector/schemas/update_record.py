@@ -92,6 +92,7 @@ class UpdateRecordInput(BaseModel):
         Field(
             default=False,
             description=(
+                "Optional, defaults to false, but the call is refused without it. "
                 "Confirmation that the user asked for this change. This writes to a "
                 "record that already exists and there is no undo."
             ),
@@ -173,6 +174,10 @@ SPEC = ActionSpec(
     ),
     missing_inputs=(
         MissingInput(
+            field="fields",
+            prompt="Which fields should I set, and to what?",
+        ),
+        MissingInput(
             field="record_id",
             prompt=("Which record should I change? A name is enough and I will search for its id."),
         ),
@@ -216,7 +221,7 @@ SPEC = ActionSpec(
             code="salesforce.transport_failed",
             when="Salesforce did not answer in time.",
             remedy=(
-                "Repeat with the same idempotency key. The change may already have "
+                "Repeat with the identical idempotency key. The change may already have "
                 "been applied, and the key is what stops it being applied twice."
             ),
         ),

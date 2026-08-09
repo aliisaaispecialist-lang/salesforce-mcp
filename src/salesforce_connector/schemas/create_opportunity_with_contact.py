@@ -66,10 +66,11 @@ class CreateOpportunityWithContactInput(BaseModel):
         date,
         Field(
             description=(
-                "Required. Expected close date, as YYYY-MM-DD. Ask the user rather "
-                "than inventing one; a date invented here becomes a forecast "
-                "somebody relies on."
+                "Required. Expected close date, written as YYYY-MM-DD. Ask the "
+                "user rather than inventing one; a date invented here becomes a "
+                "forecast somebody relies on."
             ),
+            examples=["2026-12-01"],
         ),
     ]
     contact_id: Annotated[
@@ -90,7 +91,11 @@ class CreateOpportunityWithContactInput(BaseModel):
         Field(
             default=None,
             ge=0,
-            description="Optional. Value of the deal, in the org's currency.",
+            description=(
+                "Optional. Value of the deal, in the org's currency, written in "
+                "digits rather than words."
+            ),
+            examples=[45000],
         ),
     ] = None
     account_id: Annotated[
@@ -130,7 +135,10 @@ class CreateOpportunityWithContactInput(BaseModel):
         bool,
         Field(
             default=False,
-            description="Confirmation that the user asked for this deal to be created.",
+            description=(
+                "Optional, defaults to false, but the call is refused without it. "
+                "Confirmation that the user asked for this deal to be created."
+            ),
         ),
     ] = False
 
@@ -267,7 +275,7 @@ SPEC = ActionSpec(
             code="salesforce.transport_failed",
             when="Salesforce did not answer in time.",
             remedy=(
-                "Repeat with the same idempotency key. Either both records exist or "
+                "Repeat with the identical idempotency key. Either both records exist or "
                 "neither does, so there is no partial state to inspect first."
             ),
         ),

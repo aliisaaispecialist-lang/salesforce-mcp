@@ -98,9 +98,11 @@ class AddActivityNoteInput(BaseModel):
         Field(
             default=None,
             description=(
-                "Optional. When it happened, as YYYY-MM-DD. Defaults to today. Use the "
-                "date the user described, not today's, when logging something past."
+                "Optional. When it happened, written as YYYY-MM-DD. Defaults to "
+                "today. Use the date the user described, not today's, when logging "
+                "something past."
             ),
+            examples=["2026-08-09"],
         ),
     ] = None
 

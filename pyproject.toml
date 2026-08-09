@@ -69,6 +69,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# These two actions report on the registry, and the registry builds them, so
+# the import can only happen at call time. Deliberate, and explained where it
+# is written.
+"src/salesforce_connector/actions/list_tools.py" = ["PLC0415"]
+"src/salesforce_connector/actions/tool_schema.py" = ["PLC0415"]
 # Tests assert, compare literals, and say what they mean in their names rather
 # than in docstrings. They stay fully type-annotated.
 "tests/**/*.py" = [

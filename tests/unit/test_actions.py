@@ -73,7 +73,7 @@ async def run(client: SalesforceClient, action_id: str, **params: Any) -> Any:
 
 class TestTheRegistry:
     def test_it_offers_the_five_assigned_actions_plus_the_link_split_from_one(self) -> None:
-        assert len(registry.BY_ID) == 15
+        assert len(registry.BY_ID) == 17
 
     def test_the_order_is_stable_rather_than_incidental(self) -> None:
         assert list(registry.BY_ID) == sorted(registry.BY_ID)
@@ -81,7 +81,7 @@ class TestTheRegistry:
     def test_descriptors_carry_the_rendered_description(self) -> None:
         described = registry.descriptors()
 
-        assert len(described) == 15
+        assert len(described) == 17
         assert all("Do not use this when:" in item.description for item in described)
 
     def test_an_unknown_action_names_the_ones_that_exist(self, client: SalesforceClient) -> None:
@@ -533,3 +533,144 @@ class TestCreateOpportunityWithContact:
             # Blamed on the subrequest that failed, not the one it halted.
             assert "bad stage" in result.error.reason
             assert "PROCESSING_HALTED" not in result.error.reason
+
+
+@pytest.mark.asyncio
+class TestTheRouter:
+    """Choosing a tool without reading all seventeen, and calling it correctly."""
+
+    async def test_asking_for_writes_lists_only_what_changes_data(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(client, "salesforce.list_tools", kind="write")
+
+            assert result.ok
+            assert result.data["tools"]
+            assert all(one["changes_data"] for one in result.data["tools"])
+            assert all(one["needs_approval"] for one in result.data["tools"])
+            assert "salesforce_tool_schema" in result.data["next_action"]
+
+    async def test_asking_for_reads_lists_nothing_that_changes_data(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(client, "salesforce.list_tools", kind="read")
+
+            assert result.ok
+            assert not any(one["changes_data"] for one in result.data["tools"])
+
+    async def test_every_registered_tool_can_be_found_through_the_router(
+        self, client: SalesforceClient
+    ) -> None:
+        """The one way this pair can quietly go wrong.
+
+        A tool added to the registry and missing from here would be invisible
+        to anything that routes, while still being published. Derived from the
+        registry rather than listed, so this holds by construction -- and fails
+        loudly if that ever stops being true.
+        """
+        async with client:
+            result = await run(client, "salesforce.list_tools", kind="all")
+
+            listed = {one["name"] for one in result.data["tools"]}
+            assert listed == {action.spec.tool_name for action in registry.BY_ID.values()}
+
+    async def test_a_field_expecting_a_number_says_so_in_words(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(
+                client, "salesforce.tool_schema", tool_name="salesforce_create_opportunity"
+            )
+
+            assert result.ok
+            amount = next(one for one in result.data["fields"] if one["name"] == "amount")
+            assert amount["type"] == "a number, written in digits"
+            assert amount["example"] == "45000"
+
+    async def test_a_field_with_fixed_values_lists_them_rather_than_naming_the_enum(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(
+                client, "salesforce.tool_schema", tool_name="salesforce_add_activity_note"
+            )
+
+            kind = next(one for one in result.data["fields"] if one["name"] == "activity_kind")
+            assert kind["type"] == "exactly one of: Call, Email, Meeting, Other"
+
+    async def test_required_fields_are_reported_first(self, client: SalesforceClient) -> None:
+        async with client:
+            result = await run(
+                client, "salesforce.tool_schema", tool_name="salesforce_create_contact"
+            )
+
+            required = [one["required"] for one in result.data["fields"]]
+            assert required == sorted(required, reverse=True)
+
+    async def test_an_unknown_tool_name_is_answered_with_the_real_ones(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(client, "salesforce.tool_schema", tool_name="salesforce_delete_all")
+
+            assert not result.ok
+            assert result.error is not None
+            assert "salesforce_search_contact" in result.error.next_step
+
+
+@pytest.mark.asyncio
+class TestWrongTypesAreExplainedNotJustRejected:
+    """The failure the router exists to prevent, checked where it lands."""
+
+    async def test_a_number_written_as_a_word_is_told_to_use_digits(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(
+                client,
+                "salesforce.create_opportunity",
+                name="Renewal",
+                stage_name="Qualify",
+                close_date="2026-12-01",
+                amount="one",
+                idempotency_key=KEY,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            assert "a number, written in digits" in result.error.reason
+            assert "45000" in result.error.reason
+
+    async def test_a_date_in_words_is_told_the_format(self, client: SalesforceClient) -> None:
+        async with client:
+            result = await run(
+                client,
+                "salesforce.create_opportunity",
+                name="Renewal",
+                stage_name="Qualify",
+                close_date="next Tuesday",
+                idempotency_key=KEY,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            assert "YYYY-MM-DD" in result.error.reason
+
+    async def test_a_value_outside_a_fixed_set_is_told_the_whole_set(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client:
+            result = await run(
+                client,
+                "salesforce.add_activity_note",
+                related_to_id="003xx000004TmiQAAS",
+                subject="Called them",
+                activity_kind="phone call",
+                idempotency_key=KEY,
+            )
+
+            assert not result.ok
+            assert result.error is not None
+            assert "Call, Email, Meeting, Other" in result.error.reason

@@ -53,7 +53,12 @@ class UpdateContactInput(BaseModel):
         str | None, Field(default=None, max_length=80, description="Optional. New family name.")
     ] = None
     email: Annotated[
-        EmailStr | None, Field(default=None, description="Optional. New email address.")
+        EmailStr | None,
+        Field(
+            default=None,
+            description="Optional. The new email address.",
+            examples=["ada@example.com"],
+        ),
     ] = None
     phone: Annotated[
         str | None, Field(default=None, max_length=40, description="Optional. New phone number.")

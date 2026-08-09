@@ -91,7 +91,10 @@ SPEC = ActionSpec(
     action_id="salesforce.get_record",
     tool_name="salesforce_get_record",
     title="Read one Salesforce record by id",
-    summary="Read a single Salesforce record when you already have its id.",
+    summary=(
+        "Read one Salesforce record directly by its id, returning either every "
+        "field or only the ones asked for."
+    ),
     when_to_use=(
         "you hold a record id, from a search, from a record you just created, or "
         "from a relationship, and want the record itself."
@@ -126,6 +129,10 @@ SPEC = ActionSpec(
         ),
     ),
     missing_inputs=(
+        MissingInput(
+            field="object_name",
+            prompt="Which Salesforce object is it? For example Contact or Opportunity.",
+        ),
         MissingInput(
             field="record_id",
             prompt=(

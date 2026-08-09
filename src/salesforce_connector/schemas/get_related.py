@@ -152,6 +152,10 @@ SPEC = ActionSpec(
     ),
     missing_inputs=(
         MissingInput(
+            field="object_name",
+            prompt="Which Salesforce object is it? For example Contact or Opportunity.",
+        ),
+        MissingInput(
             field="record_id",
             prompt=(
                 "Which record should I start from? A name or email is enough and I "

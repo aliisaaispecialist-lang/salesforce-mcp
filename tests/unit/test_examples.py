@@ -29,9 +29,11 @@ from salesforce_connector.schemas import (
     get_record,
     get_related,
     link_contact_to_opportunity,
+    list_tools,
     search_contact,
     search_records,
     soql_query,
+    tool_schema,
     update_contact,
     update_record,
     upsert_record,
@@ -57,6 +59,14 @@ MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "salesforce.upsert_record": (
         upsert_record.UpsertRecordInput,
         upsert_record.UpsertRecordOutput,
+    ),
+    "salesforce.list_tools": (
+        list_tools.ListToolsInput,
+        list_tools.ListToolsOutput,
+    ),
+    "salesforce.tool_schema": (
+        tool_schema.ToolSchemaInput,
+        tool_schema.ToolSchemaOutput,
     ),
     "salesforce.describe_object": (
         describe_object.DescribeObjectInput,

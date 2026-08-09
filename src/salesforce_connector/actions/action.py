@@ -28,6 +28,7 @@ from salesforce_connector.errors.model import (
 )
 from salesforce_connector.immutable import freeze
 from salesforce_connector.observability import bind_request, clear_request, get_logger
+from salesforce_connector.schemas import plain_types
 from salesforce_connector.schemas.envelope import ActionSpec
 
 _MILLISECONDS: Final = 1000.0
@@ -93,10 +94,26 @@ class Action(ABC):
             ) from exc
 
     def _explain(self, exc: ValidationError) -> str:
-        faults = "; ".join(
-            f"{_name_of(problem['loc'])}: {problem['msg']}" for problem in exc.errors()
-        )
+        faults = "; ".join(self._fault(problem) for problem in exc.errors())
         return f"{self.spec.tool_name} rejected its arguments. {faults}."
+
+    def _fault(self, problem: Mapping[str, Any]) -> str:
+        """State one bad argument, then say what a right one looks like.
+
+        Pydantic reports `Input should be a valid number`, which names the
+        problem and not the remedy. A model reading that has to infer that
+        digits are wanted, and the one that wrote "one" in the first place is
+        exactly the one that will infer wrong. So the expected type and a
+        correct value are appended, both read from the field's own schema.
+        """
+        name = _name_of(problem["loc"])
+        stated = f"{name}: {problem['msg']}"
+        field = self.spec.input_schema.get("properties", {}).get(name)
+        if not isinstance(field, Mapping):
+            return stated
+        wanted = f"{stated}. Send {plain_types.in_words(field, self.spec.input_schema)}"
+        shown = plain_types.literal_example(field, self.spec.input_schema)
+        return f"{wanted}, for example {shown}" if shown else wanted
 
     def _already_done(self, request: ActionRequest) -> ActionResult | None:
         """Answer from the ledger when this key has already succeeded."""

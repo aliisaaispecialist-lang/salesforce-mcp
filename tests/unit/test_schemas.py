@@ -11,6 +11,7 @@ import re
 import pytest
 from pydantic import ValidationError
 
+from salesforce_connector.actions import registry
 from salesforce_connector.contract import ActionKind
 from salesforce_connector.errors import model
 from salesforce_connector.schemas import (
@@ -22,13 +23,13 @@ from salesforce_connector.schemas import (
 )
 from salesforce_connector.schemas.envelope import ActionSpec
 
-ALL_SPECS: tuple[ActionSpec, ...] = (
-    search_contact.SPEC,
-    create_contact.SPEC,
-    update_contact.SPEC,
-    create_opportunity.SPEC,
-    add_activity_note.SPEC,
-)
+ALL_SPECS: tuple[ActionSpec, ...] = tuple(action.spec for action in registry.BY_ID.values())
+"""Every spec, derived rather than listed.
+
+It used to be a hand-written tuple of the original five, which meant every
+rule in this file was checked against five tools out of seventeen and passed
+by not looking. Two specs documenting an error code nothing raises sat in the
+repository under a test written to catch exactly that."""
 
 WRITES = tuple(spec for spec in ALL_SPECS if spec.kind is ActionKind.WRITE)
 
@@ -46,8 +47,9 @@ RAISEABLE = _raiseable_codes()
 
 
 class TestNamesCannotBeConfused:
-    def test_the_five_assigned_action_ids_are_exactly_these(self) -> None:
-        assert {spec.action_id for spec in ALL_SPECS} == {
+    def test_the_five_assigned_actions_are_all_still_published(self) -> None:
+        """The competition named five. Everything since is in addition to them."""
+        assert {spec.action_id for spec in ALL_SPECS} >= {
             "salesforce.search_contact",
             "salesforce.create_contact",
             "salesforce.update_contact",

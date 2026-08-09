@@ -59,10 +59,11 @@ class CreateOpportunityInput(BaseModel):
         date,
         Field(
             description=(
-                "Required. Expected close date, as YYYY-MM-DD. Salesforce accepts a "
-                "date in the past, so use the date the user actually meant rather "
-                "than today's."
-            )
+                "Required. Expected close date, written as YYYY-MM-DD. Salesforce "
+                "accepts a date in the past, so use the date the user actually "
+                "meant rather than today's."
+            ),
+            examples=["2026-12-01"],
         ),
     ]
     idempotency_key: Annotated[str, Field(min_length=8, description=IDEMPOTENCY_KEY_DESCRIPTION)]
@@ -76,7 +77,15 @@ class CreateOpportunityInput(BaseModel):
     ] = None
     amount: Annotated[
         float | None,
-        Field(default=None, ge=0, description="Optional. Value of the deal in the org's currency."),
+        Field(
+            default=None,
+            ge=0,
+            description=(
+                "Optional. Value of the deal in the org's currency, written in "
+                "digits rather than words."
+            ),
+            examples=[45000],
+        ),
     ] = None
     description: Annotated[
         str | None, Field(default=None, max_length=32000, description="Optional. Free-text notes.")

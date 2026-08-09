@@ -86,7 +86,10 @@ class SearchRecordsInput(BaseModel):
             default=20,
             ge=1,
             le=MAX_RESULTS,
-            description="Optional, defaults to 20. How many records to return at most.",
+            description=(
+                "Optional, defaults to 20. How many records to return at most, written in digits."
+            ),
+            examples=[20],
         ),
     ] = 20
     cursor: Annotated[

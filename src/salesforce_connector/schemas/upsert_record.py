@@ -114,6 +114,7 @@ class UpsertRecordInput(BaseModel):
         Field(
             default=False,
             description=(
+                "Optional, defaults to false, but the call is refused without it. "
                 "Confirmation that the user asked for this. This can overwrite an "
                 "existing record and there is no undo."
             ),
@@ -197,6 +198,14 @@ SPEC = ActionSpec(
     ),
     missing_inputs=(
         MissingInput(
+            field="object_name",
+            prompt="Which Salesforce object is it? For example Contact or Opportunity.",
+        ),
+        MissingInput(
+            field="fields",
+            prompt="Which fields should I set, and to what?",
+        ),
+        MissingInput(
             field="external_id_value",
             prompt=(
                 "What is the record's id in the other system? I need the real "
@@ -247,8 +256,9 @@ SPEC = ActionSpec(
             code="salesforce.transport_failed",
             when="Salesforce did not answer in time.",
             remedy=(
-                "Repeat the same call. The external id makes this safe: whether or "
-                "not the first attempt landed, the second one writes the same record."
+                "Repeat with the identical idempotency key. The external id makes "
+                "this safe: whether or not the first attempt landed, the second "
+                "one writes the same record."
             ),
         ),
         ErrorGuidance(

@@ -123,8 +123,11 @@ paths:
                     type: string
                   - type: 'null'
                   default: null
-                  description: Optional. When it happened, as YYYY-MM-DD. Defaults to today.
-                    Use the date the user described, not today's, when logging something past.
+                  description: Optional. When it happened, written as YYYY-MM-DD. Defaults
+                    to today. Use the date the user described, not today's, when logging something
+                    past.
+                  examples:
+                  - '2026-08-09'
                   title: Activity Date
               required:
               - related_to_id
@@ -505,7 +508,9 @@ paths:
                     type: string
                   - type: 'null'
                   default: null
-                  description: Optional. Rejected before sending if malformed.
+                  description: Optional. An email address, rejected before sending if malformed.
+                  examples:
+                  - ada@example.com
                   title: Email
                 phone:
                   anyOf:
@@ -694,9 +699,11 @@ paths:
                   title: Stage Name
                   type: string
                 close_date:
-                  description: Required. Expected close date, as YYYY-MM-DD. Salesforce accepts
-                    a date in the past, so use the date the user actually meant rather than
-                    today's.
+                  description: Required. Expected close date, written as YYYY-MM-DD. Salesforce
+                    accepts a date in the past, so use the date the user actually meant rather
+                    than today's.
+                  examples:
+                  - '2026-12-01'
                   format: date
                   title: Close Date
                   type: string
@@ -732,7 +739,10 @@ paths:
                     type: number
                   - type: 'null'
                   default: null
-                  description: Optional. Value of the deal in the org's currency.
+                  description: Optional. Value of the deal in the org's currency, written
+                    in digits rather than words.
+                  examples:
+                  - 45000
                   title: Amount
                 description:
                   anyOf:
@@ -869,7 +879,7 @@ paths:
         \ the two was refused and that an administrator must grant create access.\n- salesforce.rate_limited:\
         \ The org has spent its API allowance for now. Wait the stated number of seconds,\
         \ then repeat with the same idempotency key.\n- salesforce.transport_failed: Salesforce\
-        \ did not answer in time. Repeat with the same idempotency key. Either both records\
+        \ did not answer in time. Repeat with the identical idempotency key. Either both records\
         \ exist or neither does, so there is no partial state to inspect first.\n- connector.escalate_to_human:\
         \ The write failed three times in a row and will not succeed by retrying. Stop calling\
         \ this tool. Tell the user it must be done by hand and how."
@@ -902,9 +912,11 @@ paths:
                   title: Stage Name
                   type: string
                 close_date:
-                  description: Required. Expected close date, as YYYY-MM-DD. Ask the user
-                    rather than inventing one; a date invented here becomes a forecast somebody
-                    relies on.
+                  description: Required. Expected close date, written as YYYY-MM-DD. Ask the
+                    user rather than inventing one; a date invented here becomes a forecast
+                    somebody relies on.
+                  examples:
+                  - '2026-12-01'
                   format: date
                   title: Close Date
                   type: string
@@ -922,7 +934,10 @@ paths:
                     type: number
                   - type: 'null'
                   default: null
-                  description: Optional. Value of the deal, in the org's currency.
+                  description: Optional. Value of the deal, in the org's currency, written
+                    in digits rather than words.
+                  examples:
+                  - 45000
                   title: Amount
                 account_id:
                   anyOf:
@@ -953,7 +968,8 @@ paths:
                   type: string
                 approved:
                   default: false
-                  description: Confirmation that the user asked for this deal to be created.
+                  description: Optional, defaults to false, but the call is refused without
+                    it. Confirmation that the user asked for this deal to be created.
                   title: Approved
                   type: boolean
               required:
@@ -1255,23 +1271,23 @@ paths:
     post:
       operationId: salesforce_get_record
       summary: Read one Salesforce record by id
-      description: "Read a single Salesforce record when you already have its id.\n\nUse this\
-        \ when: you hold a record id, from a search, from a record you just created, or from\
-        \ a relationship, and want the record itself.\nDo not use this when: you do not have\
-        \ the id, in which case search for it by name or query for it by condition; or you\
-        \ want several records at once, which is salesforce_soql_query. This reads exactly\
-        \ one.\n\nExample -- Read the fields you care about\n  call: {\"fields\": [\"Name\"\
-        , \"Email\", \"Title\"], \"object_name\": \"Contact\", \"record_id\": \"003xx000004TmiQAAS\"\
-        }\n  returns: {\"record\": {\"Email\": \"ada@example.com\", \"Id\": \"003xx000004TmiQAAS\"\
-        , \"Name\": \"Ada Lovelace\", \"Title\": \"Chief Analyst\"}}\n\nFailures and what\
-        \ to do:\n- salesforce.record_not_found: No record has that id, or it has been deleted.\
-        \ Do not retry with the same id. Search for the record by name or email, and tell\
-        \ the user if it no longer exists.\n- connector.invalid_input: The id is malformed,\
-        \ or a named field does not exist. Salesforce names the field it did not recognise.\
-        \ Call salesforce_describe_object to see the real field names, then call again.\n\
-        - salesforce.permission_denied: This user may not read that object, or one of the\
-        \ fields named. Do not retry. Try again naming fewer fields if only one was refused,\
-        \ and report that an administrator must grant access.\n- salesforce.rate_limited:\
+      description: "Read one Salesforce record directly by its id, returning either every\
+        \ field or only the ones asked for.\n\nUse this when: you hold a record id, from a\
+        \ search, from a record you just created, or from a relationship, and want the record\
+        \ itself.\nDo not use this when: you do not have the id, in which case search for\
+        \ it by name or query for it by condition; or you want several records at once, which\
+        \ is salesforce_soql_query. This reads exactly one.\n\nExample -- Read the fields\
+        \ you care about\n  call: {\"fields\": [\"Name\", \"Email\", \"Title\"], \"object_name\"\
+        : \"Contact\", \"record_id\": \"003xx000004TmiQAAS\"}\n  returns: {\"record\": {\"\
+        Email\": \"ada@example.com\", \"Id\": \"003xx000004TmiQAAS\", \"Name\": \"Ada Lovelace\"\
+        , \"Title\": \"Chief Analyst\"}}\n\nFailures and what to do:\n- salesforce.record_not_found:\
+        \ No record has that id, or it has been deleted. Do not retry with the same id. Search\
+        \ for the record by name or email, and tell the user if it no longer exists.\n- connector.invalid_input:\
+        \ The id is malformed, or a named field does not exist. Salesforce names the field\
+        \ it did not recognise. Call salesforce_describe_object to see the real field names,\
+        \ then call again.\n- salesforce.permission_denied: This user may not read that object,\
+        \ or one of the fields named. Do not retry. Try again naming fewer fields if only\
+        \ one was refused, and report that an administrator must grant access.\n- salesforce.rate_limited:\
         \ The org has spent its API allowance for now. Wait the stated number of seconds,\
         \ then repeat the same call.\n- salesforce.transport_failed: Salesforce did not answer\
         \ in time. Wait briefly and repeat. Reading again is always safe."
@@ -1722,6 +1738,179 @@ paths:
                       opportunity_id: 006xx000004TmiQAAS
                       contact_id: 003xx000004TmiQAAS
                       linked: true
+  /actions/salesforce.list_tools:
+    post:
+      operationId: salesforce_list_tools
+      summary: List the Salesforce tools for reading or for writing
+      description: "Name the tools that read Salesforce, or the tools that change it, each\
+        \ with what it is for and what it needs.\n\nUse this when: you are about to do something\
+        \ in Salesforce and want the shortlist for that half rather than weighing every tool:\
+        \ ask for 'read' to answer a question, 'write' to make something happen. Cheap, changes\
+        \ nothing, and safe to call first whenever the right tool is not obvious.\nDo not\
+        \ use this when: you already know which tool you want, in which case call salesforce_tool_schema\
+        \ for its fields or simply call the tool; or you want the fields and types of one\
+        \ tool, which is salesforce_tool_schema. This lists tools and never touches Salesforce\
+        \ data.\n\nExample -- Which tools change Salesforce\n  call: {\"kind\": \"write\"\
+        }\n  returns: {\"kind\": \"write\", \"next_action\": \"Call salesforce_tool_schema\
+        \ with the tool_name you chose to see its fields and the exact type each one expects.\"\
+        , \"returned\": 1, \"tools\": [{\"changes_data\": true, \"name\": \"salesforce_create_contact\"\
+        , \"needs_approval\": true, \"purpose\": \"Create a new contact and return its record\
+        \ id.\", \"required_inputs\": [\"last_name\", \"idempotency_key\"], \"use_when\":\
+        \ \"the user wants somebody added to Salesforce.\"}]}\n\nFailures and what to do:\n\
+        - connector.invalid_input: kind was not one of read, write, or all. Send exactly one\
+        \ of those three words in lower case."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which half of the connector to list.
+              properties:
+                kind:
+                  description: 'Required. Exactly one of: read, write, all.
+
+
+                    Send ''read'' when the user is asking a question and nothing should change:
+                    finding, listing, counting, describing. Send ''write'' when the user is
+                    asking for something to happen: creating, updating, linking, logging.
+                    Send ''all'' only when you genuinely cannot tell which of the two it is.'
+                  examples:
+                  - read
+                  - write
+                  pattern: ^(read|write|all)$
+                  title: Kind
+                  type: string
+              required:
+              - kind
+              title: ListToolsInput
+              type: object
+            examples:
+              Which tools change Salesforce:
+                summary: Which tools change Salesforce
+                value:
+                  kind: write
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    $defs:
+                      ToolSummary:
+                        additionalProperties: false
+                        description: One tool, in a line.
+                        properties:
+                          name:
+                            description: The tool name to call, exactly as written.
+                            title: Name
+                            type: string
+                          purpose:
+                            description: What it does, in one sentence.
+                            title: Purpose
+                            type: string
+                          use_when:
+                            description: The situation it is the right choice for.
+                            title: Use When
+                            type: string
+                          required_inputs:
+                            description: The fields that must be supplied. Types come from
+                              tool_schema.
+                            items:
+                              type: string
+                            title: Required Inputs
+                            type: array
+                          changes_data:
+                            description: True when calling it alters Salesforce.
+                            title: Changes Data
+                            type: boolean
+                          needs_approval:
+                            description: True when the user must confirm before it will run.
+                            title: Needs Approval
+                            type: boolean
+                        required:
+                        - name
+                        - purpose
+                        - use_when
+                        - required_inputs
+                        - changes_data
+                        - needs_approval
+                        title: ToolSummary
+                        type: object
+                    additionalProperties: false
+                    description: The shortlist, and what to do with it.
+                    properties:
+                      kind:
+                        description: Which half was listed.
+                        title: Kind
+                        type: string
+                      tools:
+                        description: Every matching tool, in a stable order.
+                        items:
+                          $ref: '#/$defs/ToolSummary'
+                        title: Tools
+                        type: array
+                      returned:
+                        description: How many tools are listed here.
+                        title: Returned
+                        type: integer
+                      next_action:
+                        description: What to do next. Always present, because a shortlist
+                          is never the answer to anything on its own.
+                        title: Next Action
+                        type: string
+                    required:
+                    - kind
+                    - tools
+                    - returned
+                    - next_action
+                    title: ListToolsOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Which tools change Salesforce:
+                  summary: Which tools change Salesforce
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      kind: write
+                      tools:
+                      - name: salesforce_create_contact
+                        purpose: Create a new contact and return its record id.
+                        use_when: the user wants somebody added to Salesforce.
+                        required_inputs:
+                        - last_name
+                        - idempotency_key
+                        changes_data: true
+                        needs_approval: true
+                      returned: 1
+                      next_action: Call salesforce_tool_schema with the tool_name you chose
+                        to see its fields and the exact type each one expects.
   /actions/salesforce.search_contact:
     post:
       operationId: salesforce_search_contact
@@ -1773,7 +1962,9 @@ paths:
                   default: 20
                   description: Optional. How many contacts to return, 1 to 200. Defaults to
                     20. Ask for more only when you intend to read them all; large results
-                    cost context and rarely help.
+                    cost context and rarely help. Written in digits.
+                  examples:
+                  - 20
                   maximum: 200
                   minimum: 1
                   title: Limit
@@ -2017,7 +2208,10 @@ paths:
                   type: array
                 limit:
                   default: 20
-                  description: Optional, defaults to 20. How many records to return at most.
+                  description: Optional, defaults to 20. How many records to return at most,
+                    written in digits.
+                  examples:
+                  - 20
                   maximum: 200
                   minimum: 1
                   title: Limit
@@ -2297,6 +2491,214 @@ paths:
                       returned: 2
                       total_size: 7
                       next_cursor: /services/data/v67.0/query/01gxx000000abcd
+  /actions/salesforce.tool_schema:
+    post:
+      operationId: salesforce_tool_schema
+      summary: Explain one Salesforce tool's fields and types
+      description: "Report one tool's input fields, the exact type each expects, a correct\
+        \ example value, and a complete worked call.\n\nUse this when: you have chosen a tool\
+        \ and are about to call it, especially one taking a number, a date, or a value from\
+        \ a fixed set. Also after a call was rejected for a bad argument, to see what the\
+        \ field actually wanted.\nDo not use this when: you do not know which tool you want\
+        \ yet, which is salesforce_list_tools; or you want Salesforce's own field names for\
+        \ an object, which is salesforce_describe_object. This explains this connector's tools,\
+        \ not Salesforce's data.\n\nExample -- Check what a field expects before sending it\n\
+        \  call: {\"tool_name\": \"salesforce_create_opportunity\"}\n  returns: {\"changes_data\"\
+        : true, \"do_not_use_when\": \"the deal already exists and needs changing.\", \"errors\"\
+        : [{\"code\": \"connector.invalid_input\", \"remedy\": \"Send the type named above\
+        \ and call again.\", \"when\": \"A field was the wrong type.\"}], \"example_call\"\
+        : {\"name\": \"Example Corp - renewal\", \"stage_name\": \"Qualify\"}, \"fields\"\
+        : [{\"description\": \"Optional. Value of the deal in the org's currency.\", \"example\"\
+        : \"45000\", \"name\": \"amount\", \"required\": false, \"type\": \"a number, written\
+        \ in digits\"}], \"needs_approval\": true, \"purpose\": \"Create a sales opportunity\
+        \ and return its record id.\", \"tool_name\": \"salesforce_create_opportunity\", \"\
+        use_when\": \"the user wants to record a new deal.\"}\n\nFailures and what to do:\n\
+        - connector.invalid_input: No tool has that name. The message lists every valid name.\
+        \ Use one of those exactly, including the salesforce_ prefix."
+      tags:
+      - read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              additionalProperties: false
+              description: Which tool to explain.
+              properties:
+                tool_name:
+                  description: Required. The tool to explain, named exactly as it is published,
+                    including the salesforce_ prefix. Call salesforce_list_tools first if
+                    you are not sure of the name; a wrong name is answered with the list of
+                    right ones.
+                  examples:
+                  - salesforce_create_opportunity
+                  maxLength: 120
+                  minLength: 1
+                  title: Tool Name
+                  type: string
+              required:
+              - tool_name
+              title: ToolSchemaInput
+              type: object
+            examples:
+              Check what a field expects before sending it:
+                summary: Check what a field expects before sending it
+                value:
+                  tool_name: salesforce_create_opportunity
+      responses:
+        '200':
+          description: The action ran. Read `ok` to learn whether it succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  request_id:
+                    type: string
+                    description: Correlates this call in the logs.
+                  data:
+                    $defs:
+                      FieldGuide:
+                        additionalProperties: false
+                        description: One input field, and everything needed to fill it in
+                          correctly.
+                        properties:
+                          name:
+                            description: The argument name, spelled exactly.
+                            title: Name
+                            type: string
+                          type:
+                            description: 'What to send, in words: text, a number written in
+                              digits, a date as YYYY-MM-DD, exactly one of a listed set. Follow
+                              this literally. A number means digits, so 45000 and never the
+                              word.'
+                            title: Type
+                            type: string
+                          required:
+                            description: True when the call fails if this is left out.
+                            title: Required
+                            type: boolean
+                          example:
+                            anyOf:
+                            - type: string
+                            - type: 'null'
+                            default: null
+                            description: One correct value, written exactly as it should be
+                              sent.
+                            title: Example
+                          description:
+                            description: What the field means and how it is used.
+                            title: Description
+                            type: string
+                        required:
+                        - name
+                        - type
+                        - required
+                        - description
+                        title: FieldGuide
+                        type: object
+                    additionalProperties: false
+                    description: Everything needed to call one tool correctly the first time.
+                    properties:
+                      tool_name:
+                        description: The tool explained.
+                        title: Tool Name
+                        type: string
+                      purpose:
+                        description: What it does.
+                        title: Purpose
+                        type: string
+                      use_when:
+                        description: When it is the right tool.
+                        title: Use When
+                        type: string
+                      do_not_use_when:
+                        description: When it is the wrong tool, and which one is right instead.
+                        title: Do Not Use When
+                        type: string
+                      changes_data:
+                        description: True when calling it alters Salesforce.
+                        title: Changes Data
+                        type: boolean
+                      needs_approval:
+                        description: True when the call is refused unless approved is true
+                          and the user has confirmed it.
+                        title: Needs Approval
+                        type: boolean
+                      fields:
+                        description: Every input field, required ones first.
+                        items:
+                          $ref: '#/$defs/FieldGuide'
+                        title: Fields
+                        type: array
+                      example_call:
+                        additionalProperties: true
+                        description: A complete, valid set of arguments. Copy its shape.
+                        title: Example Call
+                        type: object
+                      errors:
+                        description: What can fail, and what to do about each.
+                        items:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        title: Errors
+                        type: array
+                    required:
+                    - tool_name
+                    - purpose
+                    - use_when
+                    - do_not_use_when
+                    - changes_data
+                    - needs_approval
+                    - fields
+                    - example_call
+                    - errors
+                    title: ToolSchemaOutput
+                    type: object
+                  error:
+                    oneOf:
+                    - *id001
+                    - type: 'null'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+                  rate_limit:
+                    $ref: '#/components/schemas/RateLimit'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required:
+                - ok
+                - request_id
+              examples:
+                Check what a field expects before sending it:
+                  summary: Check what a field expects before sending it
+                  value:
+                    ok: true
+                    request_id: req-01HZY6
+                    data:
+                      tool_name: salesforce_create_opportunity
+                      purpose: Create a sales opportunity and return its record id.
+                      use_when: the user wants to record a new deal.
+                      do_not_use_when: the deal already exists and needs changing.
+                      changes_data: true
+                      needs_approval: true
+                      fields:
+                      - name: amount
+                        type: a number, written in digits
+                        required: false
+                        example: '45000'
+                        description: Optional. Value of the deal in the org's currency.
+                      example_call:
+                        name: Example Corp - renewal
+                        stage_name: Qualify
+                      errors:
+                      - code: connector.invalid_input
+                        when: A field was the wrong type.
+                        remedy: Send the type named above and call again.
   /actions/salesforce.update_contact:
     post:
       operationId: salesforce_update_contact
@@ -2386,7 +2788,9 @@ paths:
                     type: string
                   - type: 'null'
                   default: null
-                  description: Optional. New email address.
+                  description: Optional. The new email address.
+                  examples:
+                  - ada@example.com
                   title: Email
                 phone:
                   anyOf:
@@ -2536,10 +2940,11 @@ paths:
         \ and that an administrator must grant edit access.\n- salesforce.rate_limited: The\
         \ org has spent its API allowance for now. Wait the stated number of seconds, then\
         \ repeat with the same idempotency key.\n- salesforce.transport_failed: Salesforce\
-        \ did not answer in time. Repeat with the same idempotency key. The change may already\
-        \ have been applied, and the key is what stops it being applied twice.\n- connector.escalate_to_human:\
-        \ The update failed three times in a row and will not succeed by retrying. Stop calling\
-        \ this tool. Tell the user it must be done by hand and how."
+        \ did not answer in time. Repeat with the identical idempotency key. The change may\
+        \ already have been applied, and the key is what stops it being applied twice.\n-\
+        \ connector.escalate_to_human: The update failed three times in a row and will not\
+        \ succeed by retrying. Stop calling this tool. Tell the user it must be done by hand\
+        \ and how."
       tags:
       - write
       requestBody:
@@ -2597,8 +3002,9 @@ paths:
                   type: string
                 approved:
                   default: false
-                  description: Confirmation that the user asked for this change. This writes
-                    to a record that already exists and there is no undo.
+                  description: Optional, defaults to false, but the call is refused without
+                    it. Confirmation that the user asked for this change. This writes to a
+                    record that already exists and there is no undo.
                   title: Approved
                   type: boolean
               required:
@@ -2725,9 +3131,9 @@ paths:
         \ writable. Report which was refused.\n- salesforce.rate_limited: The org has spent\
         \ its API allowance for now. Wait the stated number of seconds, then repeat the same\
         \ call.\n- salesforce.transport_failed: Salesforce did not answer in time. Repeat\
-        \ the same call. The external id makes this safe: whether or not the first attempt\
-        \ landed, the second one writes the same record.\n- connector.escalate_to_human: The\
-        \ write failed three times in a row and will not succeed by retrying. Stop calling\
+        \ with the identical idempotency key. The external id makes this safe: whether or\
+        \ not the first attempt landed, the second one writes the same record.\n- connector.escalate_to_human:\
+        \ The write failed three times in a row and will not succeed by retrying. Stop calling\
         \ this tool. Tell the user it must be done by hand and how."
       tags:
       - write
@@ -2798,8 +3204,9 @@ paths:
                   type: string
                 approved:
                   default: false
-                  description: Confirmation that the user asked for this. This can overwrite
-                    an existing record and there is no undo.
+                  description: Optional, defaults to false, but the call is refused without
+                    it. Confirmation that the user asked for this. This can overwrite an existing
+                    record and there is no undo.
                   title: Approved
                   type: boolean
               required:

@@ -28,6 +28,8 @@ actions:
   - salesforce.describe_object
   - salesforce.get_record
   - salesforce.get_related
+  - salesforce.list_tools
+  - salesforce.tool_schema
   - salesforce.search_records
   - salesforce.update_record
   - salesforce.upsert_record

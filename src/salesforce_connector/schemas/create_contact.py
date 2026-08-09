@@ -44,7 +44,11 @@ class CreateContactInput(BaseModel):
     ] = None
     email: Annotated[
         EmailStr | None,
-        Field(default=None, description="Optional. Rejected before sending if malformed."),
+        Field(
+            default=None,
+            description="Optional. An email address, rejected before sending if malformed.",
+            examples=["ada@example.com"],
+        ),
     ] = None
     phone: Annotated[
         str | None,
