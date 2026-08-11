@@ -1,58 +1,34 @@
-"""How much of the connector a client is shown when it connects.
+"""What a client is shown, and what it is refused.
 
 Every tool is published at connection time, with its description and both
-schemas. That is roughly twenty-one thousand tokens of reading spent before
-the user has said anything, because the client fetches the list when it starts
-and the protocol gives a server no way to ask what the user wants first.
+schemas. That is roughly twenty thousand tokens of reading spent before the
+user has said anything, because a client fetches the list when it starts and
+the protocol gives a server no way to ask what the user wants first.
 
-So there are two surfaces, and the org picks one.
+This connector used to answer that with a router of its own: a surface that
+published two doors and let a model ask which tools existed before reading any
+of them. That is gone. Routing is Executor's job now, and it does it better:
+it indexes this catalogue once, shares it with every agent on the machine, and
+hands a model a search instead of a list. Two routers in a row would have meant
+generated code opening a door for no reason, and a catalogue holding four
+entries instead of seventeen, which is exactly what its search needs to see.
 
-`full` publishes all seventeen. Every client validates each call against that
-tool's own schema, and a host that gates on the destructive hint sees which
-tools change data. This is the default because it is what the connector
-declares it offers.
-
-`router` publishes four: the two that describe the others, and two doors, one
-for reading and one for writing. A model asks which tools exist, reads the one
-it wants, and calls it through the matching door. About two thousand tokens
-instead of twenty-one.
-
-Two doors rather than one, deliberately. A single door would have to be
-declared either read-only or destructive, and either declaration would be false
-half the time -- so a host that refuses destructive tools would either block
-every read or permit every write. With one door per kind, the hint is true, and
-`resolved` enforces it: the read door refuses a write, whatever it is asked
-for.
-
-What does not change in either surface: the argument still meets the tool's own
-model, the same approval is still required before a write runs, and the same
-error still comes back. The door decides what is visible, never what is
-allowed.
+So this module publishes everything and spends its attention on the other half
+of the problem, which the gateway cannot solve for us: refusing a call that
+names something this connector cannot do, in terms a model can act on.
 """
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from difflib import get_close_matches
 from typing import Any, Final
 
-from mcp.types import Tool, ToolAnnotations
+from mcp.types import Tool
 
 from salesforce_connector.contract import ActionDescriptor, ActionKind
-from salesforce_connector.protocol.translate import as_tool
+from salesforce_connector.protocol.translate import UNKNOWN_TOOL, as_tool
 
-FULL: Final = "full"
-ROUTER: Final = "router"
-
-READ_DOOR: Final = "salesforce_read"
-WRITE_DOOR: Final = "salesforce_write"
-# The two that answer "which tools are there" and "what does this one take".
-# Published in both surfaces, because in `router` they are the only way in and
-# in `full` they are still the cheapest way to choose.
-GUIDES: Final = ("salesforce_list_tools", "salesforce_tool_schema")
-
-_DOORS: Final[Mapping[str, ActionKind]] = {
-    READ_DOOR: ActionKind.READ,
-    WRITE_DOOR: ActionKind.WRITE,
-}
+TOOL_SCHEMA_GUIDE: Final = "salesforce_tool_schema"
 
 
 @dataclass(frozen=True)
@@ -62,135 +38,121 @@ class Resolution:
     described: ActionDescriptor | None = None
     arguments: Mapping[str, Any] = ()  # type: ignore[assignment]
     refusal: str | None = None
+    code: str | None = None
 
 
-def published(described: tuple[ActionDescriptor, ...], surface: str) -> list[Tool]:
-    """Return the tools a client is shown for this surface."""
-    if surface != ROUTER:
-        return [as_tool(action) for action in described]
-    guides = [as_tool(action) for action in described if action.tool_name in GUIDES]
-    return [*guides, _door(READ_DOOR), _door(WRITE_DOOR)]
+def published(described: tuple[ActionDescriptor, ...]) -> list[Tool]:
+    """Return every tool, identically on every connection."""
+    return [_closed(as_tool(action), described) for action in described]
 
 
 def resolved(
     name: str, arguments: Mapping[str, Any], described: tuple[ActionDescriptor, ...]
 ) -> Resolution:
-    """Work out which action a call names, opening a door if it went through one.
+    """Work out which action a call names, or why none of them will do."""
+    found = _named(name, described)
+    if found is None:
+        return Resolution(refusal=unavailable(name, described), code=UNKNOWN_TOOL)
+    return Resolution(described=found, arguments=arguments)
 
-    A door carries the real tool name in its arguments, so everything after
-    this point -- validation, approval, execution, the error -- is the same
-    code that runs when the tool was called directly.
+
+def unavailable(asked: str, described: tuple[ActionDescriptor, ...]) -> str:
+    """Say that a named tool does not exist, and what does.
+
+    Written for the case that actually happens: a user asks for something this
+    connector cannot do, and the model reaches for a name that sounds like it
+    should exist. Three things have to be in the answer.
+
+    The set, so the model can see the boundary rather than guess at it again.
+    A near miss when there is one, because a plural or a missing prefix is the
+    common case and naming it saves a round trip. And a plain instruction not
+    to approximate: without it, a model refused salesforce_delete_contact will
+    reach for salesforce_update_record and blank the fields instead, which is
+    a worse outcome than the refusal it was given.
     """
-    wanted = _DOORS.get(name)
-    if wanted is None:
-        return Resolution(described=_named(name, described), arguments=arguments)
-
-    asked = arguments.get("tool_name")
-    if not isinstance(asked, str) or not asked:
-        return Resolution(
-            refusal=(
-                f"{name} needs tool_name: the tool you want to run. Call "
-                f"salesforce_list_tools to see which exist."
-            )
-        )
-    inner = _named(asked, described)
-    if inner is None:
-        return Resolution(refusal=f"{asked!r} is not a tool this server offers.")
-    if inner.kind is not wanted:
-        # The hint on each door has to stay true, or a host that refuses
-        # destructive tools would be refusing the wrong thing.
-        other = WRITE_DOOR if wanted is ActionKind.READ else READ_DOOR
-        return Resolution(
-            refusal=(
-                f"{asked} is a {inner.kind.value} tool and {name} only runs "
-                f"{wanted.value} tools. Call it through {other} instead."
-            )
-        )
-    return Resolution(described=inner, arguments=_inner_arguments(arguments))
+    near = _near_miss(asked, _names(described))
+    suggestion = f" Did you mean {near}?" if near else ""
+    return (
+        f"{asked} is not something this connector can do."
+        f"{suggestion}\n\n"
+        f"{_available(described)}\n\n"
+        f"Do not substitute a different tool to approximate what was asked. If "
+        f"nothing above does it, tell the user this connector cannot do it and "
+        f"stop there."
+    )
 
 
-def _inner_arguments(arguments: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Take the arguments meant for the tool, not for the door."""
-    given = arguments.get("arguments")
-    return given if isinstance(given, Mapping) else {}
+def _closed(tool: Tool, described: tuple[ActionDescriptor, ...]) -> Tool:
+    """Replace a free-text tool name with the closed set of real ones.
+
+    `salesforce_tool_schema` takes the name of another tool. Declared as a
+    string, that field invites a model to write whatever it believes exists,
+    and a plausible invention -- salesforce_delete_contact, say -- looks
+    exactly like a real name until the call is made. Declared as an enum, the
+    set is visible at the moment of choosing and a client that validates
+    against the schema refuses the invention before it is sent.
+
+    The enum cannot live in the schema module: it would have to read the
+    registry that is built from that module. Here the full set is already in
+    hand, which is why the closing happens at publication.
+    """
+    if tool.name != TOOL_SCHEMA_GUIDE:
+        return tool
+    return tool.model_copy(
+        update={"input_schema": _with_enum(tool.input_schema, "tool_name", _names(described))}
+    )
+
+
+def _with_enum(schema: Mapping[str, Any], field: str, allowed: list[str]) -> dict[str, Any]:
+    """Return the schema with one property narrowed to a fixed set of values."""
+    closed = dict(schema)
+    properties = dict(closed.get("properties", {}))
+    described = properties.get(field)
+    if not isinstance(described, Mapping):
+        return closed
+    properties[field] = {**described, "enum": allowed}
+    closed["properties"] = properties
+    return closed
+
+
+def _names(described: tuple[ActionDescriptor, ...], kind: ActionKind | None = None) -> list[str]:
+    """Every tool name, or every name of one kind, in the order published."""
+    return [one.tool_name for one in described if kind is None or one.kind is kind]
+
+
+def _near_miss(asked: str, allowed: list[str]) -> str | None:
+    """Suggest a real name only when the mistake was spelling, not intent.
+
+    Text similarity alone is not safe here. `salesforce_delete_contact` is one
+    word away from `salesforce_update_contact`, so a plain closest match
+    answers a request to delete a record by proposing the tool that overwrites
+    one. That is precisely the substitution the refusal goes on to forbid, and
+    offering it in the same breath would be worse than saying nothing.
+
+    So a suggestion has to agree about the verb. A plural or a typo keeps it
+    and is corrected; a different action does not and gets only the list.
+    """
+    close = get_close_matches(asked, allowed, n=1, cutoff=0.7)
+    if close and _verb(asked) == _verb(close[0]):
+        return close[0]
+    return None
+
+
+def _verb(tool_name: str) -> str:
+    """The action word in a tool name: create, update, search, and so on."""
+    return tool_name.removeprefix("salesforce_").split("_")[0]
+
+
+def _available(described: tuple[ActionDescriptor, ...]) -> str:
+    """List what does exist, split by kind."""
+    reads = _names(described, ActionKind.READ)
+    writes = _names(described, ActionKind.WRITE)
+    return (
+        f"This connector does exactly {len(described)} things and nothing else.\n"
+        f"Reads: {', '.join(reads)}.\n"
+        f"Writes: {', '.join(writes)}."
+    )
 
 
 def _named(tool_name: str, described: tuple[ActionDescriptor, ...]) -> ActionDescriptor | None:
     return next((one for one in described if one.tool_name == tool_name), None)
-
-
-def _door(name: str) -> Tool:
-    """Describe one door, in the terms a model needs to use it."""
-    kind = _DOORS[name]
-    reads = kind is ActionKind.READ
-    doing = "reads from Salesforce" if reads else "changes Salesforce"
-    return Tool(
-        name=name,
-        title=f"Run a Salesforce tool that {doing}",
-        description=_door_description(kind),
-        input_schema=_door_schema(kind),
-        annotations=ToolAnnotations(
-            title=f"Run a Salesforce tool that {doing}",
-            read_only_hint=reads,
-            destructive_hint=not reads,
-            # A door is only as idempotent as whatever it was asked to run.
-            idempotent_hint=False,
-            open_world_hint=True,
-        ),
-    )
-
-
-def _door_description(kind: ActionKind) -> str:
-    reads = kind is ActionKind.READ
-    other = WRITE_DOOR if reads else READ_DOOR
-    return "\n".join(
-        (
-            f"Run one of the Salesforce tools that {'read' if reads else 'write'}.",
-            "",
-            "Three steps, in order:",
-            f"1. salesforce_list_tools with kind={kind.value} to see what exists.",
-            "2. salesforce_tool_schema with the one you chose, to see its fields "
-            "and the exact type each expects.",
-            "3. this tool, with that name and those arguments.",
-            "",
-            f"Use this when: the work {'only reads' if reads else 'changes something'}.",
-            f"Do not use this when: the tool you want is a "
-            f"{'write' if reads else 'read'}, which is {other}; or you do not "
-            f"know the tool name yet, which is salesforce_list_tools.",
-            "",
-            "Failures and what to do:",
-            "- connector.invalid_input: the tool name is wrong, or its arguments "
-            "are. The message names what was wrong and what to send instead; "
-            "salesforce_tool_schema shows the types.",
-            "- connector.approval_required: a write needs the user to confirm it. "
-            "Ask, then send approved true inside arguments with the same "
-            "idempotency_key.",
-        )
-    )
-
-
-def _door_schema(kind: ActionKind) -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            "tool_name": {
-                "type": "string",
-                "description": (
-                    f"Required. The tool to run, named exactly as "
-                    f"salesforce_list_tools reported it, including the "
-                    f"salesforce_ prefix. It must be a {kind.value} tool."
-                ),
-            },
-            "arguments": {
-                "type": "object",
-                "description": (
-                    "Required. The arguments for that tool, exactly as its own "
-                    "schema describes them. Call salesforce_tool_schema first "
-                    "if you are unsure: a number means digits, a date means "
-                    "YYYY-MM-DD, and a listed set means one of those values."
-                ),
-            },
-        },
-        "required": ["tool_name", "arguments"],
-        "additionalProperties": False,
-    }

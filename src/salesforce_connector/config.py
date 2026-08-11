@@ -13,7 +13,7 @@ that starts and then fails every call is harder to diagnose than one that
 refuses to start.
 """
 
-from typing import Final, Literal, Self
+from typing import Final, Self
 
 from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -84,19 +84,18 @@ class Settings(BaseSettings):
     approval_ttl_seconds: int = Field(default=600, gt=0)
     """How long a person's approval of a write stays valid."""
 
-    tool_surface: Literal["full", "router"] = Field(
-        default="full",
-        description=(
-            "Which tools a client is shown when it connects. 'full' publishes "
-            "every tool with its own schema, which is what this connector "
-            "declares it offers. 'router' publishes four -- the two that "
-            "describe the others, and one door for reading and one for writing "
-            "-- so a model asks for the shortlist instead of being handed all "
-            "seventeen. Same validation and the same approval either way."
-        ),
-    )
     max_query_rows: int = Field(default=200, gt=0, le=2000)
     """The ceiling a SOQL query is held to when it names no limit of its own."""
+
+    max_field_characters: int = Field(default=4000, gt=0)
+    """How long one text value may be before it is shortened on the way out.
+
+    A Salesforce long text area holds thirty-two thousand characters. Generous
+    enough that an ordinary description, note, or address arrives whole, and
+    low enough that three filled long text areas cannot cost more context than
+    the conversation they arrived in. Anything shortened says so and names
+    itself, so nothing is lost quietly.
+    """
 
     @field_validator("private_key", mode="before")
     @classmethod

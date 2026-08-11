@@ -14,7 +14,7 @@ nineteen thousand. The chosen tool is then read in full through
 destructive-write hints all still apply.
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,10 +32,13 @@ class ListToolsInput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
+    # A Literal rather than a pattern, so the published schema carries
+    # `enum: [read, write, all]`. A regex is exact and is written for
+    # validators; an enum is the same constraint written where a model reading
+    # the schema will actually see the choices.
     kind: Annotated[
-        str,
+        Literal["read", "write", "all"],
         Field(
-            pattern="^(read|write|all)$",
             description=(
                 "Required. Exactly one of: read, write, all.\n\n"
                 "Send 'read' when the user is asking a question and nothing should "

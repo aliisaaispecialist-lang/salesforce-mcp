@@ -16,10 +16,10 @@ import json
 from uuid import uuid4
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.transport.client import SalesforceClient
 from salesforce_connector.config import load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionRequest, ActionResult
+from salesforce_connector.transport.client import SalesforceClient
 
 
 async def main() -> None:

@@ -163,13 +163,25 @@ def _invalid_fields(faults: Sequence[Mapping[str, object]]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(named))
 
 
-def _reason(status: int, code: str, faults: Sequence[Mapping[str, object]]) -> str:
-    """State what Salesforce reported, traceably and without dumping the body."""
+def _reason(
+    status: int, code: str, faults: Sequence[Mapping[str, object]]
+) -> tuple[str, str | None]:
+    """State what Salesforce reported, traceably and without dumping the body.
+
+    Returns:
+        The reason, and the substring of it that is Salesforce's own words, or
+        None when the message is ours because the provider sent no detail. The
+        second value exists so the rendering layer can mark provider text as
+        data: a duplicate rule quotes the record it matched, and a validation
+        rule quotes whatever an administrator typed into it, so an error is
+        another way for record content to reach a model.
+    """
     message = _message_of(faults[0]) if faults else ""
-    if not message:
-        message = f"Salesforce returned HTTP {status} with no error detail."
     trace = f" (Salesforce code {code}, HTTP {status})" if code else f" (HTTP {status})"
-    return message[:_MAX_REASON_LENGTH] + trace
+    if not message:
+        return f"Salesforce returned HTTP {status} with no error detail." + trace, None
+    quoted = message[:_MAX_REASON_LENGTH]
+    return quoted + trace, quoted
 
 
 def to_connector_error(
@@ -191,10 +203,12 @@ def to_connector_error(
     """
     faults = _faults(body)
     code = _code_of(faults[0]) if faults else ""
+    reason, quoted = _reason(status, code, faults)
     return _failure_for(status, code)(
-        _reason(status, code, faults),
+        reason,
         ErrorContext(
             invalid_fields=_invalid_fields(faults),
             retry_after_seconds=retry_after,
+            quoted=quoted,
         ),
     )

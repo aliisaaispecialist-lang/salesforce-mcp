@@ -15,10 +15,10 @@ import json
 from uuid import uuid4
 
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
-from salesforce_connector.transport.client import SalesforceClient
 from salesforce_connector.config import load_settings
 from salesforce_connector.connector import SalesforceConnector, load_manifest
 from salesforce_connector.contract import ActionRequest, ActionResult
+from salesforce_connector.transport.client import SalesforceClient
 
 # Placeholder ids in Salesforce's own shape (001 = Account, 003 = Contact),
 # not records that exist anywhere. Real usage finds these with

@@ -97,6 +97,18 @@ class GetRelatedOutput(BaseModel):
         ),
     ]
     returned: Annotated[int, Field(description="How many records are in this response.")]
+    total_size: Annotated[
+        int | None,
+        Field(
+            default=None,
+            description=(
+                "How many records the relationship holds in total. When this is "
+                "larger than `returned`, the answer was cut to the connector's "
+                "row ceiling and what you have is a first page, not the whole "
+                "set. Use salesforce_soql_query for the rest."
+            ),
+        ),
+    ] = None
 
 
 SPEC = ActionSpec(

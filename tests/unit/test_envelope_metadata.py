@@ -14,7 +14,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from salesforce_connector.actions import registry
 from salesforce_connector.auth.jwt_bearer import JwtBearerAuth
 from salesforce_connector.config import Settings
-from salesforce_connector.contract import ActionRequest, ActionResult, Pagination, RateLimit
+from salesforce_connector.contract import (
+    ActionError,
+    ActionRequest,
+    ActionResult,
+    Pagination,
+    RateLimit,
+)
 from salesforce_connector.errors.model import RateLimitError
 from salesforce_connector.errors.retry import RetryPolicy
 from salesforce_connector.protocol import translate as mcp_translate
@@ -178,10 +184,38 @@ class TestTheAdapterCarriesItBesideThePayload:
         assert result.meta["salesforce-connector/rate_limit"]["used"] == 42
         assert result.structured_content == {"contacts": [], "returned": 0}
 
-    def test_a_result_with_neither_carries_no_metadata(self) -> None:
+    def test_a_result_with_neither_carries_no_paging_or_quota(self) -> None:
+        """Bookkeeping appears only when there is bookkeeping to report.
+
+        A successful result always carries one other key, the notice that says
+        what the structured half of the answer is, because that is true of
+        every result rather than only of paged ones.
+        """
         outcome = ActionResult(ok=True, request_id="req-1", data={"id": "003xx"})
 
-        assert mcp_translate.as_result(outcome).meta is None
+        carried = mcp_translate.as_result(outcome).meta or {}
+
+        assert "salesforce-connector/pagination" not in carried
+        assert "salesforce-connector/rate_limit" not in carried
+        assert list(carried) == ["salesforce-connector/content_is_data"]
+
+    def test_a_failure_carries_no_data_notice_because_it_carries_no_structured_data(self) -> None:
+        """The notice describes `structured_content`, and a failure has none.
+
+        What a failure quotes from Salesforce is fenced in the text itself,
+        which is where a reader will actually meet it.
+        """
+        failure = ActionError(
+            code="salesforce.conflict",
+            category="resource",  # type: ignore[arg-type]
+            reason="duplicate",
+            next_step="use the existing record",
+        )
+        outcome = ActionResult(ok=False, request_id="r", error=failure)
+
+        carried = mcp_translate.as_result(outcome).meta or {}
+
+        assert "salesforce-connector/content_is_data" not in carried
 
     def test_the_metadata_keys_carry_a_vendor_prefix(self) -> None:
         outcome = ActionResult(

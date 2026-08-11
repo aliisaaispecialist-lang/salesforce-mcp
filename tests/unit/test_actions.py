@@ -879,3 +879,175 @@ class TestTheAtomicityClaimIsChecked:
             assert not composite.called
             assert result.error is not None
             assert "Qualify, Closed Won" in result.error.next_step
+
+
+@pytest.mark.asyncio
+class TestGetRelatedIsBounded:
+    """A child collection used to come back whole, however large it was.
+
+    `soql_query` has been held to `max_query_rows` from the start. This read
+    followed a relationship instead of composing SOQL and escaped the ceiling
+    entirely, so `Contacts` on a large account returned whatever Salesforce
+    put on the first page, with nothing saying there was more.
+    """
+
+    async def test_a_large_child_collection_is_cut_to_the_ceiling(
+        self, client: SalesforceClient
+    ) -> None:
+        crowd = [
+            {"attributes": {"type": "Contact"}, "Id": f"003xx{index:010d}", "Name": f"C{index}"}
+            for index in range(500)
+        ]
+
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Account/001xx000003DGb2AAG/Contacts").mock(
+                return_value=httpx.Response(
+                    200, json={"totalSize": 4200, "done": False, "records": crowd}
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.get_related",
+                object_name="Account",
+                record_id="001xx000003DGb2AAG",
+                relationship="Contacts",
+            )
+
+            assert result.ok
+            assert result.data["returned"] == client.settings.max_query_rows
+            assert result.data["total_size"] == 4200
+
+    async def test_the_caller_is_told_rather_than_left_to_assume_that_is_all(
+        self, client: SalesforceClient
+    ) -> None:
+        crowd = [{"Id": f"003xx{index:010d}"} for index in range(500)]
+
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Account/001xx000003DGb2AAG/Contacts").mock(
+                return_value=httpx.Response(200, json={"totalSize": 4200, "records": crowd})
+            )
+
+            result = await run(
+                client,
+                "salesforce.get_related",
+                object_name="Account",
+                record_id="001xx000003DGb2AAG",
+                relationship="Contacts",
+            )
+
+            assert len(result.warnings) == 1
+            assert "4200" in result.warnings[0]
+            assert "salesforce_soql_query" in result.warnings[0]
+
+    async def test_a_lookup_returns_its_one_record_untouched_and_says_nothing(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Contact/003xx000004TmiQAAS/Account").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "attributes": {"type": "Account"},
+                        "Id": "001xx000003DGb2AAG",
+                        "Name": "Example Corp",
+                    },
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.get_related",
+                object_name="Contact",
+                record_id="003xx000004TmiQAAS",
+                relationship="Account",
+            )
+
+            assert result.data["returned"] == 1
+            assert result.data["total_size"] == 1
+            assert result.warnings == ()
+
+
+@pytest.mark.asyncio
+class TestOneFieldCannotFloodTheAnswer:
+    """Row counts were bounded from the start. Row width was not.
+
+    A Salesforce long text area holds 32,000 characters, so a single record
+    with a few of them filled costs more context than the conversation it
+    arrived in.
+    """
+
+    async def test_a_very_long_value_is_shortened_and_says_so(
+        self, client: SalesforceClient
+    ) -> None:
+        essay = "x" * 30_000
+
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Contact/003xx000004TmiQAAS").mock(
+                return_value=httpx.Response(
+                    200, json={"Id": "003xx000004TmiQAAS", "Description": essay}
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.get_record",
+                object_name="Contact",
+                record_id="003xx000004TmiQAAS",
+            )
+
+            held = result.data["record"]["Description"]
+            assert len(held) < len(essay)
+            assert held.startswith("xxx")
+            assert "shortened by the connector" in held
+            assert "30000 characters" in held
+
+    async def test_the_caller_is_told_which_field_was_cut(self, client: SalesforceClient) -> None:
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Contact/003xx000004TmiQAAS").mock(
+                return_value=httpx.Response(
+                    200, json={"Id": "003xx000004TmiQAAS", "Description": "y" * 9_000}
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.get_record",
+                object_name="Contact",
+                record_id="003xx000004TmiQAAS",
+            )
+
+            assert len(result.warnings) == 1
+            assert "Description" in result.warnings[0]
+            assert "read the record directly" in result.warnings[0]
+
+    async def test_an_ordinary_record_passes_through_untouched(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client, respx.mock:
+            token_route()
+            respx.get(f"{DATA}/sobjects/Contact/003xx000004TmiQAAS").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "Id": "003xx000004TmiQAAS",
+                        "Name": "Ada Lovelace",
+                        "Description": "Met at the conference.",
+                    },
+                )
+            )
+
+            result = await run(
+                client,
+                "salesforce.get_record",
+                object_name="Contact",
+                record_id="003xx000004TmiQAAS",
+            )
+
+            assert result.data["record"]["Description"] == "Met at the conference."
+            assert result.warnings == ()

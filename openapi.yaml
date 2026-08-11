@@ -1535,6 +1535,16 @@ paths:
                         description: How many records are in this response.
                         title: Returned
                         type: integer
+                      total_size:
+                        anyOf:
+                        - type: integer
+                        - type: 'null'
+                        default: null
+                        description: How many records the relationship holds in total. When
+                          this is larger than `returned`, the answer was cut to the connector's
+                          row ceiling and what you have is a first page, not the whole set.
+                          Use salesforce_soql_query for the rest.
+                        title: Total Size
                     required:
                     - records
                     - returned
@@ -1788,10 +1798,13 @@ paths:
                     finding, listing, counting, describing. Send ''write'' when the user is
                     asking for something to happen: creating, updating, linking, logging.
                     Send ''all'' only when you genuinely cannot tell which of the two it is.'
+                  enum:
+                  - read
+                  - write
+                  - all
                   examples:
                   - read
                   - write
-                  pattern: ^(read|write|all)$
                   title: Kind
                   type: string
               required:

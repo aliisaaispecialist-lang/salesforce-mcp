@@ -75,6 +75,15 @@ class ActionError(_Frozen):
     retryable: bool = False
     retry_after_seconds: float | None = None
     invalid_fields: tuple[str, ...] = ()
+    quoted: str | None = None
+    """The part of `reason` that is Salesforce's words rather than ours.
+
+    A provider message is not neutral text. A duplicate rule quotes the
+    matching record, a validation rule quotes whatever an administrator typed
+    into it, and both reach the model inside a failure. Naming the substring
+    here lets the layer that renders results mark it as data, which is the same
+    treatment record content already gets and for the same reason.
+    """
 
 
 class Pagination(_Frozen):

@@ -18,6 +18,7 @@ from typing import Any, ClassVar, Final
 
 from pydantic import BaseModel, ValidationError
 
+from salesforce_connector.actions import sizing
 from salesforce_connector.contract import ActionError, ActionRequest, ActionResult, Pagination
 from salesforce_connector.errors.model import (
     ConnectorError,
@@ -116,10 +117,23 @@ class Action(ABC):
         self._require_approval(request)
 
         data = await self._execute(params)
-        checked = self.output_model.model_validate(data).model_dump(mode="json")
+        checked = self._held(self.output_model.model_validate(data).model_dump(mode="json"))
         if request.idempotency_key is not None:
             self._client.ledger.complete(request.idempotency_key, checked)
         return self._succeeded(request, checked, started)
+
+    def _held(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Hold every text value to its ceiling, and name what was shortened.
+
+        After validation, so the schema is checked against what Salesforce
+        actually returned, and before the ledger, so a replayed result is the
+        same answer the caller was given the first time.
+        """
+        ceiling = self._client.settings.max_field_characters
+        held, cut = sizing.shortened(data, ceiling)
+        if cut:
+            self.warn(sizing.notice(cut, ceiling))
+        return dict(held)
 
     def _validated(self, params: Mapping[str, Any]) -> BaseModel:
         """Reject bad arguments here, so no action sends one to Salesforce."""
@@ -207,7 +221,15 @@ class Action(ABC):
         self._client.metrics.record_failure(self.spec.action_id, error.category.value)
         if request.idempotency_key is not None and not failure.retryable:
             self._client.ledger.fail(request.idempotency_key)
-        self._log.warning("action.failed", code=error.code, category=error.category.value)
+        self._log.warning(
+            "action.failed",
+            code=error.code,
+            category=error.category.value,
+            # Timed on both paths, because a failure that took twenty seconds
+            # and one that took twenty milliseconds are different incidents and
+            # the audit record should be able to tell them apart.
+            duration_ms=round(elapsed, 1),
+        )
         return ActionResult(
             ok=False,
             request_id=request.request_id,

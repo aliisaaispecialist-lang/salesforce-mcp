@@ -33,6 +33,8 @@ class ErrorContext(BaseModel):
     retry_after_seconds: float | None = None
     invalid_fields: tuple[str, ...] = ()
     resume_cursor: str | None = None
+    quoted: str | None = None
+    """Set only when the reason repeats Salesforce's own words verbatim."""
 
 
 class ConnectorError(Exception):
@@ -64,6 +66,7 @@ class ConnectorError(Exception):
             retryable=self.retryable,
             retry_after_seconds=self.context.retry_after_seconds,
             invalid_fields=self.context.invalid_fields,
+            quoted=self.context.quoted,
         )
 
 
