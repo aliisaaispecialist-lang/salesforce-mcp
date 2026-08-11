@@ -576,11 +576,28 @@ a model chooses it in the first place, which is what a tool's name and
 description are for. `evals/` measures that:
 
 ```bash
-pip install anthropic          # not a dependency of the connector
-export ANTHROPIC_API_KEY=...   # or: ant auth login
-python evals/run_tool_choice.py --limit 12    # a cheap smoke run first
+python evals/run_tool_choice.py --limit 12          # a cheap smoke run first
 python evals/run_tool_choice.py --out runs/before.json
 ```
+
+By default this drives **Claude Code** against the real MCP server: it launches
+`mcp/server.py` with placeholder credentials, lets the host perform the real
+handshake and `tools/list`, and records which tool the model reaches for. That
+measures the descriptions as a host actually receives them, and it bills the
+Claude Code subscription rather than an API account.
+
+`--via api` calls the Messages API instead, with the tool list rebuilt into a
+`tools` array. That isolates the connector from any host's own prompt and
+tools, which makes the number cleaner and less representative. It needs
+`pip install anthropic` and `ANTHROPIC_API_KEY`.
+
+Two things the CLI backend does deliberately. It **denies the shell and
+filesystem tools**: placeholder credentials make every call fail, and a model
+that has just failed to reach Salesforce goes looking for the real ones, which
+in the first trial run meant grepping `.env` for `SF_PRIVATE_KEY`. And it
+**kills the run at the first Salesforce tool call**, because there is no
+`--max-turns` in the CLI and the choice is the only thing being scored. A
+consequence of that kill is that the per-run cost is never reported.
 
 Eighty prompts in `evals/tool_choice.jsonl`, plain JSONL you can edit by hand.
 The model is given the published tool list and one prompt; the only thing

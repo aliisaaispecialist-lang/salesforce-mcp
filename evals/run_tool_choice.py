@@ -23,9 +23,14 @@ picks something scores well on the first and nothing on the second, and this
 one is built to refuse a request it cannot serve, so the refusal is exactly
 what needs measuring.
 
-Costs real money: about 80 calls to the Anthropic API per run. `anthropic` is
-imported inside main() rather than at the top so it stays out of the project's
-dependencies, and nothing here runs under pytest.
+Two backends. `--via cli` (the default) drives Claude Code against the real
+MCP server, so it measures the descriptions as a host actually receives them
+and it bills the Claude Code subscription. `--via api` calls the Messages API
+with the tool list rebuilt into a `tools` array, which isolates the connector
+from any host's own prompt and tools but bills an API account.
+
+Either way it costs real money and nothing here runs under pytest. `anthropic`
+is imported at call time so it stays out of the project's dependencies.
 """
 
 # ruff: noqa: T201 - the report is the output; printing it is the point.
@@ -40,6 +45,9 @@ from dataclasses import dataclass
 from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+
+import via_cli
 
 from salesforce_connector.actions import registry
 from salesforce_connector.protocol import surface
@@ -68,6 +76,7 @@ class Answer:
     note: str
     input_tokens: int = 0
     output_tokens: int = 0
+    usd: float = 0.0
 
     @property
     def correct(self) -> bool:
@@ -147,6 +156,7 @@ def report(answers: list[Answer]) -> dict[str, Any]:
     spent = (
         sum(one.input_tokens for one in answers) / 1e6 * INPUT_PER_MTOK
         + sum(one.output_tokens for one in answers) / 1e6 * OUTPUT_PER_MTOK
+        + sum(one.usd for one in answers)
     )
 
     return {
@@ -167,7 +177,11 @@ def _share(got: int, total: int) -> dict[str, Any]:
 
 
 def show(figures: dict[str, Any], answers: list[Answer]) -> None:
-    print(f"\nmodel: {figures['model']}    cost: ${figures['usd']}\n")
+    # The CLI backend is killed the moment the choice is made, which is before
+    # the event carrying the run's cost. Printing $0.0 there would be a lie;
+    # printing nothing is the truth.
+    priced = f"${figures['usd']}" if figures["usd"] else "not measured (killed at first choice)"
+    print(f"\nmodel: {figures['model']}    cost: {priced}\n")
     for name in ("selection", "abstention"):
         one = figures[name]
         print(f"{name:12} {one['right']:>3}/{one['of']:<3} {one['pct']}%")
@@ -190,9 +204,52 @@ def show(figures: dict[str, Any], answers: list[Answer]) -> None:
             print(f"      wanted {one.expected}, got {one.chosen}")
 
 
+def through_cli(case: dict[str, Any], config: pathlib.Path, effort: str) -> Answer:
+    """Score one case by asking Claude Code, not the API."""
+    picked, spent = via_cli.chosen(case["prompt"], config, "opus", effort)
+    return Answer(
+        prompt=case["prompt"],
+        expected=case["expect"],
+        chosen=picked,
+        note=case.get("note", ""),
+        usd=spent,
+    )
+
+
+def _authenticated() -> Any:
+    """Build an API client, or say plainly what is missing."""
+    try:
+        import anthropic
+    except ImportError:
+        raise SystemExit(
+            "--via api needs the Anthropic SDK, which is not a dependency of "
+            "the connector: pip install anthropic"
+        ) from None
+    try:
+        client = anthropic.Anthropic()
+        client.models.retrieve(MODEL)
+    except TypeError as unauthenticated:
+        raise SystemExit(
+            f"No Anthropic credentials found: {unauthenticated}\n"
+            f"Export ANTHROPIC_API_KEY, run `ant auth login`, or drop --via api "
+            f"and let the default bill the Claude Code subscription instead."
+        ) from None
+    return client
+
+
 def main() -> None:
     parsed = argparse.ArgumentParser(description=__doc__)
     parsed.add_argument("--limit", type=int, help="run only the first N cases")
+    parsed.add_argument(
+        "--via",
+        default="cli",
+        choices=["cli", "api"],
+        help=(
+            "cli drives Claude Code against the real MCP server and bills the "
+            "subscription; api calls the Messages API and bills an API account "
+            "(default: cli)"
+        ),
+    )
     parsed.add_argument(
         "--effort",
         default="high",
@@ -203,30 +260,24 @@ def main() -> None:
     parsed.add_argument("--workers", type=int, default=4, help="how many calls to run at once")
     args = parsed.parse_args()
 
-    try:
-        import anthropic
-    except ImportError:
-        raise SystemExit(
-            "This needs the Anthropic SDK, which is not a dependency of the "
-            "connector: pip install anthropic"
-        ) from None
-
-    try:
-        client = anthropic.Anthropic()
-        client.models.retrieve(MODEL)
-    except TypeError as unauthenticated:
-        raise SystemExit(
-            f"No Anthropic credentials found: {unauthenticated}\n"
-            f"Either export ANTHROPIC_API_KEY, or run `ant auth login` and the "
-            f"SDK will pick the profile up on its own."
-        ) from None
-
-    tools = published_tools()
     to_run = cases(args.limit)
-    print(f"{len(tools)} tools, {len(to_run)} cases, effort={args.effort}")
+    print(f"{len(to_run)} cases, via={args.via}, effort={args.effort}")
+
+    if args.via == "cli":
+        config = via_cli.written_config(pathlib.Path(__file__).with_name(".eval-mcp.json"))
+
+        def run_one(case: dict[str, Any]) -> Answer:
+            return through_cli(case, config, args.effort)
+    else:
+        client = _authenticated()
+        tools = published_tools()
+        print(f"{len(tools)} tools published")
+
+        def run_one(case: dict[str, Any]) -> Answer:
+            return asked(client, tools, case, args.effort)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        answers = list(pool.map(lambda case: asked(client, tools, case, args.effort), to_run))
+        answers = list(pool.map(run_one, to_run))
 
     figures = report(answers)
     show(figures, answers)
