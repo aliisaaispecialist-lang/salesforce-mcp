@@ -28,24 +28,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install
-        run: pip install -e ".[dev]"
+        # From the lockfile, not from the version ranges in pyproject.toml.
+        # `--frozen` refuses to resolve at all: if uv.lock and pyproject.toml
+        # have drifted, that is a change someone made and did not commit, and
+        # finding out here is the point. Every version is pinned with a hash,
+        # so a rebuild months from now installs the tree this was tested on.
+        run: uv sync --all-extras --frozen
 
       - name: Format
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Types
-        run: mypy src tests
+        run: uv run mypy src tests
 
       - name: Tests
         # Only the tiers that need no Salesforce org. The learning and
         # integration tiers are excluded by marker and run against a sandbox.
-        run: pytest -q
+        run: uv run pytest -q
 
   secrets:
     runs-on: ubuntu-latest

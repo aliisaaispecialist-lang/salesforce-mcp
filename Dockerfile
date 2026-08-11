@@ -15,12 +15,23 @@ FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
-# Dependencies are installed from the manifest alone first, so editing source
+# Dependencies are installed from the lockfile alone first, so editing source
 # does not invalidate the layer that took the time.
-COPY pyproject.toml ./
+#
+# From uv.lock rather than from the version ranges in pyproject.toml. A range
+# means an image built today and an image built next month are not the same
+# image, and the difference arrives without anyone choosing it. The export
+# carries a hash for every package, and pip refuses anything that does not
+# match, so a compromised or substituted artefact fails the build rather than
+# shipping inside it.
+COPY pyproject.toml uv.lock ./
 COPY src/salesforce_connector/__init__.py ./src/salesforce_connector/
 
-RUN pip install --no-cache-dir --prefix=/install .
+RUN pip install --no-cache-dir uv==0.9.18 \
+ && uv export --frozen --no-dev --no-emit-project --format requirements-txt \
+      --output-file /tmp/requirements.txt \
+ && pip install --no-cache-dir --prefix=/install --require-hashes -r /tmp/requirements.txt \
+ && pip install --no-cache-dir --prefix=/install --no-deps .
 
 
 FROM python:3.12-slim
