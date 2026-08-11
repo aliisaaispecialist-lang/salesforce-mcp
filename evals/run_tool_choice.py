@@ -77,6 +77,7 @@ class Answer:
     input_tokens: int = 0
     output_tokens: int = 0
     usd: float = 0.0
+    trouble: str | None = None
 
     @property
     def correct(self) -> bool:
@@ -142,8 +143,13 @@ def asked(client: Any, tools: list[dict[str, Any]], case: dict[str, Any], effort
 
 def report(answers: list[Answer]) -> dict[str, Any]:
     """Turn the raw answers into the four numbers worth looking at."""
-    positive = [one for one in answers if one.expected is not None]
-    negative = [one for one in answers if one.expected is None]
+    # A case that could not be asked is not a case the model got wrong. Scoring
+    # a rate-limited run as "chose nothing" would count it as a correct refusal
+    # and flatter the abstention number.
+    failed = [one for one in answers if one.trouble]
+    scored = [one for one in answers if not one.trouble]
+    positive = [one for one in scored if one.expected is not None]
+    negative = [one for one in scored if one.expected is None]
 
     per_tool: dict[str, list[int]] = {}
     for one in positive:
@@ -151,7 +157,7 @@ def report(answers: list[Answer]) -> dict[str, Any]:
         per_tool[one.expected or ""] = [got + int(one.correct), total + 1]
 
     confused = Counter(
-        (one.expected or "none", one.chosen or "none") for one in answers if not one.correct
+        (one.expected or "none", one.chosen or "none") for one in scored if not one.correct
     )
     spent = (
         sum(one.input_tokens for one in answers) / 1e6 * INPUT_PER_MTOK
@@ -169,6 +175,7 @@ def report(answers: list[Answer]) -> dict[str, Any]:
             for (want, got), count in confused.most_common()
         ],
         "usd": round(spent, 4),
+        "did_not_run": [{"prompt": one.prompt, "why": one.trouble} for one in failed],
     }
 
 
@@ -196,23 +203,39 @@ def show(figures: dict[str, Any], answers: list[Answer]) -> None:
         for one in figures["confusion"]:
             print(f"  {one['expected']:44} -> {one['chosen']}  x{one['times']}")
 
-    wrong = [one for one in answers if not one.correct]
-    if wrong:
-        print("\nmisses")
-        for one in wrong:
-            print(f"  {one.prompt}")
-            print(f"      wanted {one.expected}, got {one.chosen}")
+    _show_skipped(figures)
+    _show_misses(answers)
+
+
+def _show_skipped(figures: dict[str, Any]) -> None:
+    """Name the cases that could not be asked, so nobody reads round them."""
+    if not figures["did_not_run"]:
+        return
+    print(f"\n{len(figures['did_not_run'])} cases did not run and are excluded")
+    for one in figures["did_not_run"][:5]:
+        print(f"  {one['why']}: {one['prompt']}")
+
+
+def _show_misses(answers: list[Answer]) -> None:
+    wrong = [one for one in answers if not one.correct and not one.trouble]
+    if not wrong:
+        return
+    print("\nmisses")
+    for one in wrong:
+        print(f"  {one.prompt}")
+        print(f"      wanted {one.expected}, got {one.chosen}")
 
 
 def through_cli(case: dict[str, Any], config: pathlib.Path, effort: str) -> Answer:
     """Score one case by asking Claude Code, not the API."""
-    picked, spent = via_cli.chosen(case["prompt"], config, "opus", effort)
+    picked, spent, trouble = via_cli.chosen(case["prompt"], config, "opus", effort)
     return Answer(
         prompt=case["prompt"],
         expected=case["expect"],
         chosen=picked,
         note=case.get("note", ""),
         usd=spent,
+        trouble=trouble,
     )
 
 

@@ -1,0 +1,157 @@
+80 cases, via=cli, effort=high
+
+model: claude-opus-5    cost: $3.4128
+
+selection     26/69  37.7%
+abstention     1/11  9.1%
+
+per tool
+  salesforce_activity_create_by_related_id             0/4  <-- 
+  salesforce_contact_create                            0/4  <-- 
+  salesforce_contact_search_by_text                    4/4      
+  salesforce_contact_update_by_id                      0/4  <-- 
+  salesforce_object_describe_by_name                   4/4      
+  salesforce_opportunity_create                        0/4  <-- 
+  salesforce_opportunity_create_with_contact_by_id     0/4  <-- 
+  salesforce_opportunity_link_contact_by_id            0/4  <-- 
+  salesforce_record_count_by_object                    3/4  <-- 
+  salesforce_record_get_by_id                          4/4      
+  salesforce_record_get_related_by_id                  1/4  <-- 
+  salesforce_record_query_by_soql                      4/5  <-- 
+  salesforce_record_search_by_text                     4/4      
+  salesforce_record_update_by_id                       0/4  <-- 
+  salesforce_record_upsert_by_external_id              0/4  <-- 
+  salesforce_tool_describe_by_name                     1/4  <-- 
+  salesforce_tool_list_by_kind                         1/4  <-- 
+
+what it picked instead
+  none                                         -> salesforce_tool_list_by_kind  x7
+  salesforce_contact_create                    -> salesforce_contact_search_by_text  x4
+  salesforce_contact_update_by_id              -> salesforce_record_get_by_id  x4
+  salesforce_opportunity_create_with_contact_by_id -> salesforce_record_get_by_id  x4
+  salesforce_opportunity_link_contact_by_id    -> salesforce_record_get_by_id  x4
+  salesforce_activity_create_by_related_id     -> salesforce_record_get_by_id  x4
+  salesforce_record_update_by_id               -> salesforce_record_get_by_id  x4
+  salesforce_tool_list_by_kind                 -> none  x3
+  salesforce_tool_describe_by_name             -> none  x3
+  salesforce_opportunity_create                -> salesforce_record_search_by_text  x3
+  salesforce_record_upsert_by_external_id      -> salesforce_object_describe_by_name  x3
+  salesforce_record_get_related_by_id          -> salesforce_record_get_by_id  x2
+  salesforce_record_query_by_soql              -> salesforce_object_describe_by_name  x1
+  salesforce_record_get_related_by_id          -> salesforce_record_query_by_soql  x1
+  salesforce_record_count_by_object            -> salesforce_record_query_by_soql  x1
+  salesforce_opportunity_create                -> salesforce_object_describe_by_name  x1
+  salesforce_record_upsert_by_external_id      -> salesforce_record_query_by_soql  x1
+  none                                         -> salesforce_record_get_by_id  x1
+  none                                         -> salesforce_contact_search_by_text  x1
+  none                                         -> salesforce_record_count_by_object  x1
+
+misses
+  Show me every account in the technology industry with more than 500 employees
+      wanted salesforce_record_query_by_soql, got salesforce_object_describe_by_name
+  Which account is contact 003xx000004TmiQAAS attached to?
+      wanted salesforce_record_get_related_by_id, got salesforce_record_get_by_id
+  Show the contact roles on opportunity 006xx000004TmiQAAS
+      wanted salesforce_record_get_related_by_id, got salesforce_record_get_by_id
+  What is opportunity 006xx000004TmiQAAS's account?
+      wanted salesforce_record_get_related_by_id, got salesforce_record_query_by_soql
+  Give me the number of open cases and accounts
+      wanted salesforce_record_count_by_object, got salesforce_record_query_by_soql
+  What tools do you have for changing Salesforce data?
+      wanted salesforce_tool_list_by_kind, got None
+  List everything you can do without modifying anything
+      wanted salesforce_tool_list_by_kind, got None
+  Which of your tools only read and which ones write?
+      wanted salesforce_tool_list_by_kind, got None
+  What arguments does salesforce_opportunity_create take?
+      wanted salesforce_tool_describe_by_name, got None
+  What type should the close date be when I create an opportunity?
+      wanted salesforce_tool_describe_by_name, got None
+  Which fields are required by salesforce_activity_create_by_related_id?
+      wanted salesforce_tool_describe_by_name, got None
+  Add a new contact called Grace Hopper
+      wanted salesforce_contact_create, got salesforce_contact_search_by_text
+  Create a contact for Alan Turing, alan@example.com
+      wanted salesforce_contact_create, got salesforce_contact_search_by_text
+  We met someone new at the conference, Katherine Johnson. Put her in Salesforce.
+      wanted salesforce_contact_create, got salesforce_contact_search_by_text
+  Register a new person named Mary Jackson under our account
+      wanted salesforce_contact_create, got salesforce_contact_search_by_text
+  Change contact 003xx000004TmiQAAS's phone number to +44 20 7946 0958
+      wanted salesforce_contact_update_by_id, got salesforce_record_get_by_id
+  Update the title on contact 003xx000004TmiQAAS to Chief Analyst
+      wanted salesforce_contact_update_by_id, got salesforce_record_get_by_id
+  Fix the email on contact 003xx000004TmiQAAS, it should be ada@example.org
+      wanted salesforce_contact_update_by_id, got salesforce_record_get_by_id
+  Set the account of contact 003xx000004TmiQAAS to 001xx000003DGb2AAG
+      wanted salesforce_contact_update_by_id, got salesforce_record_get_by_id
+  Open a new deal called Acme renewal, qualification stage, closing 2026-12-01
+      wanted salesforce_opportunity_create, got salesforce_object_describe_by_name
+  Create an opportunity for the Contoso expansion worth 45000
+      wanted salesforce_opportunity_create, got salesforce_record_search_by_text
+  Log a new sales opportunity, Northwind support renewal, closing at the end of the year
+      wanted salesforce_opportunity_create, got salesforce_record_search_by_text
+  Start tracking a deal for the Fabrikam pilot
+      wanted salesforce_opportunity_create, got salesforce_record_search_by_text
+  Open a deal called Acme renewal for contact 003xx000004TmiQAAS, closing 2026-12-01, qualification stage
+      wanted salesforce_opportunity_create_with_contact_by_id, got salesforce_record_get_by_id
+  Create an opportunity and attach contact 003xx000004TmiQAAS to it in one go
+      wanted salesforce_opportunity_create_with_contact_by_id, got salesforce_record_get_by_id
+  Set up a new deal for Ada, whose contact id is 003xx000004TmiQAAS, and make sure she is on it
+      wanted salesforce_opportunity_create_with_contact_by_id, got salesforce_record_get_by_id
+  New opportunity Contoso pilot with contact 003xx000004TmiQAAS as the decision maker, closing 2026-09-30
+      wanted salesforce_opportunity_create_with_contact_by_id, got salesforce_record_get_by_id
+  Attach contact 003xx000004TmiQAAS to opportunity 006xx000004TmiQAAS
+      wanted salesforce_opportunity_link_contact_by_id, got salesforce_record_get_by_id
+  Add Ada, contact 003xx000004TmiQAAS, to the existing Acme deal 006xx000004TmiQAAS
+      wanted salesforce_opportunity_link_contact_by_id, got salesforce_record_get_by_id
+  Put contact 003xx000004TmiQAAS on opportunity 006xx000004TmiQAAS as the economic buyer
+      wanted salesforce_opportunity_link_contact_by_id, got salesforce_record_get_by_id
+  Connect the contact 003xx000004TmiQAAS to deal 006xx000004TmiQAAS
+      wanted salesforce_opportunity_link_contact_by_id, got salesforce_record_get_by_id
+  Log that I called contact 003xx000004TmiQAAS this morning about pricing
+      wanted salesforce_activity_create_by_related_id, got salesforce_record_get_by_id
+  Record a note on opportunity 006xx000004TmiQAAS saying the customer asked for a discount
+      wanted salesforce_activity_create_by_related_id, got salesforce_record_get_by_id
+  Add a meeting record to contact 003xx000004TmiQAAS for yesterday's demo
+      wanted salesforce_activity_create_by_related_id, got salesforce_record_get_by_id
+  Note on the timeline of contact 003xx000004TmiQAAS that I emailed the quote
+      wanted salesforce_activity_create_by_related_id, got salesforce_record_get_by_id
+  Set the Industry field on account 001xx000003DGb2AAG to Technology
+      wanted salesforce_record_update_by_id, got salesforce_record_get_by_id
+  Move opportunity 006xx000004TmiQAAS to the Negotiate stage
+      wanted salesforce_record_update_by_id, got salesforce_record_get_by_id
+  Update case 500xx000004TmiQAAS, set Status to Escalated
+      wanted salesforce_record_update_by_id, got salesforce_record_get_by_id
+  Change the Description on lead 00Qxx000004TmiQAAS
+      wanted salesforce_record_update_by_id, got salesforce_record_get_by_id
+  Our ERP order ORD-2026-0042 should create or update the matching Salesforce record
+      wanted salesforce_record_upsert_by_external_id, got salesforce_object_describe_by_name
+  Sync account with external id CUST-88213 from our billing system into Salesforce
+      wanted salesforce_record_upsert_by_external_id, got salesforce_object_describe_by_name
+  Write this record keyed on ERP_Id__c = A-1042, creating it if it is new
+      wanted salesforce_record_upsert_by_external_id, got salesforce_record_query_by_soql
+  Upsert the contact identified by our CRM_Ref__c of REF-9931
+      wanted salesforce_record_upsert_by_external_id, got salesforce_object_describe_by_name
+  Delete contact 003xx000004TmiQAAS
+      wanted None, got salesforce_tool_list_by_kind
+  Remove the Acme opportunity from Salesforce entirely
+      wanted None, got salesforce_tool_list_by_kind
+  Email the quote to ada@example.com
+      wanted None, got salesforce_tool_list_by_kind
+  Merge these two duplicate contacts into one
+      wanted None, got salesforce_tool_list_by_kind
+  Convert lead 00Qxx000004TmiQAAS into an account and contact
+      wanted None, got salesforce_record_get_by_id
+  Schedule a meeting invite with Ada for next Tuesday
+      wanted None, got salesforce_contact_search_by_text
+  Give Ada edit access to the Acme account
+      wanted None, got salesforce_tool_list_by_kind
+  Export all our contacts to a CSV file
+      wanted None, got salesforce_record_count_by_object
+  Deactivate the user account for a colleague who left
+      wanted None, got salesforce_tool_list_by_kind
+  Restore the contact I deleted yesterday
+      wanted None, got salesforce_tool_list_by_kind
+
+written to runs\baseline.json

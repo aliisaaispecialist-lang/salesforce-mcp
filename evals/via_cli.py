@@ -21,6 +21,14 @@ filesystem and shell tools are denied, and the run is killed the moment the
 first Salesforce tool is chosen. There is no `--max-turns` in this CLI, so
 that kill is the only bound on cost and on wandering.
 
+**Two settings decide whether this measures anything.** `plan` mode suppresses
+write tool calls outright, so every write case scores as a refusal; the mode
+must be one that permits a call. And without the one-shot instruction below,
+a careful agent reads before it writes and searches before it creates, so the
+first call is a read on a task whose answer is a write. Each of those masked
+the other: with recon happening, `plan` and `dontAsk` produced identical
+results, and the mode looked irrelevant. It is not.
+
 **The choice is the first Salesforce tool, not the first tool.** Where MCP
 tools arrive deferred, the model reaches for `ToolSearch` first to load a
 schema. That is a real step in a real host, so it is allowed, and it is not
@@ -33,6 +41,22 @@ import subprocess
 from typing import Any
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
+
+# Without this the eval measures caution rather than choice. Asked to create a
+# contact, a careful agent searches first -- which is exactly what this
+# connector's own `instructions` tell it to do -- and asked to update a record
+# it reads the record first. Both are right, and both make the *first* tool a
+# read on a task whose answer is a write. Scoring the first call then reports a
+# well-behaved agent as having picked wrong every time.
+#
+# So the model is asked for its choice, not its plan. What survives is the
+# question the names and descriptions have to answer: which one tool does this?
+ONE_SHOT = (
+    "Call exactly one tool: the single tool that performs what the user asked. "
+    "Do not first call a tool to search, read, verify, list, or check whether "
+    "something exists -- assume any id or name in the request is valid. If no "
+    "available tool performs what was asked, call no tool at all and say so."
+)
 PREFIX = "mcp__salesforce__"
 
 # Everything that could read a secret or run a command. ToolSearch survives
@@ -71,7 +95,7 @@ def written_config(where: pathlib.Path) -> pathlib.Path:
     return where
 
 
-def command(prompt: str, config: pathlib.Path, model: str, effort: str) -> list[str]:
+def command(prompt: str, config: pathlib.Path, model: str, effort: str, mode: str) -> list[str]:
     return [
         "claude",
         "-p",
@@ -84,8 +108,10 @@ def command(prompt: str, config: pathlib.Path, model: str, effort: str) -> list[
         "--strict-mcp-config",
         "--disallowedTools",
         DENIED,
+        "--append-system-prompt",
+        ONE_SHOT,
         "--permission-mode",
-        "plan",
+        mode,
         "--output-format",
         "stream-json",
         "--verbose",
@@ -96,15 +122,23 @@ def command(prompt: str, config: pathlib.Path, model: str, effort: str) -> list[
     ]
 
 
-def chosen(prompt: str, config: pathlib.Path, model: str, effort: str) -> tuple[str | None, float]:
-    """Return the first Salesforce tool the model reached for, and what it cost.
+def chosen(
+    prompt: str, config: pathlib.Path, model: str, effort: str, mode: str = "dontAsk"
+) -> tuple[str | None, float, str | None]:
+    """Return the first Salesforce tool the model reached for, and what went wrong.
 
     The subprocess is killed as soon as that tool appears. Letting it run on
     would spend turns watching a placeholder credential fail, which is neither
     the question being asked nor free.
+
+    The third value is why a case has no answer, when it has none. A run that
+    is rate limited or that errors also produces no tool call, and scoring that
+    as "chose nothing" would count a failed run as a correct refusal and move
+    the abstention number in the flattering direction. A case that could not be
+    asked is not a case the model got wrong; it is a case that did not run.
     """
     running = subprocess.Popen(  # noqa: S603
-        command(prompt, config, model, effort),
+        command(prompt, config, model, effort, mode),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         stdin=subprocess.DEVNULL,
@@ -114,11 +148,13 @@ def chosen(prompt: str, config: pathlib.Path, model: str, effort: str) -> tuple[
     )
     picked: str | None = None
     spent = 0.0
+    trouble: str | None = None
     try:
         for line in running.stdout or ():
             event = _parsed(line)
             if event is None:
                 continue
+            trouble = trouble or _trouble_in(event)
             if event.get("type") == "result":
                 spent = float(event.get("total_cost_usd") or 0.0)
             found = _tool_in(event)
@@ -128,7 +164,9 @@ def chosen(prompt: str, config: pathlib.Path, model: str, effort: str) -> tuple[
     finally:
         running.kill()
         running.wait(timeout=10)
-    return picked, spent
+    if picked is not None:
+        return picked, spent, None
+    return None, spent, trouble
 
 
 def _parsed(line: str) -> dict[str, Any] | None:
@@ -139,6 +177,25 @@ def _parsed(line: str) -> dict[str, Any] | None:
         return json.loads(line)
     except json.JSONDecodeError:
         return None
+
+
+def _trouble_in(event: dict[str, Any]) -> str | None:
+    """Name the reason this run could not answer, if it could not.
+
+    Two shapes matter. A rate limit arrives as its own event with a status
+    that is not `allowed`, and a run that fails arrives as a `result` whose
+    subtype is not `success`.
+    """
+    if event.get("type") == "rate_limit_event":
+        status = str(event.get("rate_limit_info", {}).get("status", ""))
+        return f"rate limited ({status})" if status and status != "allowed" else None
+    if event.get("type") == "result":
+        subtype = str(event.get("subtype", ""))
+        if subtype and subtype != "success":
+            return f"run failed ({subtype})"
+        if event.get("is_error"):
+            return "run failed (is_error)"
+    return None
 
 
 def _tool_in(event: dict[str, Any]) -> str | None:
