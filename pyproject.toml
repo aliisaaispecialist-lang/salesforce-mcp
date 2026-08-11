@@ -35,6 +35,8 @@ dev = [
     "pytest-asyncio>=0.24",  # the retry loop is async
     "types-PyYAML>=6.0",  # yaml ships no inline types; mypy --strict needs these
     "respx>=0.21",  # client tests intercept httpx instead of using the network
+    "jsonschema>=4.25",  # contract tests: check the published schemas against themselves
+    "types-jsonschema>=4.25",  # jsonschema ships no inline types; mypy --strict needs these
 ]
 
 [tool.hatch.version]

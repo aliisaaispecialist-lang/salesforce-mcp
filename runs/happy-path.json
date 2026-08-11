@@ -1,0 +1,124 @@
+{
+  "model": "claude-opus-5",
+  "selection": {
+    "right": 59,
+    "of": 68,
+    "pct": 86.8
+  },
+  "abstention": {
+    "right": 0,
+    "of": 0,
+    "pct": null
+  },
+  "per_tool": {
+    "salesforce_activity_create_by_related_id": {
+      "right": 2,
+      "of": 4,
+      "pct": 50.0
+    },
+    "salesforce_contact_create": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_contact_search_by_text": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_contact_update_by_id": {
+      "right": 3,
+      "of": 4,
+      "pct": 75.0
+    },
+    "salesforce_object_describe_by_name": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_opportunity_create": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_opportunity_create_with_contact_by_id": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_opportunity_link_contact_by_id": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_count_by_object": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_get_by_id": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_get_related_by_id": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_query_by_soql": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_search_by_text": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_update_by_id": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_record_upsert_by_external_id": {
+      "right": 4,
+      "of": 4,
+      "pct": 100.0
+    },
+    "salesforce_tool_describe_by_name": {
+      "right": 1,
+      "of": 4,
+      "pct": 25.0
+    },
+    "salesforce_tool_list_by_kind": {
+      "right": 1,
+      "of": 4,
+      "pct": 25.0
+    }
+  },
+  "confusion": [
+    {
+      "expected": "salesforce_tool_list_by_kind",
+      "chosen": "none",
+      "times": 3
+    },
+    {
+      "expected": "salesforce_tool_describe_by_name",
+      "chosen": "none",
+      "times": 3
+    },
+    {
+      "expected": "salesforce_activity_create_by_related_id",
+      "chosen": "none",
+      "times": 2
+    },
+    {
+      "expected": "salesforce_contact_update_by_id",
+      "chosen": "salesforce_record_update_by_id",
+      "times": 1
+    }
+  ],
+  "usd": 1.2912,
+  "did_not_run": []
+}

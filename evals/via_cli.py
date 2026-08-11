@@ -124,8 +124,8 @@ def command(prompt: str, config: pathlib.Path, model: str, effort: str, mode: st
 
 def chosen(
     prompt: str, config: pathlib.Path, model: str, effort: str, mode: str = "dontAsk"
-) -> tuple[str | None, float, str | None]:
-    """Return the first Salesforce tool the model reached for, and what went wrong.
+) -> tuple[str | None, dict[str, Any], float, str | None]:
+    """Return the first Salesforce tool the model reached for, its arguments, and what went wrong.
 
     The subprocess is killed as soon as that tool appears. Letting it run on
     would spend turns watching a placeholder credential fail, which is neither
@@ -147,6 +147,7 @@ def chosen(
         errors="replace",
     )
     picked: str | None = None
+    sent: dict[str, Any] = {}
     spent = 0.0
     trouble: str | None = None
     try:
@@ -159,14 +160,15 @@ def chosen(
                 spent = float(event.get("total_cost_usd") or 0.0)
             found = _tool_in(event)
             if found is not None:
-                picked = found.removeprefix(PREFIX)
+                picked = found[0].removeprefix(PREFIX)
+                sent = found[1]
                 break
     finally:
         running.kill()
         running.wait(timeout=10)
     if picked is not None:
-        return picked, spent, None
-    return None, spent, trouble
+        return picked, sent, spent, None
+    return None, sent, spent, trouble
 
 
 def _parsed(line: str) -> dict[str, Any] | None:
@@ -198,11 +200,17 @@ def _trouble_in(event: dict[str, Any]) -> str | None:
     return None
 
 
-def _tool_in(event: dict[str, Any]) -> str | None:
-    """The Salesforce tool named in this event, if it names one."""
+def _tool_in(event: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    """The Salesforce tool named in this event and the arguments sent to it.
+
+    The arguments come back as well as the name because they answer a separate
+    question at no extra cost: picking the right tool and then filling it in
+    wrongly is still a failed call, and the same run can score both.
+    """
     if event.get("type") != "assistant":
         return None
     for block in event.get("message", {}).get("content", []):
         if block.get("type") == "tool_use" and str(block.get("name", "")).startswith(PREFIX):
-            return str(block["name"])
+            sent = block.get("input")
+            return str(block["name"]), sent if isinstance(sent, dict) else {}
     return None

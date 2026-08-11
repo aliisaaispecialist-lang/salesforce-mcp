@@ -40,8 +40,9 @@ import json
 import pathlib
 import sys
 from collections import Counter
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
@@ -52,7 +53,7 @@ import via_cli
 from salesforce_connector.actions import registry
 from salesforce_connector.protocol import surface
 
-CASES = pathlib.Path(__file__).with_name("tool_choice.jsonl")
+HAPPY_PATH = pathlib.Path(__file__).with_name("happy_path.jsonl")
 
 MODEL = "claude-opus-5"
 INPUT_PER_MTOK = 5.00
@@ -78,6 +79,8 @@ class Answer:
     output_tokens: int = 0
     usd: float = 0.0
     trouble: str | None = None
+    sent: Mapping[str, Any] = field(default_factory=dict)
+    """The arguments the model filled in, when it called something."""
 
     @property
     def correct(self) -> bool:
@@ -101,8 +104,8 @@ def published_tools() -> list[dict[str, Any]]:
     ]
 
 
-def cases(limit: int | None) -> list[dict[str, Any]]:
-    lines = [one for one in CASES.read_text(encoding="utf-8").splitlines() if one.strip()]
+def cases(where: pathlib.Path, limit: int | None) -> list[dict[str, Any]]:
+    lines = [one for one in where.read_text(encoding="utf-8").splitlines() if one.strip()]
     loaded = [json.loads(one) for one in lines]
     return loaded[:limit] if limit else loaded
 
@@ -228,7 +231,7 @@ def _show_misses(answers: list[Answer]) -> None:
 
 def through_cli(case: dict[str, Any], config: pathlib.Path, effort: str) -> Answer:
     """Score one case by asking Claude Code, not the API."""
-    picked, spent, trouble = via_cli.chosen(case["prompt"], config, "opus", effort)
+    picked, sent, spent, trouble = via_cli.chosen(case["prompt"], config, "opus", effort)
     return Answer(
         prompt=case["prompt"],
         expected=case["expect"],
@@ -236,6 +239,7 @@ def through_cli(case: dict[str, Any], config: pathlib.Path, effort: str) -> Answ
         note=case.get("note", ""),
         usd=spent,
         trouble=trouble,
+        sent=sent,
     )
 
 
@@ -264,6 +268,12 @@ def main() -> None:
     parsed = argparse.ArgumentParser(description=__doc__)
     parsed.add_argument("--limit", type=int, help="run only the first N cases")
     parsed.add_argument(
+        "--cases",
+        type=pathlib.Path,
+        default=HAPPY_PATH,
+        help="the case file to run (default: happy_path.jsonl)",
+    )
+    parsed.add_argument(
         "--via",
         default="cli",
         choices=["cli", "api"],
@@ -283,8 +293,8 @@ def main() -> None:
     parsed.add_argument("--workers", type=int, default=4, help="how many calls to run at once")
     args = parsed.parse_args()
 
-    to_run = cases(args.limit)
-    print(f"{len(to_run)} cases, via={args.via}, effort={args.effort}")
+    to_run = cases(args.cases, args.limit)
+    print(f"{len(to_run)} cases from {args.cases.name}, via={args.via}, effort={args.effort}")
 
     if args.via == "cli":
         config = via_cli.written_config(pathlib.Path(__file__).with_name(".eval-mcp.json"))

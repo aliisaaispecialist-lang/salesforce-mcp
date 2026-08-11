@@ -1,0 +1,68 @@
+{"prompt": "Find contacts matching Ada Lovelace", "expect": "salesforce_contact_search_by_text", "note": "happy path"}
+{"prompt": "Search our contacts for anyone called Okonkwo", "expect": "salesforce_contact_search_by_text", "note": "happy path"}
+{"prompt": "Look up the contact whose email is ada@example.com", "expect": "salesforce_contact_search_by_text", "note": "happy path"}
+{"prompt": "Which contacts match the text Fabrikam?", "expect": "salesforce_contact_search_by_text", "note": "happy path"}
+{"prompt": "Search Lead records for the text Northwind", "expect": "salesforce_record_search_by_text", "note": "happy path"}
+{"prompt": "Find any Case records mentioning refund request", "expect": "salesforce_record_search_by_text", "note": "happy path"}
+{"prompt": "Look through Account records for Contoso", "expect": "salesforce_record_search_by_text", "note": "happy path"}
+{"prompt": "Search Opportunity records for the phrase annual renewal", "expect": "salesforce_record_search_by_text", "note": "happy path"}
+{"prompt": "Run this SOQL: SELECT Id, Name FROM Account WHERE Industry = 'Retail' LIMIT 10", "expect": "salesforce_record_query_by_soql", "note": "happy path"}
+{"prompt": "Query SELECT Id, StageName FROM Opportunity WHERE Amount > 50000", "expect": "salesforce_record_query_by_soql", "note": "happy path"}
+{"prompt": "Give me the results of SELECT Name, Email FROM Contact WHERE CreatedDate = LAST_MONTH", "expect": "salesforce_record_query_by_soql", "note": "happy path"}
+{"prompt": "Execute SELECT Id FROM Case WHERE Status = 'New' ORDER BY CreatedDate DESC LIMIT 5", "expect": "salesforce_record_query_by_soql", "note": "happy path"}
+{"prompt": "Show me Account 001xx000003DGb2AAG", "expect": "salesforce_record_get_by_id", "note": "happy path"}
+{"prompt": "Pull up Contact 003xx000004TmiQAAS", "expect": "salesforce_record_get_by_id", "note": "happy path"}
+{"prompt": "What is on Opportunity 006xx000004TmiQAAS?", "expect": "salesforce_record_get_by_id", "note": "happy path"}
+{"prompt": "Fetch the Lead record 00Qxx000004TmiQAAS", "expect": "salesforce_record_get_by_id", "note": "happy path"}
+{"prompt": "Show me the Account related to Contact 003xx000004TmiQAAS", "expect": "salesforce_record_get_related_by_id", "note": "happy path"}
+{"prompt": "List the Contacts related to Account 001xx000003DGb2AAG", "expect": "salesforce_record_get_related_by_id", "note": "happy path"}
+{"prompt": "Get the OpportunityContactRoles related to Opportunity 006xx000004TmiQAAS", "expect": "salesforce_record_get_related_by_id", "note": "happy path"}
+{"prompt": "Which Cases are related to Account 001xx000003DGb2AAG?", "expect": "salesforce_record_get_related_by_id", "note": "happy path"}
+{"prompt": "How many Account records do we have?", "expect": "salesforce_record_count_by_object", "note": "happy path"}
+{"prompt": "Count the Contact records", "expect": "salesforce_record_count_by_object", "note": "happy path"}
+{"prompt": "Give me the record count for Lead and Case", "expect": "salesforce_record_count_by_object", "note": "happy path"}
+{"prompt": "How many Opportunity records exist?", "expect": "salesforce_record_count_by_object", "note": "happy path"}
+{"prompt": "Describe the Opportunity object", "expect": "salesforce_object_describe_by_name", "note": "happy path"}
+{"prompt": "What fields does the Contact object have?", "expect": "salesforce_object_describe_by_name", "note": "happy path"}
+{"prompt": "Show me the metadata for the Account object", "expect": "salesforce_object_describe_by_name", "note": "happy path"}
+{"prompt": "Which fields on the Lead object are writable?", "expect": "salesforce_object_describe_by_name", "note": "happy path"}
+{"prompt": "List your read tools", "expect": "salesforce_tool_list_by_kind", "note": "happy path"}
+{"prompt": "Which of your tools are write tools?", "expect": "salesforce_tool_list_by_kind", "note": "happy path"}
+{"prompt": "Show me every read tool you have", "expect": "salesforce_tool_list_by_kind", "note": "happy path"}
+{"prompt": "List all tools of kind write", "expect": "salesforce_tool_list_by_kind", "note": "happy path"}
+{"prompt": "Describe the tool salesforce_opportunity_create", "expect": "salesforce_tool_describe_by_name", "note": "happy path"}
+{"prompt": "Show me the schema for salesforce_contact_update_by_id", "expect": "salesforce_tool_describe_by_name", "note": "happy path"}
+{"prompt": "What is the input schema of salesforce_record_upsert_by_external_id?", "expect": "salesforce_tool_describe_by_name", "note": "happy path"}
+{"prompt": "Give me the full spec for the tool salesforce_contact_search_by_text", "expect": "salesforce_tool_describe_by_name", "note": "happy path"}
+{"prompt": "Create a contact with last name Hopper", "expect": "salesforce_contact_create", "note": "happy path"}
+{"prompt": "Add a new contact, first name Grace, last name Hopper, email grace@example.com", "expect": "salesforce_contact_create", "note": "happy path"}
+{"prompt": "Register a new contact called Ada Lovelace", "expect": "salesforce_contact_create", "note": "happy path"}
+{"prompt": "Make a contact record for Chinua Okonkwo, phone +973 1234 5678", "expect": "salesforce_contact_create", "note": "happy path"}
+{"prompt": "Set the phone number on contact 003xx000004TmiQAAS to +973 1700 1000", "expect": "salesforce_contact_update_by_id", "note": "happy path"}
+{"prompt": "Update contact 003xx000004TmiQAAS, change the email to ada@example.com", "expect": "salesforce_contact_update_by_id", "note": "happy path"}
+{"prompt": "Change the title on contact 003xx000004TmiQAAS to Head of Engineering", "expect": "salesforce_contact_update_by_id", "note": "happy path"}
+{"prompt": "On contact 003xx000004TmiQAAS, set the department to Research", "expect": "salesforce_contact_update_by_id", "note": "happy path"}
+{"prompt": "Create an opportunity called Contoso expansion, stage Prospecting, closing 2026-11-30, worth 45000", "expect": "salesforce_opportunity_create", "note": "happy path"}
+{"prompt": "Open a new deal named Northwind support renewal at the Qualify stage, close date 2026-12-31", "expect": "salesforce_opportunity_create", "note": "happy path"}
+{"prompt": "Log an opportunity Fabrikam pilot, stage Value Proposition, closing 2026-10-15", "expect": "salesforce_opportunity_create", "note": "happy path"}
+{"prompt": "New opportunity: Tailspin migration, stage Negotiation, close date 2026-09-30, amount 120000", "expect": "salesforce_opportunity_create", "note": "happy path"}
+{"prompt": "Create an opportunity Contoso pilot, stage Prospecting, closing 2026-09-30, and put contact 003xx000004TmiQAAS on it", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "happy path"}
+{"prompt": "New deal called Adventure Works renewal, Qualify stage, close date 2026-12-01, with contact 003xx000004TmiQAAS attached", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "happy path"}
+{"prompt": "Set up opportunity Fabrikam expansion at stage Negotiation closing 2026-11-15 with contact 003xx000004TmiQAAS as the decision maker", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "happy path"}
+{"prompt": "In one step, create the opportunity Woodgrove upgrade, stage Prospecting, close 2026-10-01, and link contact 003xx000004TmiQAAS", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "happy path"}
+{"prompt": "Attach contact 003xx000004TmiQAAS to opportunity 006xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "happy path"}
+{"prompt": "Link contact 003xx000004TmiQAAS onto the existing opportunity 006xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "happy path"}
+{"prompt": "Add contact 003xx000004TmiQAAS as a contact role on opportunity 006xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "happy path"}
+{"prompt": "Associate opportunity 006xx000004TmiQAAS with contact 003xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "happy path"}
+{"prompt": "Log a call on contact 003xx000004TmiQAAS with the subject Discovery call", "expect": "salesforce_activity_create_by_related_id", "note": "happy path"}
+{"prompt": "Add a note to opportunity 006xx000004TmiQAAS with the subject Pricing agreed", "expect": "salesforce_activity_create_by_related_id", "note": "happy path"}
+{"prompt": "Record an activity against account 001xx000003DGb2AAG with subject Quarterly review", "expect": "salesforce_activity_create_by_related_id", "note": "happy path"}
+{"prompt": "Log against lead 00Qxx000004TmiQAAS an activity with the subject Left voicemail", "expect": "salesforce_activity_create_by_related_id", "note": "happy path"}
+{"prompt": "On the Lead record 00Qxx000004TmiQAAS, set Description to 'Met at the Riyadh expo'", "expect": "salesforce_record_update_by_id", "note": "happy path"}
+{"prompt": "Update Case 500xx000004TmiQAAS, set Status to Escalated", "expect": "salesforce_record_update_by_id", "note": "happy path"}
+{"prompt": "Change the Industry field on Account 001xx000003DGb2AAG to Manufacturing", "expect": "salesforce_record_update_by_id", "note": "happy path"}
+{"prompt": "Set Rating to Hot on Lead 00Qxx000004TmiQAAS", "expect": "salesforce_record_update_by_id", "note": "happy path"}
+{"prompt": "Upsert an Account keyed on ERP_Id__c = A-1042, set Name to Contoso Gulf", "expect": "salesforce_record_upsert_by_external_id", "note": "happy path"}
+{"prompt": "Sync the Contact whose CRM_Ref__c is REF-9931, set LastName to Okonkwo and Email to c.okonkwo@example.com", "expect": "salesforce_record_upsert_by_external_id", "note": "happy path"}
+{"prompt": "Create or update the Order where ExternalOrderId__c is ORD-2026-0042, setting Status to Shipped", "expect": "salesforce_record_upsert_by_external_id", "note": "happy path"}
+{"prompt": "Write the Account with Billing_Ref__c of CUST-88213, set Name to Fabrikam Industries", "expect": "salesforce_record_upsert_by_external_id", "note": "happy path"}

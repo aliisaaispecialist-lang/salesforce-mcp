@@ -1,0 +1,53 @@
+68 cases from happy_path.jsonl, via=cli, effort=high
+
+model: claude-opus-5    cost: $1.2912
+
+selection     59/68  86.8%
+abstention     0/0   None%
+
+per tool
+  salesforce_activity_create_by_related_id             2/4  <-- 
+  salesforce_contact_create                            4/4      
+  salesforce_contact_search_by_text                    4/4      
+  salesforce_contact_update_by_id                      3/4  <-- 
+  salesforce_object_describe_by_name                   4/4      
+  salesforce_opportunity_create                        4/4      
+  salesforce_opportunity_create_with_contact_by_id     4/4      
+  salesforce_opportunity_link_contact_by_id            4/4      
+  salesforce_record_count_by_object                    4/4      
+  salesforce_record_get_by_id                          4/4      
+  salesforce_record_get_related_by_id                  4/4      
+  salesforce_record_query_by_soql                      4/4      
+  salesforce_record_search_by_text                     4/4      
+  salesforce_record_update_by_id                       4/4      
+  salesforce_record_upsert_by_external_id              4/4      
+  salesforce_tool_describe_by_name                     1/4  <-- 
+  salesforce_tool_list_by_kind                         1/4  <-- 
+
+what it picked instead
+  salesforce_tool_list_by_kind                 -> none  x3
+  salesforce_tool_describe_by_name             -> none  x3
+  salesforce_activity_create_by_related_id     -> none  x2
+  salesforce_contact_update_by_id              -> salesforce_record_update_by_id  x1
+
+misses
+  List your read tools
+      wanted salesforce_tool_list_by_kind, got None
+  Which of your tools are write tools?
+      wanted salesforce_tool_list_by_kind, got None
+  Show me every read tool you have
+      wanted salesforce_tool_list_by_kind, got None
+  Describe the tool salesforce_opportunity_create
+      wanted salesforce_tool_describe_by_name, got None
+  Show me the schema for salesforce_contact_update_by_id
+      wanted salesforce_tool_describe_by_name, got None
+  What is the input schema of salesforce_record_upsert_by_external_id?
+      wanted salesforce_tool_describe_by_name, got None
+  On contact 003xx000004TmiQAAS, set the department to Research
+      wanted salesforce_contact_update_by_id, got salesforce_record_update_by_id
+  Record an activity against account 001xx000003DGb2AAG with subject Quarterly review
+      wanted salesforce_activity_create_by_related_id, got None
+  Log against lead 00Qxx000004TmiQAAS an activity with the subject Left voicemail
+      wanted salesforce_activity_create_by_related_id, got None
+
+written to runs\happy-path.json
