@@ -71,8 +71,8 @@ class TestTheDocument:
         paths = document["paths"]
         assert isinstance(paths, dict)
 
-        assert paths["/actions/salesforce.search_contact"]["post"]["tags"] == ["read"]
-        assert paths["/actions/salesforce.create_contact"]["post"]["tags"] == ["write"]
+        assert paths["/actions/salesforce.contact_search_by_text"]["post"]["tags"] == ["read"]
+        assert paths["/actions/salesforce.contact_create"]["post"]["tags"] == ["write"]
 
     def test_it_says_no_caller_credential_is_accepted(self, document: dict[str, object]) -> None:
         info = document["info"]

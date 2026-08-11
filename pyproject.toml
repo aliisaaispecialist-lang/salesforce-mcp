@@ -74,6 +74,16 @@ ignore = [
 # is written.
 "src/salesforce_connector/actions/list_tools.py" = ["PLC0415"]
 "src/salesforce_connector/actions/tool_schema.py" = ["PLC0415"]
+# The eval is a runnable script, not library code: it prints its report, reads
+# the connector through sys.path, and imports the Anthropic SDK at call time so
+# that SDK stays out of this project's dependencies.
+"evals/**/*.py" = [
+    "PLC0415",  # `import anthropic` is deliberately deferred into main()
+    "D103",     # a script's functions are named, not documented twice
+    "D102",
+    "PLR0913",  # one call site threads client, tools, case and effort
+    "PLR0917",
+]
 # Tests assert, compare literals, and say what they mean in their names rather
 # than in docstrings. They stay fully type-annotated.
 "tests/**/*.py" = [

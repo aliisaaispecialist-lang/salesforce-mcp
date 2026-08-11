@@ -34,7 +34,7 @@ async def main() -> None:
         # refuses and says so.
         key = str(uuid4())
         request = ActionRequest(
-            action_id="salesforce.create_contact",
+            action_id="salesforce.contact_create",
             params={
                 "last_name": "Lovelace",
                 "first_name": "Ada",

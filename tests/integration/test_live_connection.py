@@ -55,7 +55,7 @@ class TestWhatTheOrgOffers:
         # Not an assertion about a number -- a Developer Edition org and a
         # sandbox have very different allowances. Only that the org told us,
         # because a caller deciding whether to keep going needs it.
-        result = await org.call("salesforce.search_contact", query="MCPTestNoSuchPerson")
+        result = await org.call("salesforce.contact_search_by_text", query="MCPTestNoSuchPerson")
 
         assert result.rate_limit is not None, (
             "Salesforce did not return Sforce-Limit-Info. If this fails, the "

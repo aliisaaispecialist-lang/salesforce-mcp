@@ -56,8 +56,8 @@ class TestSomethingTheConnectorCannotDo:
 
         assert "Reads:" in said
         assert "Writes:" in said
-        assert "salesforce_search_contact" in said
-        assert "salesforce_create_contact" in said
+        assert "salesforce_contact_search_by_text" in said
+        assert "salesforce_contact_create" in said
 
     def test_it_forbids_reaching_for_the_nearest_tool_instead(self) -> None:
         """Refused a delete, a model will otherwise blank fields with an update."""
@@ -67,9 +67,9 @@ class TestSomethingTheConnectorCannotDo:
         assert "tell the user this connector cannot do it" in said
 
     def test_a_near_miss_is_named_because_it_usually_is_one(self) -> None:
-        said = surface.unavailable("salesforce_create_contacts", described())
+        said = surface.unavailable("salesforce_contact_creates", described())
 
-        assert "Did you mean salesforce_create_contact?" in said
+        assert "Did you mean salesforce_contact_create?" in said
 
     def test_a_wholly_invented_name_gets_no_guess(self) -> None:
         said = surface.unavailable("salesforce_send_email", described())
@@ -86,7 +86,7 @@ class TestSomethingTheConnectorCannotDo:
         said = surface.unavailable("salesforce_delete_contact", described())
 
         assert "Did you mean" not in said
-        assert "salesforce_update_contact" in said  # listed, not recommended
+        assert "salesforce_contact_update_by_id" in said  # listed, not recommended
 
     def test_a_call_to_a_name_that_does_not_exist_resolves_to_nothing(self) -> None:
         opened = surface.resolved("salesforce_drop_database", {}, described())
@@ -97,10 +97,12 @@ class TestSomethingTheConnectorCannotDo:
         assert opened.code == "connector.unknown_tool"
 
     def test_a_real_name_resolves_with_its_arguments_untouched(self) -> None:
-        opened = surface.resolved("salesforce_get_record", {"object_name": "Contact"}, described())
+        opened = surface.resolved(
+            "salesforce_record_get_by_id", {"object_name": "Contact"}, described()
+        )
 
         assert opened.described is not None
-        assert opened.described.tool_name == "salesforce_get_record"
+        assert opened.described.tool_name == "salesforce_record_get_by_id"
         assert opened.arguments == {"object_name": "Contact"}
         assert opened.refusal is None
 
@@ -121,7 +123,9 @@ class TestNamesAreAClosedSetInTheSchema:
 
     def test_the_kind_argument_is_an_enum_rather_than_a_regex(self) -> None:
         guide = next(
-            tool for tool in surface.published(described()) if tool.name == "salesforce_list_tools"
+            tool
+            for tool in surface.published(described())
+            if tool.name == "salesforce_tool_list_by_kind"
         )
 
         assert guide.input_schema["properties"]["kind"]["enum"] == ["read", "write", "all"]
@@ -138,3 +142,20 @@ class TestNamesAreAClosedSetInTheSchema:
                 for key, value in published[one.tool_name].input_schema.items()
                 if key == "examples"
             }
+
+    def test_an_upsert_is_never_offered_as_a_correction_for_an_update(self) -> None:
+        """The dangerous pair in this connector, and the one the threshold is set for.
+
+        Both write, both change a record, and they differ only in which kind
+        of id they take. Suggesting one for the other would send a Salesforce
+        id where an outside system's id was wanted, or create a duplicate.
+        """
+        said = surface.unavailable("salesforce_record_upsert_by_id", described())
+
+        assert "Did you mean" not in said
+
+    def test_a_typo_in_the_action_itself_is_still_corrected(self) -> None:
+        """The rename moved the likely typo into the action segment."""
+        said = surface.unavailable("salesforce_contact_creates", described())
+
+        assert "Did you mean salesforce_contact_create?" in said

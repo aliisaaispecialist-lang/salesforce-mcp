@@ -47,7 +47,7 @@ async def main() -> int:
             return 1
 
         found = await session.call_tool(
-            "salesforce_search_contact", {"query": "MCPTestNoSuchPerson"}
+            "salesforce_contact_search_by_text", {"query": "MCPTestNoSuchPerson"}
         )
         text = getattr(found.content[0], "text", "") if found.content else ""
         fenced = text.startswith("<salesforce_record_data-")
@@ -58,7 +58,7 @@ async def main() -> int:
         print(f"live search ran: ok{'' if fenced else '  (WARNING: result not fenced)'}")
 
         refused = await session.call_tool(
-            "salesforce_create_contact",
+            "salesforce_contact_create",
             {"last_name": "VerifyRunNoRecord", "idempotency_key": "verify-run-12345678"},
         )
         if not refused.is_error:

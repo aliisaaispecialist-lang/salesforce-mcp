@@ -63,7 +63,7 @@ class UpsertRecordInput(BaseModel):
                 "Required. The field that carries the outside system's identifier. "
                 "It must be marked External Id on the object; an ordinary text "
                 "field is refused. Custom fields end __c, as in External_Id__c. "
-                "Call salesforce_describe_object if you do not know which field "
+                "Call salesforce_object_describe_by_name if you do not know which field "
                 "this org uses."
             ),
             examples=["External_Id__c"],
@@ -93,7 +93,7 @@ class UpsertRecordInput(BaseModel):
                 "LastName, Email, StageName, CloseDate. On a create these must "
                 "include everything the object requires, or the write fails. On an "
                 "update only what is named here changes.\n\n"
-                "Call salesforce_describe_object first to see which fields are "
+                "Call salesforce_object_describe_by_name first to see which fields are "
                 "required and which values a picklist accepts."
             ),
             examples=[{"LastName": "Lovelace", "Email": "ada@example.com"}],
@@ -147,8 +147,8 @@ class UpsertRecordOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.upsert_record",
-    tool_name="salesforce_upsert_record",
+    action_id="salesforce.record_upsert_by_external_id",
+    tool_name="salesforce_record_upsert_by_external_id",
     title="Create or update a Salesforce record by external id",
     summary=(
         "Write a record identified by an outside system's id: creates it if that id "
@@ -161,9 +161,9 @@ SPEC = ActionSpec(
         "same record, however many times it is sent."
     ),
     when_not_to_use=(
-        "the user asked to add somebody new, which is salesforce_create_contact and "
+        "the user asked to add somebody new, which is salesforce_contact_create and "
         "will not silently overwrite; the user asked to change a record you already "
-        "hold the id of, which is salesforce_update_record; or you do not have an "
+        "hold the id of, which is salesforce_record_update_by_id; or you do not have an "
         "external id from a real system. Do not invent an external id to use this "
         "tool: a value that happens to exist overwrites that record."
     ),
@@ -227,10 +227,10 @@ SPEC = ActionSpec(
                 "or picklist value in the write is not one this org accepts."
             ),
             remedy=(
-                "Call salesforce_describe_object and use a field it lists. Only a "
+                "Call salesforce_object_describe_by_name and use a field it lists. Only a "
                 "field configured as an External Id can be used here; if none "
                 "exists, an administrator must create one, and until then use "
-                "salesforce_update_record with the Salesforce id instead."
+                "salesforce_record_update_by_id with the Salesforce id instead."
             ),
         ),
         ErrorGuidance(

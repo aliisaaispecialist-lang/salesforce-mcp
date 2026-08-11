@@ -111,7 +111,7 @@ def server_context(session: FakeSession, connector: SpyConnector) -> Any:
 def write_request(**overrides: Any) -> ActionRequest:
     params = {**CONTACT_ARGUMENTS, **overrides}
     return ActionRequest(
-        action_id="salesforce.create_contact",
+        action_id="salesforce.contact_create",
         params=params,
         idempotency_key="key-12345678",
         approved=False,
@@ -119,7 +119,7 @@ def write_request(**overrides: Any) -> ActionRequest:
 
 
 def contact_action() -> Any:
-    return next(d for d in registry.descriptors() if d.action_id == "salesforce.create_contact")
+    return next(d for d in registry.descriptors() if d.action_id == "salesforce.contact_create")
 
 
 def read_action() -> Any:
@@ -210,7 +210,9 @@ class TestWhoGetsAsked:
     @pytest.mark.asyncio
     async def test_a_read_is_never_asked_about(self) -> None:
         session = FakeSession(answer=None)
-        request = ActionRequest(action_id="salesforce.search_contact", params={"query": "ada"})
+        request = ActionRequest(
+            action_id="salesforce.contact_search_by_text", params={"query": "ada"}
+        )
 
         settled = await approval().granted(as_ctx(session), read_action(), request)
 
@@ -299,7 +301,7 @@ class TestNothingReachesTheConnectorUnapproved:
             (ElicitResult(action="decline"), []),
             (
                 ElicitResult(action="accept", content={"confirm": True}),
-                ["salesforce.create_contact"],
+                ["salesforce.contact_create"],
             ),
         ],
         ids=["declined-never-executes", "accepted-executes"],
@@ -313,7 +315,7 @@ class TestNothingReachesTheConnectorUnapproved:
         await mcp_server.call_tool(
             server_context(session, spy),
             CallToolRequestParams(
-                name="salesforce_create_contact",
+                name="salesforce_contact_create",
                 arguments={**CONTACT_ARGUMENTS, "approved": False},
             ),
         )
@@ -328,7 +330,7 @@ class TestNothingReachesTheConnectorUnapproved:
         await mcp_server.call_tool(
             server_context(session, spy),
             CallToolRequestParams(
-                name="salesforce_create_contact", arguments=dict(CONTACT_ARGUMENTS)
+                name="salesforce_contact_create", arguments=dict(CONTACT_ARGUMENTS)
             ),
         )
 

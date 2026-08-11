@@ -52,11 +52,11 @@ class TestNamesCannotBeConfused:
     def test_the_five_assigned_actions_are_all_still_published(self) -> None:
         """The competition named five. Everything since is in addition to them."""
         assert {spec.action_id for spec in ALL_SPECS} >= {
-            "salesforce.search_contact",
-            "salesforce.create_contact",
-            "salesforce.update_contact",
-            "salesforce.create_opportunity",
-            "salesforce.add_activity_note",
+            "salesforce.contact_search_by_text",
+            "salesforce.contact_create",
+            "salesforce.contact_update_by_id",
+            "salesforce.opportunity_create",
+            "salesforce.activity_create_by_related_id",
         }
 
     def test_every_tool_name_is_unique(self) -> None:

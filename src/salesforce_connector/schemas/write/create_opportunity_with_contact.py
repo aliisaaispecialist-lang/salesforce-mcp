@@ -56,7 +56,7 @@ class CreateOpportunityWithContactInput(BaseModel):
             max_length=80,
             description=(
                 "Required. The sales stage. Stages are configured per org, so do not "
-                "assume the Salesforce defaults: call salesforce_describe_object on "
+                "assume the Salesforce defaults: call salesforce_object_describe_by_name on "
                 "Opportunity and use a value it reports. A stage this org does not "
                 "have fails the whole write, including the contact link."
             ),
@@ -81,8 +81,8 @@ class CreateOpportunityWithContactInput(BaseModel):
             pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The person the deal is for. Find them with "
-                "salesforce_search_contact first. A contact id starts 003; if you do "
-                "not have one, use salesforce_create_opportunity instead and attach "
+                "salesforce_contact_search_by_text first. A contact id starts 003; if you do "
+                "not have one, use salesforce_opportunity_create instead and attach "
                 "the contact afterwards."
             ),
         ),
@@ -169,8 +169,8 @@ class CreateOpportunityWithContactOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.create_opportunity_with_contact",
-    tool_name="salesforce_create_opportunity_with_contact",
+    action_id="salesforce.opportunity_create_with_contact_by_id",
+    tool_name="salesforce_opportunity_create_with_contact_by_id",
     title="Create a Salesforce opportunity and attach its contact together",
     summary=(
         "Open a deal and attach the person it is for in a single write that either "
@@ -183,11 +183,11 @@ SPEC = ActionSpec(
     ),
     when_not_to_use=(
         "you do not have the contact id yet, in which case use "
-        "salesforce_create_opportunity now and attach the contact afterwards with "
-        "salesforce_link_contact_to_opportunity; the deal is not for a particular "
-        "person, which is salesforce_create_opportunity on its own; or the deal "
+        "salesforce_opportunity_create now and attach the contact afterwards with "
+        "salesforce_opportunity_link_contact_by_id; the deal is not for a particular "
+        "person, which is salesforce_opportunity_create on its own; or the deal "
         "already exists and only needs a contact attached, which is "
-        "salesforce_link_contact_to_opportunity."
+        "salesforce_opportunity_link_contact_by_id."
     ),
     kind=ActionKind.WRITE,
     risk=RiskLevel.MEDIUM,
@@ -249,7 +249,7 @@ SPEC = ActionSpec(
             remedy=(
                 "Nothing was created, so fix the named value and call again with the "
                 "same idempotency key. For a rejected stage or role, call "
-                "salesforce_describe_object on Opportunity and use a value it lists."
+                "salesforce_object_describe_by_name on Opportunity and use a value it lists."
             ),
         ),
         ErrorGuidance(

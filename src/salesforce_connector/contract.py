@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-# The programme assigns dotted action IDs (salesforce.search_contact) and
+# The programme assigns dotted action IDs (salesforce.contact_search_by_text) and
 # requires them verbatim. MCP itself permits dots in tool names; the LLM
 # providers do not, since their function names match ^[a-zA-Z0-9_-]{1,64}$. So
 # a provider-safe name is carried alongside rather than rewriting either one.

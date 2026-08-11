@@ -32,19 +32,22 @@ from salesforce_connector.schemas.write import (
 )
 
 WRITE_ARGUMENTS = {
-    "salesforce_create_contact": {"last_name": "Lovelace", "idempotency_key": "key-12345678"},
-    "salesforce_update_contact": {
+    "salesforce_contact_create": {
+        "last_name": "Lovelace",
+        "idempotency_key": "key-12345678",
+    },
+    "salesforce_contact_update_by_id": {
         "contact_id": "003xx000004TmiQ",
         "idempotency_key": "key-12345678",
         "title": "CTO",
     },
-    "salesforce_create_opportunity": {
+    "salesforce_opportunity_create": {
         "name": "Renewal",
         "stage_name": "Prospecting",
         "close_date": "2026-12-01",
         "idempotency_key": "key-12345678",
     },
-    "salesforce_add_activity_note": {
+    "salesforce_activity_create_by_related_id": {
         "related_to_id": "003xx000004TmiQ",
         "subject": "Called",
         "idempotency_key": "key-12345678",
@@ -52,10 +55,10 @@ WRITE_ARGUMENTS = {
 }
 
 WRITE_MODELS: dict[str, type[BaseModel]] = {
-    "salesforce_create_contact": create_contact.CreateContactInput,
-    "salesforce_update_contact": update_contact.UpdateContactInput,
-    "salesforce_create_opportunity": create_opportunity.CreateOpportunityInput,
-    "salesforce_add_activity_note": add_activity_note.AddActivityNoteInput,
+    "salesforce_contact_create": create_contact.CreateContactInput,
+    "salesforce_contact_update_by_id": update_contact.UpdateContactInput,
+    "salesforce_opportunity_create": create_opportunity.CreateOpportunityInput,
+    "salesforce_activity_create_by_related_id": add_activity_note.AddActivityNoteInput,
 }
 
 
@@ -114,11 +117,11 @@ class TestTheClientsPath:
         WRITE_MODELS[tool_name].model_validate(dict(request.params))
 
     def test_the_key_is_lifted_onto_the_request_as_well_as_left_in_the_payload(self) -> None:
-        arguments = {**WRITE_ARGUMENTS["salesforce_create_contact"], "approved": True}
+        arguments = {**WRITE_ARGUMENTS["salesforce_contact_create"], "approved": True}
 
         request = _as_request(
             arguments,
-            for_tool("salesforce_create_contact"),
+            for_tool("salesforce_contact_create"),
         )
 
         assert request.idempotency_key == "key-12345678"

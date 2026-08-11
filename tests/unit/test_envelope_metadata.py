@@ -67,8 +67,8 @@ def token_route() -> None:
 
 
 async def search(client: SalesforceClient, **params: object) -> ActionResult:
-    request = ActionRequest(action_id="salesforce.search_contact", params=params)
-    return await registry.build("salesforce.search_contact", client).run(request)
+    request = ActionRequest(action_id="salesforce.contact_search_by_text", params=params)
+    return await registry.build("salesforce.contact_search_by_text", client).run(request)
 
 
 @pytest.mark.asyncio
@@ -112,12 +112,12 @@ class TestPaginationReachesTheEnvelope:
             )
 
             request = ActionRequest(
-                action_id="salesforce.create_contact",
+                action_id="salesforce.contact_create",
                 params={"last_name": "Lovelace", "idempotency_key": "key-1234"},
                 idempotency_key="key-1234",
                 approved=True,
             )
-            result = await registry.build("salesforce.create_contact", client).run(request)
+            result = await registry.build("salesforce.contact_create", client).run(request)
 
             assert result.ok
             assert result.pagination is None

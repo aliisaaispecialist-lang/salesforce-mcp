@@ -33,10 +33,15 @@ class SearchContactInput(BaseModel):
             min_length=MIN_QUERY_LENGTH,
             max_length=200,
             description=(
-                "Required. Text to look for across contact name, email, phone, and "
-                "account name, for example 'Ada Lovelace', 'ada@example.com', or "
+                "Required. One piece of text, matched against the contact's own "
+                "searchable fields at once: name, email, phone, title and the like. "
+                "For example 'Ada Lovelace', 'ada@example.com', or "
                 "'+973 1234 5678'. Two characters minimum. This is a search, not a "
-                "filter: it matches whole words, and a partial word may not match. "
+                "filter: it matches whole words, and a partial word may not match.\n\n"
+                "It does not search the account's name, which lives on the Account "
+                "record and not on the contact, and it does not match a record id. "
+                "For either of those use salesforce_record_query_by_soql, which can "
+                "filter on Account.Name or on Id directly.\n\n"
                 "Do not put SOQL or SOSL syntax here; it is sent as data, never as a "
                 "query."
             ),
@@ -107,12 +112,12 @@ class SearchContactOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.search_contact",
-    tool_name="salesforce_search_contact",
+    action_id="salesforce.contact_search_by_text",
+    tool_name="salesforce_contact_search_by_text",
     title="Search Salesforce contacts",
     summary=(
-        "Search Salesforce for existing contacts by name, email, phone, or account "
-        "name, and return the matches with their record ids."
+        "Search Salesforce for existing contacts by name, email, phone, or another "
+        "of their own fields, and return the matches with their record ids."
     ),
     when_to_use=(
         "you need a contact's Salesforce id; you want to check whether a person "
@@ -120,8 +125,12 @@ SPEC = ActionSpec(
         "to confirm which record they meant."
     ),
     when_not_to_use=(
-        "you already hold the contact id, in which case act on it directly; or you "
-        "want to create, change, or annotate a record, which the write actions do."
+        "you already hold the contact id, in which case salesforce_record_get_by_id "
+        "reads it directly and is faster and exact; you need to match on the "
+        "account's name or on any condition rather than on words, which is "
+        "salesforce_record_query_by_soql; you are looking for something that is not "
+        "a contact, which is salesforce_record_search_by_text; or you want to "
+        "create, change, or annotate a record, which the write tools do."
     ),
     kind=ActionKind.READ,
     risk=RiskLevel.LOW,

@@ -92,7 +92,7 @@ class FieldDescription(BaseModel):
             default=None,
             description=(
                 "For a lookup field, the name to follow with "
-                "salesforce_get_related. A Contact's AccountId is followed as "
+                "salesforce_record_get_related_by_id. A Contact's AccountId is followed as "
                 "the relationship named Account."
             ),
         ),
@@ -114,8 +114,8 @@ class DescribeObjectOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.describe_object",
-    tool_name="salesforce_describe_object",
+    action_id="salesforce.object_describe_by_name",
+    tool_name="salesforce_object_describe_by_name",
     title="Describe a Salesforce object's fields",
     summary=(
         "List an object's field names, types, and the picklist values this org "
@@ -131,7 +131,7 @@ SPEC = ActionSpec(
     when_not_to_use=(
         "you already know the field names, since this returns a lot and costs "
         "context; or you want the records themselves rather than the shape of "
-        "them, which is salesforce_get_record or salesforce_soql_query."
+        "them, which is salesforce_record_get_by_id or salesforce_record_query_by_soql."
     ),
     kind=ActionKind.READ,
     risk=RiskLevel.LOW,

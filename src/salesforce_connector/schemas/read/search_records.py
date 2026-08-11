@@ -44,7 +44,7 @@ class SearchRecordsInput(BaseModel):
             description=(
                 "Required. The object to search, spelled as Salesforce spells it: "
                 "Account, Lead, Opportunity, Case, Task, or a custom object ending "
-                "__c. For Contact use salesforce_search_contact instead, which "
+                "__c. For Contact use salesforce_contact_search_by_text instead, which "
                 "returns the contact fields the contact tools need."
             ),
             examples=["Account", "Lead", "Opportunity"],
@@ -61,7 +61,7 @@ class SearchRecordsInput(BaseModel):
                 "way a search box matches, not the way a filter matches, so a "
                 "partial word finds records containing it.\n\n"
                 "For a condition rather than words, such as a date range or an "
-                "amount over a threshold, use salesforce_soql_query."
+                "amount over a threshold, use salesforce_record_query_by_soql."
             ),
             examples=["Example Corp", "renewal"],
         ),
@@ -75,7 +75,7 @@ class SearchRecordsInput(BaseModel):
                 "Optional, defaults to Id and Name. The fields to return, named as "
                 "Salesforce names them. Not every object has Name: a Task calls it "
                 "Subject, and asking for a field an object does not have fails the "
-                "search. Call salesforce_describe_object first if you are unsure."
+                "search. Call salesforce_object_describe_by_name first if you are unsure."
             ),
             examples=[["Id", "Name", "Industry"], ["Id", "Subject", "Status"]],
         ),
@@ -131,8 +131,8 @@ class SearchRecordsOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.search_records",
-    tool_name="salesforce_search_records",
+    action_id="salesforce.record_search_by_text",
+    tool_name="salesforce_record_search_by_text",
     title="Search any Salesforce object by words",
     summary=(
         "Find records of any object by free text, the way a search box finds them, "
@@ -144,11 +144,11 @@ SPEC = ActionSpec(
         "name into a record id before a tool that needs one."
     ),
     when_not_to_use=(
-        "the object is Contact, which is salesforce_search_contact and returns the "
+        "the object is Contact, which is salesforce_contact_search_by_text and returns the "
         "fields the contact tools expect; the user described a condition rather "
         "than words, such as everything closing this month, which is "
-        "salesforce_soql_query; or you already hold the record id, in which case "
-        "salesforce_get_record reads it directly."
+        "salesforce_record_query_by_soql; or you already hold the record id, in which case "
+        "salesforce_record_get_by_id reads it directly."
     ),
     kind=ActionKind.READ,
     risk=RiskLevel.LOW,
@@ -196,7 +196,7 @@ SPEC = ActionSpec(
             ),
             remedy=(
                 "Search for at least two characters. If a field was rejected, call "
-                "salesforce_describe_object on the object and use names it actually "
+                "salesforce_object_describe_by_name on the object and use names it actually "
                 "lists rather than retrying the same list."
             ),
         ),

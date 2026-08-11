@@ -20,23 +20,23 @@ scopes:
   - refresh_token
 
 actions:
-  - salesforce.add_activity_note
-  - salesforce.count_records
-  - salesforce.create_contact
-  - salesforce.create_opportunity
-  - salesforce.create_opportunity_with_contact
-  - salesforce.describe_object
-  - salesforce.get_record
-  - salesforce.get_related
-  - salesforce.list_tools
-  - salesforce.tool_schema
-  - salesforce.search_records
-  - salesforce.update_record
-  - salesforce.upsert_record
-  - salesforce.link_contact_to_opportunity
-  - salesforce.search_contact
-  - salesforce.soql_query
-  - salesforce.update_contact
+  - salesforce.activity_create_by_related_id
+  - salesforce.record_count_by_object
+  - salesforce.contact_create
+  - salesforce.opportunity_create
+  - salesforce.opportunity_create_with_contact_by_id
+  - salesforce.object_describe_by_name
+  - salesforce.record_get_by_id
+  - salesforce.record_get_related_by_id
+  - salesforce.tool_list_by_kind
+  - salesforce.tool_describe_by_name
+  - salesforce.record_search_by_text
+  - salesforce.record_update_by_id
+  - salesforce.record_upsert_by_external_id
+  - salesforce.opportunity_link_contact_by_id
+  - salesforce.contact_search_by_text
+  - salesforce.record_query_by_soql
+  - salesforce.contact_update_by_id
 
 capabilities:
   pagination: true

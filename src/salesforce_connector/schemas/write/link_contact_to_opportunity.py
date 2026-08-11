@@ -100,8 +100,8 @@ class LinkContactToOpportunityOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.link_contact_to_opportunity",
-    tool_name="salesforce_link_contact_to_opportunity",
+    action_id="salesforce.opportunity_link_contact_by_id",
+    tool_name="salesforce_opportunity_link_contact_by_id",
     title="Attach a contact to a Salesforce opportunity",
     summary=(
         "Attach an existing contact to an existing opportunity, so the deal records who it is for."

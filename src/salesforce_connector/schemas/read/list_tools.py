@@ -10,7 +10,7 @@ its server holds no per-caller state by design.
 What this does instead is answer the question directly. Asked for reads, it
 names the reads and what each is for, in a few hundred tokens rather than
 nineteen thousand. The chosen tool is then read in full through
-`salesforce_tool_schema` and called natively, so approval, validation and the
+`salesforce_tool_describe_by_name` and called natively, so approval, validation and the
 destructive-write hints all still apply.
 """
 
@@ -94,8 +94,8 @@ class ListToolsOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.list_tools",
-    tool_name="salesforce_list_tools",
+    action_id="salesforce.tool_list_by_kind",
+    tool_name="salesforce_tool_list_by_kind",
     title="List the Salesforce tools for reading or for writing",
     summary=(
         "Name the tools that read Salesforce, or the tools that change it, each with "
@@ -109,8 +109,8 @@ SPEC = ActionSpec(
     ),
     when_not_to_use=(
         "you already know which tool you want, in which case call "
-        "salesforce_tool_schema for its fields or simply call the tool; or you want "
-        "the fields and types of one tool, which is salesforce_tool_schema. This "
+        "salesforce_tool_describe_by_name for its fields or simply call the tool; or you want "
+        "the fields and types of one tool, which is salesforce_tool_describe_by_name. This "
         "lists tools and never touches Salesforce data."
     ),
     kind=ActionKind.READ,
@@ -127,7 +127,7 @@ SPEC = ActionSpec(
                 "kind": "write",
                 "tools": [
                     {
-                        "name": "salesforce_create_contact",
+                        "name": "salesforce_contact_create",
                         "purpose": "Create a new contact and return its record id.",
                         "use_when": "the user wants somebody added to Salesforce.",
                         "required_inputs": ["last_name", "idempotency_key"],
@@ -137,7 +137,7 @@ SPEC = ActionSpec(
                 ],
                 "returned": 1,
                 "next_action": (
-                    "Call salesforce_tool_schema with the tool_name you chose to see "
+                    "Call salesforce_tool_describe_by_name with the tool_name you chose to see "
                     "its fields and the exact type each one expects."
                 ),
             },

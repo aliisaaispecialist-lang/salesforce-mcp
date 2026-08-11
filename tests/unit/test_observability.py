@@ -51,9 +51,9 @@ class TestCensoring:
         assert "MIIEowIBAAKC" not in censored
 
     def test_ordinary_fields_are_left_alone(self) -> None:
-        censored = censor(action_id="salesforce.create_contact", status=201)
+        censored = censor(action_id="salesforce.contact_create", status=201)
 
-        assert censored == {"action_id": "salesforce.create_contact", "status": 201}
+        assert censored == {"action_id": "salesforce.contact_create", "status": 201}
 
 
 class TestLogOutput:
@@ -67,7 +67,9 @@ class TestLogOutput:
     ) -> None:
         configure_logging(logging.INFO)
 
-        get_logger().info("action.completed", action_id="salesforce.search_contact", ok=True)
+        get_logger().info(
+            "action.completed", action_id="salesforce.contact_search_by_text", ok=True
+        )
 
         captured = capsys.readouterr()
         assert captured.out == ""
@@ -88,19 +90,19 @@ class TestLogOutput:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         configure_logging(logging.INFO)
-        bind_request("req-42", "salesforce.create_contact")
+        bind_request("req-42", "salesforce.contact_create")
 
         get_logger().info("client.attempt")
 
         written = json.loads(capsys.readouterr().err.strip())
         assert written["request_id"] == "req-42"
-        assert written["action_id"] == "salesforce.create_contact"
+        assert written["action_id"] == "salesforce.contact_create"
 
     def test_context_does_not_survive_the_call_that_bound_it(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         configure_logging(logging.INFO)
-        bind_request("req-42", "salesforce.create_contact")
+        bind_request("req-42", "salesforce.contact_create")
         clear_request()
 
         get_logger().info("unrelated")
@@ -112,48 +114,50 @@ class TestMetrics:
     def test_calls_and_attempts_are_counted_separately(self) -> None:
         metrics = Metrics()
 
-        metrics.record_call("salesforce.search_contact", ok=True, duration_ms=120.0)
+        metrics.record_call("salesforce.contact_search_by_text", ok=True, duration_ms=120.0)
         for _ in range(3):
-            metrics.record_attempt("salesforce.search_contact")
+            metrics.record_attempt("salesforce.contact_search_by_text")
 
         summary = metrics.summary()
-        assert summary["calls"]["salesforce.search_contact"] == 1
-        assert summary["attempts"]["salesforce.search_contact"] == 3
-        assert summary["attempts_per_call"]["salesforce.search_contact"] == 3.0
+        assert summary["calls"]["salesforce.contact_search_by_text"] == 1
+        assert summary["attempts"]["salesforce.contact_search_by_text"] == 3
+        assert summary["attempts_per_call"]["salesforce.contact_search_by_text"] == 3.0
 
     def test_failures_are_counted_by_the_category_a_caller_responds_to(self) -> None:
         metrics = Metrics()
 
-        metrics.record_call("salesforce.create_contact", ok=False, duration_ms=50.0)
-        metrics.record_failure("salesforce.create_contact", "transient")
+        metrics.record_call("salesforce.contact_create", ok=False, duration_ms=50.0)
+        metrics.record_failure("salesforce.contact_create", "transient")
 
-        assert metrics.summary()["failures"]["salesforce.create_contact:transient"] == 1
+        assert metrics.summary()["failures"]["salesforce.contact_create:transient"] == 1
 
     def test_a_successful_call_is_not_counted_as_a_failure(self) -> None:
         metrics = Metrics()
 
-        metrics.record_call("salesforce.create_contact", ok=True, duration_ms=50.0)
+        metrics.record_call("salesforce.contact_create", ok=True, duration_ms=50.0)
 
         assert metrics.summary()["failures"] == {}
-        assert metrics.summary()["successes"]["salesforce.create_contact"] == 1
+        assert metrics.summary()["successes"]["salesforce.contact_create"] == 1
 
     def test_exhausted_retries_are_distinguished_from_ordinary_ones(self) -> None:
         metrics = Metrics()
 
-        metrics.record_retry("salesforce.update_contact")
-        metrics.record_retry("salesforce.update_contact", exhausted=True)
+        metrics.record_retry("salesforce.contact_update_by_id")
+        metrics.record_retry("salesforce.contact_update_by_id", exhausted=True)
 
         summary = metrics.summary()
-        assert summary["retries"]["salesforce.update_contact"] == 2
-        assert summary["retries_exhausted"]["salesforce.update_contact"] == 1
+        assert summary["retries"]["salesforce.contact_update_by_id"] == 2
+        assert summary["retries_exhausted"]["salesforce.contact_update_by_id"] == 1
 
     def test_latency_is_reported_as_percentiles(self) -> None:
         metrics = Metrics()
 
         for value in range(1, 101):
-            metrics.record_call("salesforce.search_contact", ok=True, duration_ms=float(value))
+            metrics.record_call(
+                "salesforce.contact_search_by_text", ok=True, duration_ms=float(value)
+            )
 
-        latency = metrics.summary()["latency_ms"]["salesforce.search_contact"]
+        latency = metrics.summary()["latency_ms"]["salesforce.contact_search_by_text"]
         assert latency["count"] == 100
         assert latency["p50"] == 50.5
         assert latency["p95"] == 96.0
@@ -162,9 +166,9 @@ class TestMetrics:
     def test_a_single_sample_does_not_break_the_percentiles(self) -> None:
         metrics = Metrics()
 
-        metrics.record_call("salesforce.search_contact", ok=True, duration_ms=7.0)
+        metrics.record_call("salesforce.contact_search_by_text", ok=True, duration_ms=7.0)
 
-        latency = metrics.summary()["latency_ms"]["salesforce.search_contact"]
+        latency = metrics.summary()["latency_ms"]["salesforce.contact_search_by_text"]
         assert latency["p50"] == latency["p95"] == latency["max"] == 7.0
 
     def test_an_untouched_summary_is_empty_rather_than_absent(self) -> None:

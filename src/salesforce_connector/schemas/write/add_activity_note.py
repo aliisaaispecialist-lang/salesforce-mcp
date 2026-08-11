@@ -128,8 +128,8 @@ class AddActivityNoteOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.add_activity_note",
-    tool_name="salesforce_add_activity_note",
+    action_id="salesforce.activity_create_by_related_id",
+    tool_name="salesforce_activity_create_by_related_id",
     title="Log an activity note in Salesforce",
     summary=(
         "Record a call, email, meeting, or note against a Salesforce contact or "

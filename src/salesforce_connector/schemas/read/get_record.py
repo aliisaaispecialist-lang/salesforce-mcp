@@ -65,7 +65,7 @@ class GetRecordInput(BaseModel):
                 "on a real org is dozens of them and mostly empty. Naming the three "
                 "or four you need keeps the answer readable and cheap.\n\n"
                 "If you do not know what a field is called, call "
-                "salesforce_describe_object first rather than guessing."
+                "salesforce_object_describe_by_name first rather than guessing."
             ),
             examples=[["Name", "Email"], ["Name", "StageName", "Amount"]],
         ),
@@ -90,8 +90,8 @@ class GetRecordOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.get_record",
-    tool_name="salesforce_get_record",
+    action_id="salesforce.record_get_by_id",
+    tool_name="salesforce_record_get_by_id",
     title="Read one Salesforce record by id",
     summary=(
         "Read one Salesforce record directly by its id, returning either every "
@@ -104,7 +104,7 @@ SPEC = ActionSpec(
     when_not_to_use=(
         "you do not have the id, in which case search for it by name or query for "
         "it by condition; or you want several records at once, which is "
-        "salesforce_soql_query. This reads exactly one."
+        "salesforce_record_query_by_soql. This reads exactly one."
     ),
     kind=ActionKind.READ,
     risk=RiskLevel.LOW,
@@ -157,7 +157,7 @@ SPEC = ActionSpec(
             when="The id is malformed, or a named field does not exist.",
             remedy=(
                 "Salesforce names the field it did not recognise. Call "
-                "salesforce_describe_object to see the real field names, then call "
+                "salesforce_object_describe_by_name to see the real field names, then call "
                 "again."
             ),
         ),

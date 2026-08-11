@@ -20,7 +20,7 @@ names something this connector cannot do, in terms a model can act on.
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from difflib import get_close_matches
+from difflib import SequenceMatcher, get_close_matches
 from typing import Any, Final
 
 from mcp.types import Tool
@@ -28,7 +28,12 @@ from mcp.types import Tool
 from salesforce_connector.contract import ActionDescriptor, ActionKind
 from salesforce_connector.protocol.translate import UNKNOWN_TOOL, as_tool
 
-TOOL_SCHEMA_GUIDE: Final = "salesforce_tool_schema"
+TOOL_SCHEMA_GUIDE: Final = "salesforce_tool_describe_by_name"
+
+# How alike two action words must be before one is offered as a correction
+# for the other. Chosen from the measurements in `_near_miss`, with the
+# nearest unsafe pair at 0.50 and the furthest safe one at 0.91.
+_SAME_ACTION: Final = 0.85
 
 
 @dataclass(frozen=True)
@@ -67,7 +72,7 @@ def unavailable(asked: str, described: tuple[ActionDescriptor, ...]) -> str:
     A near miss when there is one, because a plural or a missing prefix is the
     common case and naming it saves a round trip. And a plain instruction not
     to approximate: without it, a model refused salesforce_delete_contact will
-    reach for salesforce_update_record and blank the fields instead, which is
+    reach for salesforce_record_update_by_id and blank the fields instead, which is
     a worse outcome than the refusal it was given.
     """
     near = _near_miss(asked, _names(described))
@@ -85,7 +90,7 @@ def unavailable(asked: str, described: tuple[ActionDescriptor, ...]) -> str:
 def _closed(tool: Tool, described: tuple[ActionDescriptor, ...]) -> Tool:
     """Replace a free-text tool name with the closed set of real ones.
 
-    `salesforce_tool_schema` takes the name of another tool. Declared as a
+    `salesforce_tool_describe_by_name` takes the name of another tool. Declared as a
     string, that field invites a model to write whatever it believes exists,
     and a plausible invention -- salesforce_delete_contact, say -- looks
     exactly like a real name until the call is made. Declared as an enum, the
@@ -124,23 +129,47 @@ def _near_miss(asked: str, allowed: list[str]) -> str | None:
     """Suggest a real name only when the mistake was spelling, not intent.
 
     Text similarity alone is not safe here. `salesforce_delete_contact` is one
-    word away from `salesforce_update_contact`, so a plain closest match
+    word away from `salesforce_contact_update_by_id`, so a plain closest match
     answers a request to delete a record by proposing the tool that overwrites
     one. That is precisely the substitution the refusal goes on to forbid, and
     offering it in the same breath would be worse than saying nothing.
 
-    So a suggestion has to agree about the verb. A plural or a typo keeps it
-    and is corrected; a different action does not and gets only the list.
+    So a suggestion has to agree about the action. Not exactly, because the
+    typo is often in the action itself -- `contact_creates` for
+    `contact_create` -- but closely, and the gap between the two cases is
+    wide enough to sit a threshold in. Measured on this tool set:
+
+        creates / create   0.92     delete / update   0.50
+        searchs / search   0.92     update / upsert   0.50
+        updates / update   0.92     search / query    0.36
+
+    Everything a person could plausibly mistype scores above 0.9; every pair
+    of genuinely different actions scores at or below 0.5. Note where
+    `update` and `upsert` land, because those two are the dangerous pair in
+    this connector and 0.85 keeps them apart.
     """
     close = get_close_matches(asked, allowed, n=1, cutoff=0.7)
-    if close and _verb(asked) == _verb(close[0]):
+    if close and _same_action(_action(asked), _action(close[0])):
         return close[0]
     return None
 
 
-def _verb(tool_name: str) -> str:
-    """The action word in a tool name: create, update, search, and so on."""
-    return tool_name.removeprefix("salesforce_").split("_")[0]
+def _same_action(asked: str, found: str) -> bool:
+    """True when two action words differ only by a slip of the fingers."""
+    return SequenceMatcher(None, asked, found).ratio() >= _SAME_ACTION
+
+
+def _action(tool_name: str) -> str:
+    """The action word in a tool name.
+
+    Names are `salesforce_<object>_<action>_by_<key>`, so the action is the
+    second segment, not the first. Reading the first would compare objects:
+    `salesforce_contact_delete_by_id` and `salesforce_contact_update_by_id`
+    would agree, and the guard would suggest the overwrite in answer to the
+    delete, which is the one thing it exists to prevent.
+    """
+    parts = tool_name.removeprefix("salesforce_").split("_")
+    return parts[1] if len(parts) > 1 else parts[0]
 
 
 def _available(described: tuple[ActionDescriptor, ...]) -> str:

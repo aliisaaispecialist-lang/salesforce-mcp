@@ -35,7 +35,7 @@ async def main() -> None:
         # without either, update_contact refuses and says why.
         key = str(uuid4())
         request = ActionRequest(
-            action_id="salesforce.update_contact",
+            action_id="salesforce.contact_update_by_id",
             params={
                 "contact_id": CONTACT_ID,
                 "title": "Chief Mathematician",

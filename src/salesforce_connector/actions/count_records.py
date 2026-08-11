@@ -16,7 +16,7 @@ _ADVICE: Final = (
     "Salesforce returned no count for: {absent}. These counts are cached and "
     "refreshed on Salesforce's own schedule, so an object it has not computed "
     "yet is missing rather than zero -- this does not mean there are no "
-    "records. For an exact count, call salesforce_soql_query and ask it to "
+    "records. For an exact count, call salesforce_record_query_by_soql and ask it to "
     "select a count from that object."
 )
 

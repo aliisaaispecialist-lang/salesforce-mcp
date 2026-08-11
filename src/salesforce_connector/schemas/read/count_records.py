@@ -43,7 +43,7 @@ class CountRecordsInput(BaseModel):
                 "calling repeatedly; one call answers for all of them.\n\n"
                 "This counts every record of that type. It cannot count a subset. "
                 "For 'how many contacts at Acme' or 'how many deals closed this "
-                "month', use salesforce_soql_query with SELECT COUNT() and a "
+                "month', use salesforce_record_query_by_soql with SELECT COUNT() and a "
                 "WHERE clause instead."
             ),
             examples=[["Contact"], ["Contact", "Opportunity", "Lead"]],
@@ -89,8 +89,8 @@ class CountRecordsOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.count_records",
-    tool_name="salesforce_count_records",
+    action_id="salesforce.record_count_by_object",
+    tool_name="salesforce_record_count_by_object",
     title="Count Salesforce records by object",
     summary=(
         "Report how many records exist for one or more Salesforce objects, without "
@@ -104,7 +104,7 @@ SPEC = ActionSpec(
     when_not_to_use=(
         "the question has any condition attached, such as how many were created "
         "this month or how many belong to one account. This counts everything and "
-        "cannot filter; salesforce_soql_query with SELECT COUNT() and a WHERE "
+        "cannot filter; salesforce_record_query_by_soql with SELECT COUNT() and a WHERE "
         "clause is the tool for that. Also not for reading the records themselves."
     ),
     kind=ActionKind.READ,

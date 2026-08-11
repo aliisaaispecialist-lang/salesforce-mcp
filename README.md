@@ -19,7 +19,7 @@ Executor launches it once and shares it with every agent on your machine.
 | **Docker** *or* **Python 3.12+** | Runs the connector itself. Pick either | Docker: [docker.com/get-started](https://www.docker.com/get-started). Python: [python.org/downloads](https://www.python.org/downloads) |
 | **A Salesforce sandbox** | Three values: a Consumer Key, a username, and a private key you generate | See [Salesforce credentials](#3-salesforce-credentials) |
 
-You need none of it to review the code. `pytest` runs 781 tests with no
+You need none of it to review the code. `pytest` runs 783 tests with no
 credentials, no org, and no network.
 
 ---
@@ -238,28 +238,28 @@ Nine read, eight write. Every write requires approval before it runs.
 
 | Tool | What it is for |
 |---|---|
-| `salesforce_search_contact` | Search for existing contacts by name, email, phone, or account, and return the matches with their record ids |
-| `salesforce_search_records` | Find records of any object by free text, the way a search box finds them |
-| `salesforce_soql_query` | Run a read-only SOQL query to list, filter, sort, or count |
-| `salesforce_get_record` | Read one record by id, every field or only the ones asked for |
-| `salesforce_get_related` | Read what a record is attached to: a contact's account, an opportunity's contact roles |
-| `salesforce_count_records` | Count records without reading them |
-| `salesforce_describe_object` | List an object's fields, types, and the picklist values this org accepts |
-| `salesforce_list_tools` | Name the tools that read, or the tools that change, each with what it is for |
-| `salesforce_tool_schema` | Report one tool's fields, the exact type each expects, and a worked call |
+| `salesforce_contact_search_by_text` | Search contacts by one piece of text, matched against name, email, phone and their other own fields at once, and return the matches with their record ids |
+| `salesforce_record_search_by_text` | Find records of any object by free text, the way a search box finds them |
+| `salesforce_record_query_by_soql` | Run a read-only SOQL query to list, filter, sort, or count |
+| `salesforce_record_get_by_id` | Read one record by id, every field or only the ones asked for |
+| `salesforce_record_get_related_by_id` | Read what a record is attached to: a contact's account, an opportunity's contact roles |
+| `salesforce_record_count_by_object` | Count records without reading them |
+| `salesforce_object_describe_by_name` | List an object's fields, types, and the picklist values this org accepts |
+| `salesforce_tool_list_by_kind` | Name the tools that read, or the tools that change, each with what it is for |
+| `salesforce_tool_describe_by_name` | Report one tool's fields, the exact type each expects, and a worked call |
 
 ### Write
 
 | Tool | What it is for |
 |---|---|
-| `salesforce_create_contact` | Create a person and return its record id |
-| `salesforce_update_contact` | Change fields on a contact and return the record afterwards |
-| `salesforce_create_opportunity` | Open a deal, optionally linked to an account and a contact |
-| `salesforce_create_opportunity_with_contact` | Open a deal and attach its person in one write that either fully succeeds or changes nothing |
-| `salesforce_link_contact_to_opportunity` | Attach an existing contact to an existing deal |
-| `salesforce_add_activity_note` | Record a call, email, meeting, or note on a record's activity timeline |
-| `salesforce_update_record` | Change named fields on any object, then read back what they hold |
-| `salesforce_upsert_record` | Write a record by an outside system's id: create if new, update if it exists |
+| `salesforce_contact_create` | Create a person and return its record id |
+| `salesforce_contact_update_by_id` | Change fields on a contact and return the record afterwards |
+| `salesforce_opportunity_create` | Open a deal, optionally linked to an account and a contact |
+| `salesforce_opportunity_create_with_contact_by_id` | Open a deal and attach its person in one write that either fully succeeds or changes nothing |
+| `salesforce_opportunity_link_contact_by_id` | Attach an existing contact to an existing deal |
+| `salesforce_activity_create_by_related_id` | Record a call, email, meeting, or note on a record's activity timeline |
+| `salesforce_record_update_by_id` | Change named fields on any object, then read back what they hold |
+| `salesforce_record_upsert_by_external_id` | Write a record by an outside system's id: create if new, update if it exists |
 
 ---
 
@@ -381,7 +381,7 @@ connector appends the expected type in plain words and a correct value, both
 read from the field's own schema:
 
 ```
-[connector.invalid_input] salesforce_create_opportunity rejected its arguments.
+[connector.invalid_input] salesforce_opportunity_create rejected its arguments.
 close_date: Input should be a valid date. Send a date, written as YYYY-MM-DD,
 for example '2026-12-01'.
 
@@ -492,7 +492,7 @@ as authored.
 **One tool, one end-to-end action.** Generating a tool per REST endpoint is the
 common antipattern: agents chain several calls for one intent, and tool-choice
 error compounds. At 95% per-choice accuracy, five chained choices land near
-77%. `salesforce_create_opportunity_with_contact` is one call and one atomic
+77%. `salesforce_opportunity_create_with_contact_by_id` is one call and one atomic
 composite request rather than create, create, link.
 
 **Resources and prompts are not served.** The protocol defines three server
@@ -559,7 +559,7 @@ here.
 ## Testing
 
 ```bash
-pytest -q                    # 781 tests, no credentials, no network
+pytest -q                    # 783 tests, no credentials, no network
 pytest -m security           # the attacks this connector must be immune to
 ruff check . && mypy src tests
 ```
@@ -568,6 +568,41 @@ Four tiers. `unit` and `contract` need nothing. `security` writes the attacks
 as attempts rather than as assertions about design, so a refactor that quietly
 removes a defence fails there rather than in production. `learning` and
 `integration` run against a real sandbox and are excluded by marker.
+
+### Does the model pick the right tool?
+
+Tests prove a tool works when called correctly. They say nothing about whether
+a model chooses it in the first place, which is what a tool's name and
+description are for. `evals/` measures that:
+
+```bash
+pip install anthropic          # not a dependency of the connector
+export ANTHROPIC_API_KEY=...   # or: ant auth login
+python evals/run_tool_choice.py --limit 12    # a cheap smoke run first
+python evals/run_tool_choice.py --out runs/before.json
+```
+
+Eighty prompts in `evals/tool_choice.jsonl`, plain JSONL you can edit by hand.
+The model is given the published tool list and one prompt; the only thing
+recorded is which tool it reached for. Nothing is executed, so a run cannot
+touch Salesforce.
+
+Four numbers come out, and the last is the useful one:
+
+| | |
+|---|---|
+| **selection** | of the prompts with a right answer, how many got it |
+| **abstention** | of the prompts with none, how many were correctly refused |
+| **per tool** | which tools are chosen reliably and which are not |
+| **confusion** | what got picked instead, which is the only output that says *why* a tool is losing |
+
+Selection and abstention are scored separately on purpose. A connector that
+always picks something scores well on the first and nothing on the second, and
+this one is built to refuse what it cannot do, so the refusal is the half worth
+measuring. Eleven of the eighty prompts ask for something the connector does
+not offer, deleting a record among them.
+
+Run it before and after any change to a name or a description, and compare.
 
 ---
 

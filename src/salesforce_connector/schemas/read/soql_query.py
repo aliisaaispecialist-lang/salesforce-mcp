@@ -116,8 +116,8 @@ class SoqlQueryOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.soql_query",
-    tool_name="salesforce_soql_query",
+    action_id="salesforce.record_query_by_soql",
+    tool_name="salesforce_record_query_by_soql",
     title="Query Salesforce with SOQL",
     summary=(
         "Run a read-only SOQL query against any Salesforce object, to list, filter, "
@@ -194,7 +194,7 @@ SPEC = ActionSpec(
                 "This endpoint only reads, so anything other than a SELECT must be "
                 "rewritten as one. If the SOQL was rejected, the error names the "
                 "position and the problem; a field that does not exist is the usual "
-                "cause, so call salesforce_describe_object on the object to see its "
+                "cause, so call salesforce_object_describe_by_name on the object to see its "
                 "real field names rather than guessing again."
             ),
         ),

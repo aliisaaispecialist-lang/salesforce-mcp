@@ -26,7 +26,9 @@ class TestSearchingForNothing:
     async def test_a_search_matching_nobody_succeeds_with_an_empty_list(self, org: Org) -> None:
         # Empty is not an error. A model told "no such contact" creates one; a
         # model told "that search failed" asks the user.
-        found = unwrap(await org.call("salesforce.search_contact", query="MCPTestNoSuchPerson"))
+        found = unwrap(
+            await org.call("salesforce.contact_search_by_text", query="MCPTestNoSuchPerson")
+        )
 
         assert found["contacts"] == []
         assert found["returned"] == 0
@@ -34,7 +36,7 @@ class TestSearchingForNothing:
 
     @pytest.mark.asyncio
     async def test_a_query_that_is_too_short_never_reaches_the_network(self, org: Org) -> None:
-        result = await org.call("salesforce.search_contact", query="a")
+        result = await org.call("salesforce.contact_search_by_text", query="a")
 
         assert not result.ok
         assert result.error is not None
@@ -46,7 +48,7 @@ class TestFindingWhatWeJustCreated:
     async def test_a_created_contact_can_be_found_by_name(self, org: Org) -> None:
         made = unwrap(
             await org.call(
-                "salesforce.create_contact",
+                "salesforce.contact_create",
                 last_name=org.marker,
                 first_name="Ada",
                 idempotency_key=org.key,
@@ -54,7 +56,7 @@ class TestFindingWhatWeJustCreated:
         )
         org.litter.track("Contact", made["id"])
 
-        found = unwrap(await org.call("salesforce.search_contact", query=org.marker))
+        found = unwrap(await org.call("salesforce.contact_search_by_text", query=org.marker))
 
         # Salesforce search is index-backed and eventually consistent. If this
         # is flaky rather than failing, that delay is why -- and it is the
@@ -69,7 +71,7 @@ class TestFindingWhatWeJustCreated:
     async def test_every_field_the_schema_promises_is_populated(self, org: Org) -> None:
         made = unwrap(
             await org.call(
-                "salesforce.create_contact",
+                "salesforce.contact_create",
                 last_name=org.marker,
                 first_name="Grace",
                 email=f"{org.marker.lower()}@example.com",
@@ -79,7 +81,7 @@ class TestFindingWhatWeJustCreated:
         )
         org.litter.track("Contact", made["id"])
 
-        found = unwrap(await org.call("salesforce.search_contact", query=org.marker))
+        found = unwrap(await org.call("salesforce.contact_search_by_text", query=org.marker))
         contact = next(c for c in found["contacts"] if c["id"] == made["id"])
 
         assert contact["name"]
@@ -101,7 +103,7 @@ class TestPagination:
         for index in range(ENOUGH_TO_PAGE):
             made = unwrap(
                 await org.call(
-                    "salesforce.create_contact",
+                    "salesforce.contact_create",
                     last_name=org.marker,
                     first_name=f"Pager{index}",
                     idempotency_key=f"{org.key}-{index}",
@@ -109,13 +111,15 @@ class TestPagination:
             )
             org.litter.track("Contact", made["id"])
 
-        first = unwrap(await org.call("salesforce.search_contact", query=org.marker, limit=PAGE))
+        first = unwrap(
+            await org.call("salesforce.contact_search_by_text", query=org.marker, limit=PAGE)
+        )
         assert first["returned"] == PAGE, "not enough matches to page; indexing may lag"
         assert first["next_cursor"] is not None, "a full page must offer a cursor"
 
         second = unwrap(
             await org.call(
-                "salesforce.search_contact",
+                "salesforce.contact_search_by_text",
                 query=org.marker,
                 limit=PAGE,
                 cursor=first["next_cursor"],
@@ -136,12 +140,14 @@ class TestPagination:
     async def test_the_last_page_offers_no_cursor(self, org: Org) -> None:
         made = unwrap(
             await org.call(
-                "salesforce.create_contact", last_name=org.marker, idempotency_key=org.key
+                "salesforce.contact_create", last_name=org.marker, idempotency_key=org.key
             )
         )
         org.litter.track("Contact", made["id"])
 
-        page = unwrap(await org.call("salesforce.search_contact", query=org.marker, limit=50))
+        page = unwrap(
+            await org.call("salesforce.contact_search_by_text", query=org.marker, limit=50)
+        )
 
         # Fewer results than asked for means there is nothing more to ask for.
         assert page["next_cursor"] is None
@@ -150,12 +156,12 @@ class TestPagination:
     async def test_paging_position_reaches_the_envelope(self, org: Org) -> None:
         made = unwrap(
             await org.call(
-                "salesforce.create_contact", last_name=org.marker, idempotency_key=org.key
+                "salesforce.contact_create", last_name=org.marker, idempotency_key=org.key
             )
         )
         org.litter.track("Contact", made["id"])
 
-        result = await org.call("salesforce.search_contact", query=org.marker)
+        result = await org.call("salesforce.contact_search_by_text", query=org.marker)
 
         assert result.pagination is not None
         assert result.pagination.returned >= 1

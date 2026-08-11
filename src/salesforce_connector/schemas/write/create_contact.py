@@ -101,8 +101,8 @@ class CreateContactOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.create_contact",
-    tool_name="salesforce_create_contact",
+    action_id="salesforce.contact_create",
+    tool_name="salesforce_contact_create",
     title="Create a Salesforce contact",
     summary="Create a new person record in Salesforce and return its record id.",
     when_to_use=(

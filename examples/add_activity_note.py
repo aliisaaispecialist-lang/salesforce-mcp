@@ -34,7 +34,7 @@ async def main() -> None:
         # without either, add_activity_note refuses and says why.
         key = str(uuid4())
         request = ActionRequest(
-            action_id="salesforce.add_activity_note",
+            action_id="salesforce.activity_create_by_related_id",
             params={
                 "related_to_id": RELATED_TO_ID,
                 "subject": "Renewal call - agreed to 12 month extension",

@@ -89,7 +89,7 @@ class TestTheRegistry:
             registry.build("salesforce.nonexistent", client)
 
         # The remedy lists the valid ids; the reason names only what was asked for.
-        assert "salesforce.search_contact" in raised.value.to_action_error().next_step
+        assert "salesforce.contact_search_by_text" in raised.value.to_action_error().next_step
 
 
 @pytest.mark.asyncio
@@ -103,7 +103,7 @@ class TestSearchContact:
                 return_value=httpx.Response(200, json={"searchRecords": []})
             )
 
-            await run(client, "salesforce.search_contact", query="Ada' OR Name LIKE '%")
+            await run(client, "salesforce.contact_search_by_text", query="Ada' OR Name LIKE '%")
 
             sent = route.calls.last.request.content.decode()
             assert "Ada' OR Name LIKE '%" in sent  # carried as a JSON value
@@ -130,7 +130,7 @@ class TestSearchContact:
                 )
             )
 
-            result = await run(client, "salesforce.search_contact", query="Ada")
+            result = await run(client, "salesforce.contact_search_by_text", query="Ada")
 
             assert result.ok
             assert result.data["contacts"][0]["name"] == "Ada Lovelace"
@@ -147,8 +147,8 @@ class TestSearchContact:
                 )
             )
 
-            full = await run(client, "salesforce.search_contact", query="Ada", limit=2)
-            short = await run(client, "salesforce.search_contact", query="Ada", limit=50)
+            full = await run(client, "salesforce.contact_search_by_text", query="Ada", limit=2)
+            short = await run(client, "salesforce.contact_search_by_text", query="Ada", limit=50)
 
             assert full.data["next_cursor"] == "2"
             assert short.data["next_cursor"] is None
@@ -165,7 +165,7 @@ class TestCreateContact:
 
             await run(
                 client,
-                "salesforce.create_contact",
+                "salesforce.contact_create",
                 last_name="Lovelace",
                 idempotency_key=KEY,
             )
@@ -183,12 +183,12 @@ class TestCreateContact:
                 return_value=httpx.Response(201, json={"id": "003new"})
             )
 
-            await run(client, "salesforce.create_contact", last_name="A", idempotency_key=KEY)
+            await run(client, "salesforce.contact_create", last_name="A", idempotency_key=KEY)
             guarded = route.calls.last.request.headers
 
             await run(
                 client,
-                "salesforce.create_contact",
+                "salesforce.contact_create",
                 last_name="B",
                 idempotency_key="key-second1",
                 allow_duplicate=True,
@@ -208,10 +208,10 @@ class TestCreateContact:
             )
 
             first = await run(
-                client, "salesforce.create_contact", last_name="A", idempotency_key=KEY
+                client, "salesforce.contact_create", last_name="A", idempotency_key=KEY
             )
             second = await run(
-                client, "salesforce.create_contact", last_name="A", idempotency_key=KEY
+                client, "salesforce.contact_create", last_name="A", idempotency_key=KEY
             )
 
             assert route.call_count == 1
@@ -237,7 +237,7 @@ class TestUpdateContact:
 
             result = await run(
                 client,
-                "salesforce.update_contact",
+                "salesforce.contact_update_by_id",
                 contact_id="003xx000004TmiQ",
                 idempotency_key=KEY,
                 title="CTO",
@@ -264,7 +264,7 @@ class TestAddActivityNote:
 
             await run(
                 client,
-                "salesforce.add_activity_note",
+                "salesforce.activity_create_by_related_id",
                 related_to_id="003xx000004TmiQ",
                 subject="Called",
                 idempotency_key=KEY,
@@ -273,7 +273,7 @@ class TestAddActivityNote:
 
             await run(
                 client,
-                "salesforce.add_activity_note",
+                "salesforce.activity_create_by_related_id",
                 related_to_id="006xx000004TmiQ",
                 subject="Called",
                 idempotency_key="key-second1",
@@ -293,7 +293,7 @@ class TestAddActivityNote:
 
             result = await run(
                 client,
-                "salesforce.add_activity_note",
+                "salesforce.activity_create_by_related_id",
                 related_to_id="001xx000004TmiQ",
                 subject="Called",
                 idempotency_key=KEY,
@@ -335,7 +335,7 @@ class TestCreateOpportunity:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity",
+                "salesforce.opportunity_create",
                 name="Renewal",
                 stage_name="Nonsense",
                 close_date="2026-12-01",
@@ -371,7 +371,7 @@ class TestCreateOpportunity:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity",
+                "salesforce.opportunity_create",
                 name="Deal",
                 stage_name="Qualify",
                 close_date="2030-01-01",
@@ -380,7 +380,7 @@ class TestCreateOpportunity:
 
             assert result.ok
             assert role.call_count == 0, "this action must not write a contact role"
-            assert "salesforce_link_contact_to_opportunity" in result.data["next_action"]
+            assert "salesforce_opportunity_link_contact_by_id" in result.data["next_action"]
             assert "006new" in result.data["next_action"]
 
     async def test_bad_arguments_come_back_as_a_result_naming_the_field(
@@ -389,7 +389,7 @@ class TestCreateOpportunity:
         async with client, respx.mock:
             token_route()
 
-            result = await run(client, "salesforce.search_contact", query="a")
+            result = await run(client, "salesforce.contact_search_by_text", query="a")
 
             assert not result.ok
             assert result.error is not None
@@ -404,10 +404,10 @@ class TestCreateOpportunity:
                 return_value=httpx.Response(201, json={"id": "003new"})
             )
 
-            action = registry.build("salesforce.create_contact", client)
+            action = registry.build("salesforce.contact_create", client)
             result = await action.run(
                 ActionRequest(
-                    action_id="salesforce.create_contact",
+                    action_id="salesforce.contact_create",
                     params={"last_name": "Lovelace", "idempotency_key": KEY},
                     idempotency_key=KEY,
                 )
@@ -429,7 +429,7 @@ class TestCreateOpportunity:
                 )
             )
 
-            result = await run(client, "salesforce.search_contact", query="Ada")
+            result = await run(client, "salesforce.contact_search_by_text", query="Ada")
 
             assert not result.ok
             assert result.error is not None
@@ -469,7 +469,7 @@ class TestCreateOpportunityWithContact:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity_with_contact",
+                "salesforce.opportunity_create_with_contact_by_id",
                 name="Example Corp - renewal",
                 stage_name="Qualify",
                 close_date="2026-12-01",
@@ -530,7 +530,7 @@ class TestCreateOpportunityWithContact:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity_with_contact",
+                "salesforce.opportunity_create_with_contact_by_id",
                 name="Example Corp - renewal",
                 stage_name="Nonexistent",
                 close_date="2026-12-01",
@@ -554,19 +554,19 @@ class TestTheRouter:
         self, client: SalesforceClient
     ) -> None:
         async with client:
-            result = await run(client, "salesforce.list_tools", kind="write")
+            result = await run(client, "salesforce.tool_list_by_kind", kind="write")
 
             assert result.ok
             assert result.data["tools"]
             assert all(one["changes_data"] for one in result.data["tools"])
             assert all(one["needs_approval"] for one in result.data["tools"])
-            assert "salesforce_tool_schema" in result.data["next_action"]
+            assert "salesforce_tool_describe_by_name" in result.data["next_action"]
 
     async def test_asking_for_reads_lists_nothing_that_changes_data(
         self, client: SalesforceClient
     ) -> None:
         async with client:
-            result = await run(client, "salesforce.list_tools", kind="read")
+            result = await run(client, "salesforce.tool_list_by_kind", kind="read")
 
             assert result.ok
             assert not any(one["changes_data"] for one in result.data["tools"])
@@ -582,7 +582,7 @@ class TestTheRouter:
         loudly if that ever stops being true.
         """
         async with client:
-            result = await run(client, "salesforce.list_tools", kind="all")
+            result = await run(client, "salesforce.tool_list_by_kind", kind="all")
 
             listed = {one["name"] for one in result.data["tools"]}
             assert listed == {action.spec.tool_name for action in registry.BY_ID.values()}
@@ -592,7 +592,9 @@ class TestTheRouter:
     ) -> None:
         async with client:
             result = await run(
-                client, "salesforce.tool_schema", tool_name="salesforce_create_opportunity"
+                client,
+                "salesforce.tool_describe_by_name",
+                tool_name="salesforce_opportunity_create",
             )
 
             assert result.ok
@@ -605,7 +607,9 @@ class TestTheRouter:
     ) -> None:
         async with client:
             result = await run(
-                client, "salesforce.tool_schema", tool_name="salesforce_add_activity_note"
+                client,
+                "salesforce.tool_describe_by_name",
+                tool_name="salesforce_activity_create_by_related_id",
             )
 
             kind = next(one for one in result.data["fields"] if one["name"] == "activity_kind")
@@ -614,7 +618,9 @@ class TestTheRouter:
     async def test_required_fields_are_reported_first(self, client: SalesforceClient) -> None:
         async with client:
             result = await run(
-                client, "salesforce.tool_schema", tool_name="salesforce_create_contact"
+                client,
+                "salesforce.tool_describe_by_name",
+                tool_name="salesforce_contact_create",
             )
 
             required = [one["required"] for one in result.data["fields"]]
@@ -624,11 +630,13 @@ class TestTheRouter:
         self, client: SalesforceClient
     ) -> None:
         async with client:
-            result = await run(client, "salesforce.tool_schema", tool_name="salesforce_delete_all")
+            result = await run(
+                client, "salesforce.tool_describe_by_name", tool_name="salesforce_delete_all"
+            )
 
             assert not result.ok
             assert result.error is not None
-            assert "salesforce_search_contact" in result.error.next_step
+            assert "salesforce_contact_search_by_text" in result.error.next_step
 
 
 @pytest.mark.asyncio
@@ -641,7 +649,7 @@ class TestWrongTypesAreExplainedNotJustRejected:
         async with client:
             result = await run(
                 client,
-                "salesforce.create_opportunity",
+                "salesforce.opportunity_create",
                 name="Renewal",
                 stage_name="Qualify",
                 close_date="2026-12-01",
@@ -658,7 +666,7 @@ class TestWrongTypesAreExplainedNotJustRejected:
         async with client:
             result = await run(
                 client,
-                "salesforce.create_opportunity",
+                "salesforce.opportunity_create",
                 name="Renewal",
                 stage_name="Qualify",
                 close_date="next Tuesday",
@@ -675,7 +683,7 @@ class TestWrongTypesAreExplainedNotJustRejected:
         async with client:
             result = await run(
                 client,
-                "salesforce.add_activity_note",
+                "salesforce.activity_create_by_related_id",
                 related_to_id="003xx000004TmiQAAS",
                 subject="Called them",
                 activity_kind="phone call",
@@ -707,7 +715,7 @@ class TestASuccessMustCarryAnId:
 
             result = await run(
                 client,
-                "salesforce.create_contact",
+                "salesforce.contact_create",
                 last_name="Lovelace",
                 idempotency_key=KEY,
                 approved=True,
@@ -729,7 +737,7 @@ class TestASuccessMustCarryAnId:
 
             result = await run(
                 client,
-                "salesforce.upsert_record",
+                "salesforce.record_upsert_by_external_id",
                 object_name="Contact",
                 external_id_field="External_Id__c",
                 external_id_value="CRM-4471",
@@ -764,7 +772,7 @@ class TestAWriteIsNotUndoneByTheReadAfterIt:
 
             result = await run(
                 client,
-                "salesforce.update_record",
+                "salesforce.record_update_by_id",
                 object_name="Account",
                 record_id="001xx000003DGb2AAG",
                 fields={"Industry": "Technology"},
@@ -813,7 +821,7 @@ class TestTheAtomicityClaimIsChecked:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity_with_contact",
+                "salesforce.opportunity_create_with_contact_by_id",
                 name="Renewal",
                 stage_name="Qualify",
                 close_date="2026-12-01",
@@ -840,7 +848,7 @@ class TestTheAtomicityClaimIsChecked:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity_with_contact",
+                "salesforce.opportunity_create_with_contact_by_id",
                 name="Renewal",
                 stage_name="Qualify",
                 close_date="2026-12-01",
@@ -866,7 +874,7 @@ class TestTheAtomicityClaimIsChecked:
 
             result = await run(
                 client,
-                "salesforce.create_opportunity_with_contact",
+                "salesforce.opportunity_create_with_contact_by_id",
                 name="Renewal",
                 stage_name="Prospecting",
                 close_date="2026-12-01",
@@ -909,7 +917,7 @@ class TestGetRelatedIsBounded:
 
             result = await run(
                 client,
-                "salesforce.get_related",
+                "salesforce.record_get_related_by_id",
                 object_name="Account",
                 record_id="001xx000003DGb2AAG",
                 relationship="Contacts",
@@ -932,7 +940,7 @@ class TestGetRelatedIsBounded:
 
             result = await run(
                 client,
-                "salesforce.get_related",
+                "salesforce.record_get_related_by_id",
                 object_name="Account",
                 record_id="001xx000003DGb2AAG",
                 relationship="Contacts",
@@ -940,7 +948,7 @@ class TestGetRelatedIsBounded:
 
             assert len(result.warnings) == 1
             assert "4200" in result.warnings[0]
-            assert "salesforce_soql_query" in result.warnings[0]
+            assert "salesforce_record_query_by_soql" in result.warnings[0]
 
     async def test_a_lookup_returns_its_one_record_untouched_and_says_nothing(
         self, client: SalesforceClient
@@ -960,7 +968,7 @@ class TestGetRelatedIsBounded:
 
             result = await run(
                 client,
-                "salesforce.get_related",
+                "salesforce.record_get_related_by_id",
                 object_name="Contact",
                 record_id="003xx000004TmiQAAS",
                 relationship="Account",
@@ -995,7 +1003,7 @@ class TestOneFieldCannotFloodTheAnswer:
 
             result = await run(
                 client,
-                "salesforce.get_record",
+                "salesforce.record_get_by_id",
                 object_name="Contact",
                 record_id="003xx000004TmiQAAS",
             )
@@ -1017,7 +1025,7 @@ class TestOneFieldCannotFloodTheAnswer:
 
             result = await run(
                 client,
-                "salesforce.get_record",
+                "salesforce.record_get_by_id",
                 object_name="Contact",
                 record_id="003xx000004TmiQAAS",
             )
@@ -1044,7 +1052,7 @@ class TestOneFieldCannotFloodTheAnswer:
 
             result = await run(
                 client,
-                "salesforce.get_record",
+                "salesforce.record_get_by_id",
                 object_name="Contact",
                 record_id="003xx000004TmiQAAS",
             )

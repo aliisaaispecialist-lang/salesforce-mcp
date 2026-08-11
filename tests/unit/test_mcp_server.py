@@ -79,30 +79,30 @@ class TestPublishedTools:
 
     def test_names_are_the_provider_safe_ones(self) -> None:
         assert {tool.name for tool in (mcp_translate.as_tool(d) for d in descriptors())} == {
-            "salesforce_search_contact",
-            "salesforce_soql_query",
-            "salesforce_count_records",
-            "salesforce_get_related",
-            "salesforce_describe_object",
-            "salesforce_get_record",
-            "salesforce_list_tools",
-            "salesforce_tool_schema",
-            "salesforce_search_records",
-            "salesforce_update_record",
-            "salesforce_upsert_record",
-            "salesforce_create_opportunity_with_contact",
-            "salesforce_create_contact",
-            "salesforce_update_contact",
-            "salesforce_create_opportunity",
-            "salesforce_link_contact_to_opportunity",
-            "salesforce_add_activity_note",
+            "salesforce_contact_search_by_text",
+            "salesforce_record_query_by_soql",
+            "salesforce_record_count_by_object",
+            "salesforce_record_get_related_by_id",
+            "salesforce_object_describe_by_name",
+            "salesforce_record_get_by_id",
+            "salesforce_tool_list_by_kind",
+            "salesforce_tool_describe_by_name",
+            "salesforce_record_search_by_text",
+            "salesforce_record_update_by_id",
+            "salesforce_record_upsert_by_external_id",
+            "salesforce_opportunity_create_with_contact_by_id",
+            "salesforce_contact_create",
+            "salesforce_contact_update_by_id",
+            "salesforce_opportunity_create",
+            "salesforce_opportunity_link_contact_by_id",
+            "salesforce_activity_create_by_related_id",
         }
 
     def test_a_read_is_marked_read_only_and_a_write_is_not(self) -> None:
         by_name = {d.tool_name: mcp_translate.as_tool(d) for d in descriptors()}
 
-        search = by_name["salesforce_search_contact"].annotations
-        create = by_name["salesforce_create_contact"].annotations
+        search = by_name["salesforce_contact_search_by_text"].annotations
+        create = by_name["salesforce_contact_create"].annotations
 
         assert search is not None
         assert create is not None

@@ -39,11 +39,11 @@ class ToolSchemaInput(BaseModel):
             max_length=120,
             description=(
                 "Required. The tool to explain, named exactly as it is published, "
-                "including the salesforce_ prefix. Call salesforce_list_tools first "
+                "including the salesforce_ prefix. Call salesforce_tool_list_by_kind first "
                 "if you are not sure of the name; a wrong name is answered with the "
                 "list of right ones."
             ),
-            examples=["salesforce_create_opportunity"],
+            examples=["salesforce_opportunity_create"],
         ),
     ]
 
@@ -111,8 +111,8 @@ class ToolSchemaOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.tool_schema",
-    tool_name="salesforce_tool_schema",
+    action_id="salesforce.tool_describe_by_name",
+    tool_name="salesforce_tool_describe_by_name",
     title="Explain one Salesforce tool's fields and types",
     summary=(
         "Report one tool's input fields, the exact type each expects, a correct "
@@ -124,9 +124,9 @@ SPEC = ActionSpec(
         "for a bad argument, to see what the field actually wanted."
     ),
     when_not_to_use=(
-        "you do not know which tool you want yet, which is salesforce_list_tools; or "
+        "you do not know which tool you want yet, which is salesforce_tool_list_by_kind; or "
         "you want Salesforce's own field names for an object, which is "
-        "salesforce_describe_object. This explains this connector's tools, not "
+        "salesforce_object_describe_by_name. This explains this connector's tools, not "
         "Salesforce's data."
     ),
     kind=ActionKind.READ,
@@ -138,9 +138,9 @@ SPEC = ActionSpec(
     examples=(
         ActionExample(
             title="Check what a field expects before sending it",
-            arguments={"tool_name": "salesforce_create_opportunity"},
+            arguments={"tool_name": "salesforce_opportunity_create"},
             result={
-                "tool_name": "salesforce_create_opportunity",
+                "tool_name": "salesforce_opportunity_create",
                 "purpose": "Create a sales opportunity and return its record id.",
                 "use_when": "the user wants to record a new deal.",
                 "do_not_use_when": "the deal already exists and needs changing.",
@@ -169,7 +169,7 @@ SPEC = ActionSpec(
     missing_inputs=(
         MissingInput(
             field="tool_name",
-            prompt="Which tool would you like explained? For example salesforce_create_contact.",
+            prompt=("Which tool would you like explained? For example salesforce_contact_create."),
         ),
     ),
     errors=(

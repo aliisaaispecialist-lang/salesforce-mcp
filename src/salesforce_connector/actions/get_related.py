@@ -48,7 +48,7 @@ class GetRelated(Action):
         self.warn(
             f"This relationship holds {total} records and only the first "
             f"{ceiling} are below. Do not treat them as the whole set. Use "
-            f"salesforce_soql_query if you need the rest, or a filter to "
+            f"salesforce_record_query_by_soql if you need the rest, or a filter to "
             f"narrow it."
         )
         return found[:ceiling]

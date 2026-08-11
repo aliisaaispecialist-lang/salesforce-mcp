@@ -123,8 +123,8 @@ class CreateOpportunityOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.create_opportunity",
-    tool_name="salesforce_create_opportunity",
+    action_id="salesforce.opportunity_create",
+    tool_name="salesforce_opportunity_create",
     title="Create a Salesforce opportunity",
     summary=(
         "Create a sales opportunity in Salesforce, optionally linked to an account "
@@ -136,7 +136,7 @@ SPEC = ActionSpec(
     ),
     when_not_to_use=(
         "you already have the contact id and the deal is for that person, in which "
-        "case salesforce_create_opportunity_with_contact does both in one write that "
+        "case salesforce_opportunity_create_with_contact_by_id does both in one write that "
         "cannot half-fail; the deal already exists and needs changing; you only want "
         "to log a conversation, which is the activity note; or you are missing the "
         "stage or close date, in which case ask the user rather than inventing them."
@@ -166,7 +166,7 @@ SPEC = ActionSpec(
                 "created": True,
                 "next_action": (
                     "This deal has no contact attached. If it is for a specific "
-                    "person, call salesforce_link_contact_to_opportunity with "
+                    "person, call salesforce_opportunity_link_contact_by_id with "
                     "opportunity_id=006xx000004TmiQAAS and their contact id."
                 ),
             },

@@ -54,7 +54,7 @@ class CreateOpportunity(Action):
             # carry across -- a model missing any of the three guesses at it.
             "next_action": (
                 f"This deal has no contact attached. If it is for a specific person, "
-                f"call salesforce_link_contact_to_opportunity with "
+                f"call salesforce_opportunity_link_contact_by_id with "
                 f"opportunity_id={opportunity_id} and their contact id."
             ),
         }

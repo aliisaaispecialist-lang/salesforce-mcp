@@ -37,7 +37,7 @@ async def main() -> None:
         # without either, create_opportunity refuses and says why.
         key = str(uuid4())
         request = ActionRequest(
-            action_id="salesforce.create_opportunity",
+            action_id="salesforce.opportunity_create",
             params={
                 "name": "Acme Corp - annual renewal",
                 "stage_name": "Prospecting",

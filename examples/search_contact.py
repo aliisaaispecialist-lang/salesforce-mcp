@@ -26,7 +26,7 @@ async def main() -> None:
     async with SalesforceClient.open(settings, JwtBearerAuth()) as client:
         connector = SalesforceConnector(client, load_manifest(settings))
         request = ActionRequest(
-            action_id="salesforce.search_contact",
+            action_id="salesforce.contact_search_by_text",
             params={"query": "Ada Lovelace", "limit": 5},
         )
         result = await connector.execute(request)

@@ -20,11 +20,28 @@ instead of guessing or failing.
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict
 
 from salesforce_connector.contract import ActionExample, ActionId, ActionKind, RiskLevel, ToolName
+from salesforce_connector.schemas import plain_types
+
+
+def _one_field(name: str, schema: Mapping[str, Any], required: frozenset[str]) -> str:
+    """One field, as a model needs to read it: name, type, an example, and why."""
+    held = schema.get("properties", {}).get(name)
+    field = held if isinstance(held, Mapping) else {}
+    mark = "required" if name in required else "optional"
+    said = plain_types.in_words(field, schema)
+    shown = plain_types.literal_example(field, schema)
+    example = f" e.g. {shown}" if shown else ""
+    detail = (
+        str(field.get("description", "")).splitlines()[0].strip()
+        if field.get("description")
+        else ""
+    )
+    return f"{name} ({mark}, {said}){example}{': ' + detail if detail else ''}"
 
 
 class _Frozen(BaseModel):
@@ -44,12 +61,35 @@ class MissingInput(_Frozen):
     choices: tuple[str, ...] = ()
 
 
+# What to do about a failure, decided by its code rather than written out
+# seventeen times. Whether to retry, to wait, to change the call, or to stop is
+# a property of the failure itself, so restating it per tool would only create
+# seventy chances to disagree with the taxonomy. The tool-specific half stays
+# in `remedy`, which says what to do *here*.
+_RESPONSE: Final[Mapping[str, str]] = {
+    "salesforce.rate_limited": "WAIT, then repeat the identical call.",
+    "salesforce.transport_failed": "RETRY the identical call.",
+    "connector.invalid_input": "FIX THE CALL. Retrying it unchanged fails identically.",
+    "salesforce.record_not_found": "DO NOT RETRY. Find the right record first.",
+    "salesforce.permission_denied": "DO NOT RETRY. Report it; only an administrator can fix it.",
+    "salesforce.conflict": "DO NOT RETRY UNCHANGED. Act on what already exists.",
+    "salesforce.authentication_failed": "STOP. The server is misconfigured, not the call.",
+    "connector.configuration_invalid": "STOP. The server is misconfigured, not the call.",
+    "connector.escalate_to_human": "STOP and hand this to a person.",
+}
+_UNKNOWN_RESPONSE: Final = "Read the message; it says what to do."
+
+
 class ErrorGuidance(_Frozen):
     """One failure this tool can produce, and what to do about it."""
 
     code: str
     when: str
     remedy: str
+
+    def response(self) -> str:
+        """Retry, wait, change the call, or stop: decided by the code."""
+        return _RESPONSE.get(self.code, _UNKNOWN_RESPONSE)
 
 
 class ActionSpec(_Frozen):
@@ -105,12 +145,78 @@ class ActionSpec(_Frozen):
                 "",
                 f"Use this when: {self.when_to_use}",
                 f"Do not use this when: {self.when_not_to_use}",
+                f"You need: {self._needed()}",
+                *self._fields_of(self.input_schema, "Inputs"),
+                *self._fields_of(self.output_schema, "Returns"),
                 *self._worked_example(),
-                "",
-                "Failures and what to do:",
-                *(f"- {error.code}: {error.when} {error.remedy}" for error in self.errors),
+                *self._failures(),
+                *self._last_resort(),
             )
         )
+
+    def _fields_of(self, schema: Mapping[str, Any], heading: str) -> tuple[str, ...]:
+        """List one schema's fields in words, required ones marked.
+
+        Both schemas are already published beside the description, and this
+        repeats them on purpose. A JSON Schema is written for a validator: the
+        type of `amount` is `{"anyOf": [{"type": "number"}, {"type": "null"}]}`,
+        which is exact and is also the shape a model skims as "some value".
+        Here the same field reads "a number, written in digits", which is the
+        form that stops a deal worth 45000 arriving as the word "one".
+
+        Derived from the schema rather than written beside it, so the two
+        cannot come to disagree.
+        """
+        properties = schema.get("properties", {})
+        if not isinstance(properties, Mapping) or not properties:
+            return ()
+        required = frozenset(schema.get("required", ()))
+        lines = [f"  - {_one_field(name, schema, required)}" for name in properties]
+        return ("", f"{heading}:", *lines)
+
+    def _failures(self) -> tuple[str, ...]:
+        """Every failure this tool can produce, and the response to each.
+
+        Three things per failure, because a code on its own is a dead end: why
+        it happens, whether to retry or wait or stop, and what to do here.
+        """
+        if not self.errors:
+            return ()
+        lines: list[str] = []
+        for error in self.errors:
+            lines.append(f"  - {error.code} -- {error.response()}")
+            lines.append(f"      why: {error.when}")
+            lines.append(f"      do:  {error.remedy}")
+        return ("", "Failures, why each happens, and what to do:", *lines)
+
+    def _last_resort(self) -> tuple[str, ...]:
+        """The manual procedure, for a write that cannot be completed at all.
+
+        Written for the person who has to carry it out. It was reachable only
+        by escalating, which meant a model could not warn a user in advance
+        that a failure here has a manual cost.
+        """
+        if not self.manual_recovery:
+            return ()
+        return ("", f"If it cannot be completed at all: {self.manual_recovery}")
+
+    def _needed(self) -> str:
+        """Name what a caller must hold before this tool can be called at all.
+
+        The required fields are in the schema, and a model that reads the
+        schema will find them. The question this answers is the earlier one,
+        asked while choosing rather than while filling in: do I have what this
+        needs, or do I have to go and find it first? A tool that wants a record
+        id is not a candidate when all the user gave is a name, and saying so
+        in the description is what stops the call being attempted and failed.
+
+        Derived from the schema rather than written by hand, so it cannot come
+        to disagree with the validator.
+        """
+        required = tuple(self.input_schema.get("required", ()))
+        if not required:
+            return "nothing; every field is optional."
+        return f"{', '.join(required)}."
 
     def _worked_example(self) -> tuple[str, ...]:
         """Render the first example, or nothing if this action has none."""

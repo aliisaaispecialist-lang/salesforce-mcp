@@ -70,23 +70,23 @@ class TestTheManifest:
         manifest = load_manifest(settings)
 
         assert set(manifest.actions) == {
-            "salesforce.search_contact",
-            "salesforce.soql_query",
-            "salesforce.count_records",
-            "salesforce.get_related",
-            "salesforce.describe_object",
-            "salesforce.get_record",
-            "salesforce.list_tools",
-            "salesforce.tool_schema",
-            "salesforce.search_records",
-            "salesforce.update_record",
-            "salesforce.upsert_record",
-            "salesforce.create_opportunity_with_contact",
-            "salesforce.create_contact",
-            "salesforce.update_contact",
-            "salesforce.create_opportunity",
-            "salesforce.link_contact_to_opportunity",
-            "salesforce.add_activity_note",
+            "salesforce.contact_search_by_text",
+            "salesforce.record_query_by_soql",
+            "salesforce.record_count_by_object",
+            "salesforce.record_get_related_by_id",
+            "salesforce.object_describe_by_name",
+            "salesforce.record_get_by_id",
+            "salesforce.tool_list_by_kind",
+            "salesforce.tool_describe_by_name",
+            "salesforce.record_search_by_text",
+            "salesforce.record_update_by_id",
+            "salesforce.record_upsert_by_external_id",
+            "salesforce.opportunity_create_with_contact_by_id",
+            "salesforce.contact_create",
+            "salesforce.contact_update_by_id",
+            "salesforce.opportunity_create",
+            "salesforce.opportunity_link_contact_by_id",
+            "salesforce.activity_create_by_related_id",
         }
 
     def test_it_states_its_risks_rather_than_leaving_them_to_be_found(
@@ -153,15 +153,15 @@ class TestTheCallBudget:
         budget = CallBudget(calls_per_minute=5)
 
         for _ in range(5):
-            await budget.claim("salesforce.search_contact")
+            await budget.claim("salesforce.contact_search_by_text")
 
     async def test_a_call_beyond_the_budget_is_refused_not_queued(self) -> None:
         budget = CallBudget(calls_per_minute=2)
-        await budget.claim("salesforce.search_contact")
-        await budget.claim("salesforce.search_contact")
+        await budget.claim("salesforce.contact_search_by_text")
+        await budget.claim("salesforce.contact_search_by_text")
 
         with pytest.raises(RateLimitError) as raised:
-            await budget.claim("salesforce.search_contact")
+            await budget.claim("salesforce.contact_search_by_text")
 
         error = raised.value.to_action_error()
         assert error.retryable is True
@@ -169,18 +169,20 @@ class TestTheCallBudget:
 
     async def test_the_refusal_names_the_action_and_says_how_long_to_wait(self) -> None:
         budget = CallBudget(calls_per_minute=1)
-        await budget.claim("salesforce.create_contact")
+        await budget.claim("salesforce.contact_create")
 
         with pytest.raises(RateLimitError) as raised:
-            await budget.claim("salesforce.create_contact")
+            await budget.claim("salesforce.contact_create")
 
-        assert "salesforce.create_contact" in raised.value.to_action_error().next_step
+        assert "salesforce.contact_create" in raised.value.to_action_error().next_step
 
     async def test_an_exhausted_budget_comes_back_as_a_result_not_a_crash(
         self, connector: SalesforceConnector, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(connector, "_budget", CallBudget(calls_per_minute=1))
-        request = ActionRequest(action_id="salesforce.search_contact", params={"query": "Ada"})
+        request = ActionRequest(
+            action_id="salesforce.contact_search_by_text", params={"query": "Ada"}
+        )
 
         with respx.mock:
             token_route()
@@ -200,7 +202,7 @@ class TestTheCallBudget:
 class TestApproval:
     def create_request(self, **params: str) -> ActionRequest:
         return ActionRequest(
-            action_id="salesforce.create_contact",
+            action_id="salesforce.contact_create",
             params={"last_name": "Lovelace", "idempotency_key": "key-1234", **params},
         )
 
@@ -222,7 +224,7 @@ class TestApproval:
     def test_it_does_not_approve_a_different_action(self, connector: SalesforceConnector) -> None:
         state = connector.approval_for(self.create_request())
         other = ActionRequest(
-            action_id="salesforce.update_contact",
+            action_id="salesforce.contact_update_by_id",
             params={"last_name": "Lovelace", "idempotency_key": "key-1234"},
         )
 
@@ -236,12 +238,12 @@ class TestApproval:
 
     def test_an_expired_token_is_refused(self) -> None:
         gate = ApprovalGate(ttl_seconds=-1)
-        pending = PendingWrite.of("salesforce.create_contact", {"last_name": "Lovelace"})
+        pending = PendingWrite.of("salesforce.contact_create", {"last_name": "Lovelace"})
 
         assert not gate.accepts(gate.issue(pending), pending)
 
     def test_a_token_from_another_process_is_refused(self) -> None:
-        pending = PendingWrite.of("salesforce.create_contact", {"last_name": "Lovelace"})
+        pending = PendingWrite.of("salesforce.contact_create", {"last_name": "Lovelace"})
         issued_elsewhere = ApprovalGate().issue(pending)
 
         assert not ApprovalGate().accepts(issued_elsewhere, pending)

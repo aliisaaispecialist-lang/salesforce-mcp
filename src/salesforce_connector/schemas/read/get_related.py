@@ -72,7 +72,7 @@ class GetRelatedInput(BaseModel):
                 "name, such as 'Contacts' on an Account or "
                 "'OpportunityContactRoles' on an Opportunity.\n\n"
                 "If you are unsure what a relationship is called, call "
-                "salesforce_describe_object on the starting object and read its "
+                "salesforce_object_describe_by_name on the starting object and read its "
                 "relationshipName values rather than guessing."
             ),
             examples=["Account", "Contacts", "OpportunityContactRoles"],
@@ -105,15 +105,15 @@ class GetRelatedOutput(BaseModel):
                 "How many records the relationship holds in total. When this is "
                 "larger than `returned`, the answer was cut to the connector's "
                 "row ceiling and what you have is a first page, not the whole "
-                "set. Use salesforce_soql_query for the rest."
+                "set. Use salesforce_record_query_by_soql for the rest."
             ),
         ),
     ] = None
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.get_related",
-    tool_name="salesforce_get_related",
+    action_id="salesforce.record_get_related_by_id",
+    tool_name="salesforce_record_get_related_by_id",
     title="Follow a Salesforce relationship",
     summary=(
         "Read the records a Salesforce record is attached to, such as a contact's "
@@ -127,7 +127,7 @@ SPEC = ActionSpec(
     when_not_to_use=(
         "you want the record itself rather than what it is attached to; or you "
         "need fields from both sides at once, or any filtering or sorting, which "
-        "salesforce_soql_query does with a relationship field such as "
+        "salesforce_record_query_by_soql does with a relationship field such as "
         "Account.Name. This follows exactly one hop and applies no conditions."
     ),
     kind=ActionKind.READ,
@@ -192,7 +192,7 @@ SPEC = ActionSpec(
             remedy=(
                 "Check the id first by searching for the record. If the id is "
                 "right, the relationship name is wrong: call "
-                "salesforce_describe_object on the starting object and use a "
+                "salesforce_object_describe_by_name on the starting object and use a "
                 "relationshipName it actually lists."
             ),
         ),

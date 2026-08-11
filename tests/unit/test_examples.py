@@ -42,71 +42,71 @@ from salesforce_connector.schemas.write import (
 )
 
 MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
-    "salesforce.count_records": (
+    "salesforce.record_count_by_object": (
         count_records.CountRecordsInput,
         count_records.CountRecordsOutput,
     ),
-    "salesforce.create_opportunity_with_contact": (
+    "salesforce.opportunity_create_with_contact_by_id": (
         create_opportunity_with_contact.CreateOpportunityWithContactInput,
         create_opportunity_with_contact.CreateOpportunityWithContactOutput,
     ),
-    "salesforce.search_records": (
+    "salesforce.record_search_by_text": (
         search_records.SearchRecordsInput,
         search_records.SearchRecordsOutput,
     ),
-    "salesforce.update_record": (
+    "salesforce.record_update_by_id": (
         update_record.UpdateRecordInput,
         update_record.UpdateRecordOutput,
     ),
-    "salesforce.upsert_record": (
+    "salesforce.record_upsert_by_external_id": (
         upsert_record.UpsertRecordInput,
         upsert_record.UpsertRecordOutput,
     ),
-    "salesforce.list_tools": (
+    "salesforce.tool_list_by_kind": (
         list_tools.ListToolsInput,
         list_tools.ListToolsOutput,
     ),
-    "salesforce.tool_schema": (
+    "salesforce.tool_describe_by_name": (
         tool_schema.ToolSchemaInput,
         tool_schema.ToolSchemaOutput,
     ),
-    "salesforce.describe_object": (
+    "salesforce.object_describe_by_name": (
         describe_object.DescribeObjectInput,
         describe_object.DescribeObjectOutput,
     ),
-    "salesforce.get_record": (
+    "salesforce.record_get_by_id": (
         get_record.GetRecordInput,
         get_record.GetRecordOutput,
     ),
-    "salesforce.get_related": (
+    "salesforce.record_get_related_by_id": (
         get_related.GetRelatedInput,
         get_related.GetRelatedOutput,
     ),
-    "salesforce.search_contact": (
+    "salesforce.contact_search_by_text": (
         search_contact.SearchContactInput,
         search_contact.SearchContactOutput,
     ),
-    "salesforce.soql_query": (
+    "salesforce.record_query_by_soql": (
         soql_query.SoqlQueryInput,
         soql_query.SoqlQueryOutput,
     ),
-    "salesforce.create_contact": (
+    "salesforce.contact_create": (
         create_contact.CreateContactInput,
         create_contact.CreateContactOutput,
     ),
-    "salesforce.update_contact": (
+    "salesforce.contact_update_by_id": (
         update_contact.UpdateContactInput,
         update_contact.UpdateContactOutput,
     ),
-    "salesforce.create_opportunity": (
+    "salesforce.opportunity_create": (
         create_opportunity.CreateOpportunityInput,
         create_opportunity.CreateOpportunityOutput,
     ),
-    "salesforce.link_contact_to_opportunity": (
+    "salesforce.opportunity_link_contact_by_id": (
         link_contact_to_opportunity.LinkContactToOpportunityInput,
         link_contact_to_opportunity.LinkContactToOpportunityOutput,
     ),
-    "salesforce.add_activity_note": (
+    "salesforce.activity_create_by_related_id": (
         add_activity_note.AddActivityNoteInput,
         add_activity_note.AddActivityNoteOutput,
     ),

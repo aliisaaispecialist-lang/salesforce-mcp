@@ -1,0 +1,80 @@
+{"prompt": "Find Ada Lovelace's contact record", "expect": "salesforce_contact_search_by_text", "note": "plain name search"}
+{"prompt": "Who is ada@example.com in our CRM?", "expect": "salesforce_contact_search_by_text", "note": "email as the search term, still text"}
+{"prompt": "Do we already have a contact for +973 1234 5678?", "expect": "salesforce_contact_search_by_text", "note": "phone as the search term"}
+{"prompt": "Is there anyone called Grace Hopper in Salesforce before I add her?", "expect": "salesforce_contact_search_by_text", "note": "search-before-create, the instructions ask for this"}
+{"prompt": "Search our cases for anything mentioning 'refund delay'", "expect": "salesforce_record_search_by_text", "note": "free text on a non-contact object"}
+{"prompt": "Look through Accounts for the words 'renewable energy'", "expect": "salesforce_record_search_by_text", "note": "object named, words not conditions"}
+{"prompt": "Find any Lead records containing 'trade show'", "expect": "salesforce_record_search_by_text", "note": "contact search would be wrong, different object"}
+{"prompt": "Search every Opportunity for the phrase 'pilot programme'", "expect": "salesforce_record_search_by_text", "note": "words, so not soql"}
+{"prompt": "List the ten biggest open opportunities by amount", "expect": "salesforce_record_query_by_soql", "note": "sorting and filtering, which only soql does"}
+{"prompt": "Which contacts were created in the last 30 days?", "expect": "salesforce_record_query_by_soql", "note": "a date condition, not words"}
+{"prompt": "Show me every account in the technology industry with more than 500 employees", "expect": "salesforce_record_query_by_soql", "note": "two conditions"}
+{"prompt": "Get the account name for the contact whose email is ada@example.com", "expect": "salesforce_record_query_by_soql", "note": "needs a relationship field, the one thing text search cannot do"}
+{"prompt": "Read record 003xx000004TmiQAAS on Contact", "expect": "salesforce_record_get_by_id", "note": "an id in hand"}
+{"prompt": "Pull up the opportunity with id 006xx000004TmiQAAS", "expect": "salesforce_record_get_by_id", "note": "id, not a name"}
+{"prompt": "Show me just the Name and Email fields of contact 003xx000004TmiQAAS", "expect": "salesforce_record_get_by_id", "note": "field selection on one record"}
+{"prompt": "What does account 001xx000003DGb2AAG currently hold?", "expect": "salesforce_record_get_by_id", "note": "id on a third object"}
+{"prompt": "Which account is contact 003xx000004TmiQAAS attached to?", "expect": "salesforce_record_get_related_by_id", "note": "one hop from a record"}
+{"prompt": "List the contacts under account 001xx000003DGb2AAG", "expect": "salesforce_record_get_related_by_id", "note": "child collection"}
+{"prompt": "Show the contact roles on opportunity 006xx000004TmiQAAS", "expect": "salesforce_record_get_related_by_id", "note": "junction object through a relationship"}
+{"prompt": "What is opportunity 006xx000004TmiQAAS's account?", "expect": "salesforce_record_get_related_by_id", "note": "lookup, not the record itself"}
+{"prompt": "How many contacts do we have?", "expect": "salesforce_record_count_by_object", "note": "a count, nothing read"}
+{"prompt": "Give me the number of open cases and accounts", "expect": "salesforce_record_count_by_object", "note": "two objects at once"}
+{"prompt": "How many opportunity records exist in total?", "expect": "salesforce_record_count_by_object", "note": "soql could do it but count is the direct tool"}
+{"prompt": "Just tell me the size of the Lead table", "expect": "salesforce_record_count_by_object", "note": "phrased as a table size"}
+{"prompt": "What fields does the Opportunity object have?", "expect": "salesforce_object_describe_by_name", "note": "schema, not data"}
+{"prompt": "What values does the StageName picklist accept in this org?", "expect": "salesforce_object_describe_by_name", "note": "picklist values live in describe"}
+{"prompt": "Which fields on Contact can I actually write to?", "expect": "salesforce_object_describe_by_name", "note": "writability is a describe property"}
+{"prompt": "Is there a custom field on Account for industry segment?", "expect": "salesforce_object_describe_by_name", "note": "field discovery"}
+{"prompt": "What tools do you have for changing Salesforce data?", "expect": "salesforce_tool_list_by_kind", "note": "asking for the write half"}
+{"prompt": "List everything you can do without modifying anything", "expect": "salesforce_tool_list_by_kind", "note": "asking for the read half"}
+{"prompt": "What Salesforce actions are available to you?", "expect": "salesforce_tool_list_by_kind", "note": "the whole list"}
+{"prompt": "Which of your tools only read and which ones write?", "expect": "salesforce_tool_list_by_kind", "note": "the split is the question"}
+{"prompt": "What arguments does salesforce_opportunity_create take?", "expect": "salesforce_tool_describe_by_name", "note": "one tool's schema"}
+{"prompt": "What type should the close date be when I create an opportunity?", "expect": "salesforce_tool_describe_by_name", "note": "a field's type, on a tool not an object"}
+{"prompt": "Show me a worked example of calling the contact update tool", "expect": "salesforce_tool_describe_by_name", "note": "examples come from the schema tool"}
+{"prompt": "Which fields are required by salesforce_activity_create_by_related_id?", "expect": "salesforce_tool_describe_by_name", "note": "required fields of a tool, not an object"}
+{"prompt": "Add a new contact called Grace Hopper", "expect": "salesforce_contact_create", "note": "plain create"}
+{"prompt": "Create a contact for Alan Turing, alan@example.com", "expect": "salesforce_contact_create", "note": "create with an email"}
+{"prompt": "We met someone new at the conference, Katherine Johnson. Put her in Salesforce.", "expect": "salesforce_contact_create", "note": "create phrased as a story"}
+{"prompt": "Register a new person named Mary Jackson under our account", "expect": "salesforce_contact_create", "note": "create with an account, still a create"}
+{"prompt": "Change contact 003xx000004TmiQAAS's phone number to +44 20 7946 0958", "expect": "salesforce_contact_update_by_id", "note": "contact update, id in hand"}
+{"prompt": "Update the title on contact 003xx000004TmiQAAS to Chief Analyst", "expect": "salesforce_contact_update_by_id", "note": "contact fields are plain names on this tool"}
+{"prompt": "Fix the email on contact 003xx000004TmiQAAS, it should be ada@example.org", "expect": "salesforce_contact_update_by_id", "note": "correction phrasing"}
+{"prompt": "Set the account of contact 003xx000004TmiQAAS to 001xx000003DGb2AAG", "expect": "salesforce_contact_update_by_id", "note": "reparenting a contact, still a contact update"}
+{"prompt": "Open a new deal called Acme renewal, qualification stage, closing 2026-12-01", "expect": "salesforce_opportunity_create", "note": "opportunity with no contact named"}
+{"prompt": "Create an opportunity for the Contoso expansion worth 45000", "expect": "salesforce_opportunity_create", "note": "with an amount"}
+{"prompt": "Log a new sales opportunity, Northwind support renewal, closing at the end of the year", "expect": "salesforce_opportunity_create", "note": "deal, no person"}
+{"prompt": "Start tracking a deal for the Fabrikam pilot", "expect": "salesforce_opportunity_create", "note": "informal phrasing"}
+{"prompt": "Open a deal called Acme renewal for contact 003xx000004TmiQAAS, closing 2026-12-01, qualification stage", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "the atomic pair, the whole reason that tool exists"}
+{"prompt": "Create an opportunity and attach contact 003xx000004TmiQAAS to it in one go", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "explicitly one operation"}
+{"prompt": "Set up a new deal for Ada, whose contact id is 003xx000004TmiQAAS, and make sure she is on it", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "two outcomes, one call"}
+{"prompt": "New opportunity Contoso pilot with contact 003xx000004TmiQAAS as the decision maker, closing 2026-09-30", "expect": "salesforce_opportunity_create_with_contact_by_id", "note": "role named too"}
+{"prompt": "Attach contact 003xx000004TmiQAAS to opportunity 006xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "both records exist already"}
+{"prompt": "Add Ada, contact 003xx000004TmiQAAS, to the existing Acme deal 006xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "existing on both sides"}
+{"prompt": "Put contact 003xx000004TmiQAAS on opportunity 006xx000004TmiQAAS as the economic buyer", "expect": "salesforce_opportunity_link_contact_by_id", "note": "link with a role"}
+{"prompt": "Connect the contact 003xx000004TmiQAAS to deal 006xx000004TmiQAAS", "expect": "salesforce_opportunity_link_contact_by_id", "note": "connect phrasing"}
+{"prompt": "Log that I called contact 003xx000004TmiQAAS this morning about pricing", "expect": "salesforce_activity_create_by_related_id", "note": "a call on a contact"}
+{"prompt": "Record a note on opportunity 006xx000004TmiQAAS saying the customer asked for a discount", "expect": "salesforce_activity_create_by_related_id", "note": "a note on an opportunity"}
+{"prompt": "Add a meeting record to contact 003xx000004TmiQAAS for yesterday's demo", "expect": "salesforce_activity_create_by_related_id", "note": "a meeting"}
+{"prompt": "Note on the timeline of contact 003xx000004TmiQAAS that I emailed the quote", "expect": "salesforce_activity_create_by_related_id", "note": "timeline is the giveaway"}
+{"prompt": "Set the Industry field on account 001xx000003DGb2AAG to Technology", "expect": "salesforce_record_update_by_id", "note": "generic object, so not the contact tool"}
+{"prompt": "Move opportunity 006xx000004TmiQAAS to the Negotiate stage", "expect": "salesforce_record_update_by_id", "note": "opportunity has no dedicated update tool"}
+{"prompt": "Update case 500xx000004TmiQAAS, set Status to Escalated", "expect": "salesforce_record_update_by_id", "note": "a fourth object"}
+{"prompt": "Change the Description on lead 00Qxx000004TmiQAAS", "expect": "salesforce_record_update_by_id", "note": "lead, generic"}
+{"prompt": "Our ERP order ORD-2026-0042 should create or update the matching Salesforce record", "expect": "salesforce_record_upsert_by_external_id", "note": "outside system's id, the whole distinction from update"}
+{"prompt": "Sync account with external id CUST-88213 from our billing system into Salesforce", "expect": "salesforce_record_upsert_by_external_id", "note": "sync by external key"}
+{"prompt": "Write this record keyed on ERP_Id__c = A-1042, creating it if it is new", "expect": "salesforce_record_upsert_by_external_id", "note": "create-if-new is the upsert tell"}
+{"prompt": "Upsert the contact identified by our CRM_Ref__c of REF-9931", "expect": "salesforce_record_upsert_by_external_id", "note": "named external field"}
+{"prompt": "Delete contact 003xx000004TmiQAAS", "expect": null, "note": "no delete exists; must not be answered with an update"}
+{"prompt": "Remove the Acme opportunity from Salesforce entirely", "expect": null, "note": "delete, phrased differently"}
+{"prompt": "Email the quote to ada@example.com", "expect": null, "note": "sending mail is not something this connector does"}
+{"prompt": "Merge these two duplicate contacts into one", "expect": null, "note": "merge is a real Salesforce operation we do not expose"}
+{"prompt": "Convert lead 00Qxx000004TmiQAAS into an account and contact", "expect": null, "note": "lead conversion, not exposed"}
+{"prompt": "Schedule a meeting invite with Ada for next Tuesday", "expect": null, "note": "calendar, not CRM"}
+{"prompt": "Give Ada edit access to the Acme account", "expect": null, "note": "sharing and permissions are not exposed"}
+{"prompt": "Export all our contacts to a CSV file", "expect": null, "note": "export is not a tool here"}
+{"prompt": "What is our total pipeline value this quarter in dollars?", "expect": "salesforce_record_query_by_soql", "note": "a real question soql can answer; guards against over-refusing"}
+{"prompt": "Deactivate the user account for a colleague who left", "expect": null, "note": "user administration, not CRM records"}
+{"prompt": "Restore the contact I deleted yesterday", "expect": null, "note": "recycle bin, not exposed"}
+{"prompt": "Run our monthly billing job", "expect": null, "note": "wholly unrelated to Salesforce"}

@@ -86,7 +86,7 @@ def build(action_id: str, client: SalesforceClient) -> Action:
     """Return the action with this id, ready to run.
 
     Args:
-        action_id: The assigned id, for example `salesforce.search_contact`.
+        action_id: The assigned id, for example `salesforce.contact_search_by_text`.
         client: The Salesforce client the action will use.
 
     Returns:

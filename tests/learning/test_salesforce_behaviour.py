@@ -68,12 +68,12 @@ class TestWhatTheSearchEndpointHonours:
         """
         made = unwrap(
             await org.call(
-                "salesforce.create_contact", last_name=org.marker, idempotency_key=org.key
+                "salesforce.contact_create", last_name=org.marker, idempotency_key=org.key
             )
         )
         org.litter.track("Contact", made["id"])
 
-        found = unwrap(await org.call("salesforce.search_contact", query=org.marker))
+        found = unwrap(await org.call("salesforce.contact_search_by_text", query=org.marker))
 
         assert any(c["id"] == made["id"] for c in found["contacts"]), (
             "a contact created moments ago is not searchable yet. Record the "
@@ -94,7 +94,7 @@ class TestWhatWritesReturn:
         """
         made = unwrap(
             await org.call(
-                "salesforce.create_contact", last_name=org.marker, idempotency_key=org.key
+                "salesforce.contact_create", last_name=org.marker, idempotency_key=org.key
             )
         )
         org.litter.track("Contact", made["id"])

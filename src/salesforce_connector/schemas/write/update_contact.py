@@ -103,8 +103,8 @@ class UpdateContactOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.update_contact",
-    tool_name="salesforce_update_contact",
+    action_id="salesforce.contact_update_by_id",
+    tool_name="salesforce_contact_update_by_id",
     title="Update a Salesforce contact",
     summary=(
         "Change one or more fields on an existing Salesforce contact and return the "

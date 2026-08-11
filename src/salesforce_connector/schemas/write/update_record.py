@@ -41,7 +41,7 @@ class UpdateRecordInput(BaseModel):
             description=(
                 "Required. The object the record belongs to, spelled as Salesforce "
                 "spells it: Account, Lead, Opportunity, Case, or a custom object "
-                "ending __c. For Contact use salesforce_update_contact, which takes "
+                "ending __c. For Contact use salesforce_contact_update_by_id, which takes "
                 "plain field names and needs no lookup first."
             ),
             examples=["Account", "Opportunity"],
@@ -55,7 +55,7 @@ class UpdateRecordInput(BaseModel):
             pattern=r"^[a-zA-Z0-9]{15,18}$",
             description=(
                 "Required. The record to change. Find it first with "
-                "salesforce_search_records if you do not have the id. Never guess "
+                "salesforce_record_search_by_text if you do not have the id. Never guess "
                 "one: a valid-looking id belongs to some other record, and this "
                 "tool would change it."
             ),
@@ -68,7 +68,7 @@ class UpdateRecordInput(BaseModel):
             description=(
                 "Required. The fields to set, keyed by Salesforce's own API names, "
                 "not plain English: Industry, StageName, CloseDate, Description. "
-                "Call salesforce_describe_object on this object first if you are "
+                "Call salesforce_object_describe_by_name on this object first if you are "
                 "not certain of a name or of the values a picklist accepts.\n\n"
                 "Only the fields named here are touched; everything else on the "
                 "record is left alone. Do not send a field to clear it unless the "
@@ -126,8 +126,8 @@ class UpdateRecordOutput(BaseModel):
 
 
 SPEC = ActionSpec(
-    action_id="salesforce.update_record",
-    tool_name="salesforce_update_record",
+    action_id="salesforce.record_update_by_id",
+    tool_name="salesforce_record_update_by_id",
     title="Update a Salesforce record",
     summary=(
         "Change named fields on an existing record of any object, then read back "
@@ -139,10 +139,10 @@ SPEC = ActionSpec(
         "the record id and the Salesforce field names."
     ),
     when_not_to_use=(
-        "the record is a Contact, which is salesforce_update_contact and takes "
+        "the record is a Contact, which is salesforce_contact_update_by_id and takes "
         "plain field names; the record does not exist yet, which is a create tool; "
         "or you are not certain the field name is right, in which case call "
-        "salesforce_describe_object first rather than trying a name to see."
+        "salesforce_object_describe_by_name first rather than trying a name to see."
     ),
     kind=ActionKind.WRITE,
     risk=RiskLevel.MEDIUM,
@@ -201,7 +201,7 @@ SPEC = ActionSpec(
             code="connector.invalid_input",
             when="A field name does not exist, or a value is not one this org accepts.",
             remedy=(
-                "Call salesforce_describe_object on this object, use a field name it "
+                "Call salesforce_object_describe_by_name on this object, use a field name it "
                 "lists, and for a picklist use one of the values it reports. Then "
                 "call again with the same idempotency key."
             ),
