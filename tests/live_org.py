@@ -47,7 +47,7 @@ def credentials_present() -> bool:
 
     Asked by building `Settings` rather than by reading `os.environ`, because
     those are not the same question. Credentials usually live in `.env` -- that
-    is what QUICKSTART tells people to do -- and an environment check finds
+    is what the README tells people to do -- and an environment check finds
     nothing there. The first live run against a real org skipped all thirty
     tests for exactly that reason, which is the worst way to fail: it reads as
     success.
@@ -61,7 +61,7 @@ def credentials_present() -> bool:
 
 needs_an_org = pytest.mark.skipif(
     not credentials_present(),
-    reason=f"live org required; set {', '.join(REQUIRED)} (see QUICKSTART.md)",
+    reason=f"live org required; set {', '.join(REQUIRED)} (see README.md)",
 )
 
 

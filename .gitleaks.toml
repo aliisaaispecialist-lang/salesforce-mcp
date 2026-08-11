@@ -28,7 +28,7 @@ id = "generic-api-key"
     '''tests/.*\.py''',
     '''examples/.*''',
     '''docs/.*''',
-    '''QUICKSTART\.md''',
+    '''README\.md''',
     '''README\.md''',
     '''openapi\.yaml''',
   ]

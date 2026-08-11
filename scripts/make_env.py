@@ -26,7 +26,7 @@ def one_line_key() -> str:
     if not KEY.exists():
         raise SystemExit(
             f"No private key at {KEY}.\n"
-            "Generate one first, see step 3 of QUICKSTART.md:\n"
+            "Generate one first, see Salesforce credentials in README.md:\n"
             "  openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 \\\n"
             "    -keyout secrets/salesforce.key -out secrets/salesforce.crt \\\n"
             '    -subj "/CN=salesforce-mcp"'

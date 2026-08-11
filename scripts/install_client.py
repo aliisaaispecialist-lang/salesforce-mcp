@@ -157,7 +157,9 @@ def credentials() -> dict[str, str]:
 
     missing = [name for name in REQUIRED if name not in found]
     if missing:
-        raise SystemExit(f"{source} is missing: {', '.join(missing)}. See QUICKSTART.md step 4.")
+        raise SystemExit(
+            f"{source} is missing: {', '.join(missing)}. See Salesforce credentials in README.md."
+        )
     return found
 
 

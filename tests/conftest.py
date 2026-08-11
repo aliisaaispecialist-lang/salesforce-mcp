@@ -1,7 +1,7 @@
 """Keep the offline tests out of reach of a real developer's credentials.
 
 `Settings` reads `.env` from the working directory, which is what makes the
-documented setup work. It also means that the moment someone follows QUICKSTART
+documented setup work. It also means that the moment someone follows the README
 and creates a real `.env` in this repository, every test asserting what happens
 when configuration is *missing* starts finding it present, and fails.
 

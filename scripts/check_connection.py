@@ -26,7 +26,7 @@ from salesforce_connector.transport.client import SalesforceClient
 CAUSES = {
     "user hasn't approved this consumer": (
         "The app's Permitted Users is not set to 'Admin approved users are "
-        "pre-authorized'. QUICKSTART step 3c."
+        "pre-authorized'. See Salesforce credentials in README.md."
     ),
     "user is not admin approved": (
         "Permitted Users is set, but your user is not assigned to the app. "
@@ -51,7 +51,7 @@ def explain(message: str) -> str:
     for needle, cause in CAUSES.items():
         if needle.lower() in lowered:
             return cause
-    return "See the troubleshooting table at the end of QUICKSTART.md."
+    return "See Salesforce credentials in README.md."
 
 
 async def main() -> int:
