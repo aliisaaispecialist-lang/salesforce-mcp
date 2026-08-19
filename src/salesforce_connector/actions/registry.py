@@ -11,6 +11,7 @@ an import.
 """
 
 from collections.abc import Mapping
+from functools import cache
 from typing import Final
 
 from salesforce_connector.actions.action import Action
@@ -62,8 +63,29 @@ BY_ID: Final[Mapping[str, type[Action]]] = {
 }
 
 
+@cache
 def descriptors() -> tuple[ActionDescriptor, ...]:
-    """Describe every action, in a stable order, for a consumer to expose."""
+    """Describe every action, in a stable order, for a consumer to expose.
+
+    Cached because it is a pure function of things fixed at import time, and
+    because it was on the wrong side of a factor of six hundred.
+
+    `spec.description()` renders the whole description string from scratch:
+    every field of both schemas in words, the worked example, every failure and
+    its remedy. Across seventeen actions that is about seventy-one thousand
+    characters, and it was being rebuilt on **every tool call**, because
+    dispatch needs the descriptor list to look up one name in it. Resolving a
+    name against a list already in hand takes a microsecond. Building the list
+    first took six hundred.
+
+    Nothing here can change after import. `BY_ID` is `Final` and built from
+    module-level classes, every `ActionSpec` is frozen, and `ActionDescriptor`
+    is a frozen model, so the same tuple is safe to hand to every caller. The
+    schema dictionaries inside it were already shared before this cache existed
+    -- each descriptor referenced the spec's own `input_schema` rather than a
+    copy -- so the aliasing is not new, and `surface._with_enum` copies before
+    narrowing precisely because of it.
+    """
     return tuple(
         ActionDescriptor(
             action_id=action.spec.action_id,

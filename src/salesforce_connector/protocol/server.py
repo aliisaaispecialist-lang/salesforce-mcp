@@ -135,14 +135,17 @@ async def call_tool(
     down must not reach the connector at all.
     """
     context = ctx.lifespan_context
-    opened = surface.resolved(params.name, params.arguments or {}, context.connector.list_actions())
+    # Asked for once and reused. It used to be fetched twice on the path that
+    # refuses, which is the path least able to afford it.
+    described = context.connector.list_actions()
+    opened = surface.resolved(params.name, params.arguments or {}, described)
     if opened.refusal is not None:
         # A call that does not resolve stops here and reaches neither the
         # approval gate nor Salesforce. The refusal says what exists instead,
         # because a model told only that it was wrong will guess again.
         return refuse(opened.refusal, code=opened.code or InvalidInputError.code)
     if opened.described is None:  # pragma: no cover - resolved refuses first
-        return refuse(surface.unavailable(params.name, context.connector.list_actions()))
+        return refuse(surface.unavailable(params.name, described))
     settled = await context.approval.granted(
         ctx, opened.described, _as_request(opened.arguments, opened.described)
     )

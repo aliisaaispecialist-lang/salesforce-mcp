@@ -50,6 +50,12 @@ CONNECT_CEILING_TOKENS = 40_000
 RESOLVE_CEILING_MICROSECONDS = 200.0
 LEDGER_CEILING_MICROSECONDS = 20.0
 
+# Dispatch measured the way the server performs it, list fetch included. The
+# observed figure is about 1us; the ceiling is set two orders of magnitude above
+# that, because the failure worth catching is not drift but the return of the
+# six-hundred-microsecond rebuild, and a tight bound here would only flake.
+DISPATCH_CEILING_MICROSECONDS = 100.0
+
 
 def _published_bytes() -> int:
     """The tool list serialised the way it travels to a client."""
@@ -107,6 +113,62 @@ class TestWhatAConnectionCosts:
         assert largest / total < 0.25, (
             f"{worst} is {largest / total:.0%} of the whole catalogue on its own. "
             f"Either it is doing too much, or its description has grown past its usefulness."
+        )
+
+
+class TestTheCatalogueIsNotRebuiltPerCall:
+    """Describing every action is expensive, and dispatch needs the list.
+
+    `descriptors()` renders each action's whole description from scratch: both
+    schemas in words, the worked example, every failure and its remedy. About
+    seventy-one thousand characters across seventeen actions.
+
+    Dispatch calls it, because resolving a name means finding that name in the
+    list. So for a while every single tool call rebuilt all seventeen
+    descriptions in order to look one of them up, at six hundred microseconds
+    against the one microsecond the lookup itself costs. Nothing was wrong,
+    nothing failed, and the connector did six hundred times more work than the
+    task required.
+
+    It is a pure function of things fixed at import time, so the fix is one
+    `@cache`. These tests exist because removing that decorator breaks nothing
+    visible: every test still passes, and the cost quietly comes back.
+    """
+
+    def test_describing_every_action_is_free_after_the_first_time(self) -> None:
+        registry.descriptors()  # pay for it once, outside the measurement
+        spent = _microseconds(registry.descriptors, repeats=20_000)
+        assert spent < 5.0, (
+            f"descriptors() costs {spent:.1f}us, so it is being rebuilt rather than "
+            f"cached. Dispatch calls it on every tool call, which puts the whole cost "
+            f"of rendering seventeen descriptions on the path of every request."
+        )
+
+    def test_the_same_tuple_comes_back_every_time(self) -> None:
+        """Identity, not equality: equality would pass on a fresh rebuild.
+
+        Everything in it is frozen, so sharing one tuple is safe, and sharing
+        is the whole point. A test for equality would be satisfied by code that
+        rebuilds an identical tuple every call, which is exactly the behaviour
+        this is here to prevent.
+        """
+        assert registry.descriptors() is registry.descriptors()
+
+    def test_dispatch_costs_about_what_the_lookup_costs(self) -> None:
+        """The end to end check, and the one that would have caught the original.
+
+        Measured the way the server does it, fetching the list and then
+        resolving against it, rather than against a list a test kindly hoisted
+        out of the loop.
+        """
+        spent = _microseconds(
+            lambda: surface.resolved("salesforce_contact_create", {}, registry.descriptors()),
+            repeats=20_000,
+        )
+        assert spent < DISPATCH_CEILING_MICROSECONDS, (
+            f"A tool call spends {spent:.1f}us before reaching Salesforce. The lookup "
+            f"itself is about a microsecond, so anything much above that is work being "
+            f"redone on every request."
         )
 
 

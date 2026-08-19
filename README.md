@@ -15,7 +15,7 @@ reads it.
 network:**
 
 ```bash
-pytest -q          # 930 tests, none of which touch Salesforce
+pytest -q          # 994 tests, none of which touch Salesforce
 ```
 
 ## Contents
@@ -323,7 +323,7 @@ appears in `protocol/`, the core has stopped being reusable.
 ### Run the tests
 
 ```bash
-pytest -q                    # 930 tests, no credentials, no network
+pytest -q                    # 994 tests, no credentials, no network
 pytest -m security           # the attacks this connector must be immune to
 pytest -m smoke              # the server as a process, not as an import
 pytest -m performance        # costs that must not grow (a quiet machine, please)
@@ -404,23 +404,23 @@ it at a sandbox.
 The default run, on a clean checkout, with no credentials and no network:
 
 ```
-930 passed, 13 skipped, 38 deselected, 2 xfailed in 30.04s
+994 passed, 13 skipped, 38 deselected in 29.99s
 ```
 
 | | Count | Why it is that number |
 |---|---:|---|
-| **Passed** | **930** | |
+| **Passed** | **994** | |
 | Skipped | 13 | Platform-specific paths, and cases needing an org that the tier does not require |
 | Deselected | 38 | `performance` (8), `integration` (22), `learning` (8): excluded by marker, run by name |
-| **Expected failures** | **2** | Two known wording defects, deliberately red until fixed. See [Descriptions are the product](#descriptions-are-the-product) |
+| **Expected failures** | **0** | Two known wording defects used to sit here. Both are fixed |
 | Failed | **0** | |
 
-Where the 945 collected tests live:
+Where the 1,007 collected tests live:
 
 | Tier | Tests | In the default run |
 |---|---:|---|
 | `unit` | 700 | yes |
-| `contract` | 166 | yes |
+| `contract` | 228 | yes |
 | `security` | 49 | yes |
 | `postman` | 18 | yes |
 | `regression` | 7 | yes |
@@ -433,7 +433,7 @@ Where the 945 collected tests live:
 pie showData
     title Where the tests are
     "unit" : 700
-    "contract" : 166
+    "contract" : 228
     "security" : 49
     "integration" : 22
     "postman" : 18
@@ -450,11 +450,14 @@ process and the seven regression tests each stand for a bug that cost real
 money to find. **A test count is a measure of coverage breadth, not of
 confidence.**
 
-The two expected failures are not a defect in the suite. They are the
-acceptance criteria for two description fixes that have been identified and not
-yet made, written as strict `xfail`, so correcting either wording makes pytest
-demand its marker be deleted. A pin for a fixed bug and a pin for an open one
-should not be able to look alike.
+Nothing is expected to fail, and for a while two things were. When two
+descriptions were found to contradict the endpoint they call, the tests for
+them were written before the fix and marked strict `xfail`: red on purpose, and
+rigged so that correcting either wording made pytest refuse the marker and
+demand it be deleted. That is the useful shape for a defect found before it can
+be fixed. It is an executable statement of what "fixed" means, it cannot be
+forgotten, and it turns red again the moment somebody words it back the old
+way. Both are fixed and both markers are gone.
 
 ## The tools
 
@@ -490,6 +493,80 @@ Nine read, eight write. Every write requires approval before it runs.
 Every write also requires an `idempotency_key`. That is the field that makes a
 retry safe, and it is required rather than optional because a caller who forgets
 it only finds out when a duplicate already exists.
+
+## What it costs to run
+
+Two different costs, and they are worth separating. The one above is paid in
+tokens, once per connection. This one is paid in time, on every call.
+
+Nothing here competes with the network. A Salesforce round trip is a hundred
+milliseconds or more, so anything this connector adds is invisible until it is
+not, and the way it stops being invisible is somebody making a per-call path
+linear in something that grows.
+
+`n` is the number of tools, seventeen. `d` is the total size of all seventeen
+descriptions, about seventy-one thousand characters. `k` is the number of
+writes a process has seen.
+
+| Path | When | Complexity | Cost |
+|---|---|---|---:|
+| Resolve a tool name | every call | O(n) | **1.1 µs** |
+| Publish the catalogue | once per connection | O(n) | **60 µs** |
+| Describe every action | behind both of the above | O(1) cached, O(n·d) cold | **0.03 µs** |
+| Refuse an unknown name | on a bad call | O(n·m²) | **380 µs** |
+| Ledger lookup | every write | O(1) | **0.1 µs** |
+| Classify an error | on a failure | O(1) cached | negligible |
+
+### The one real defect this analysis found
+
+Resolving a name against a list already in hand takes about a microsecond.
+Dispatch was taking **602**, and every microsecond of the difference was
+rebuilding descriptions nobody had asked for.
+
+`descriptors()` renders each action's full description from scratch: every
+field of both schemas in words, the worked example, every failure and its
+remedy. Seventy-one thousand characters. It was being called **on every single
+tool call**, because dispatch needs the descriptor list in order to find one
+name in it, and again a second time on the path that refuses.
+
+It is a pure function of things fixed at import time. `BY_ID` is `Final` and
+built from module-level classes, every spec is frozen, and `ActionDescriptor`
+is a frozen model, so one `@cache` is correct and changes no behaviour at all.
+
+| Path | Before | After | |
+|---|---:|---:|---:|
+| Per tool call | 602 µs | **1.07 µs** | **562× faster** |
+| Per `tools/list` | 691 µs | **60 µs** | **11.5× faster** |
+| Per refusal | 963 µs | **380 µs** | **2.5× faster** |
+
+### What was left alone, and why
+
+**Resolving a name is O(n), a linear scan over seventeen tools.** It could be a
+dictionary, and it is not worth it: the scan costs a microsecond, and a
+name-keyed index cannot be cached because a tuple of descriptors is unhashable
+(the schemas inside are plain dicts). Making it O(1) would mean either module
+level mutable state or an identity-keyed cache, and neither is worth removing a
+microsecond that is already three orders of magnitude below the network.
+
+**Refusing an unknown name is O(n·m²)** and is the slowest path here at 380 µs,
+essentially all of it inside `difflib` looking for a near miss. It stays,
+because a refusal is rare, it is still two hundred times faster than the call it
+is refusing, and at fifty tools it would be about a millisecond. When the tool
+count is the thing that grows, this is the line that grows with it.
+
+**Two costs dominate everything on this table and neither is CPU.** Every
+opportunity create makes a describe call to read the org's stage picklist,
+which is a second network round trip and a second charge against the org's API
+quota on the most common write. It could be cached with a TTL. It is not,
+because a cached picklist refuses a stage an administrator added five minutes
+ago, and refusing legitimate input is a worse failure than being slower. That
+is a decision worth taking deliberately rather than by default.
+
+And the idempotency ledger is **O(k) memory that is never evicted**. Behind a
+long-lived gateway that is unbounded growth. It has not been bounded yet
+because eviction is not free either: an evicted key means a retry re-executes,
+which is the exact duplicate the ledger exists to prevent. A large bound is
+almost certainly right; a small one would be worse than none.
 
 ## What it costs at connect
 
@@ -1050,31 +1127,41 @@ model cannot act on measures nothing about whether it would have chosen well.
 
 ## Conformance
 
-Measured against three chapters of *The Agentic AI Bible*: 6 (tool use and
-function calling), 8 (planning and decomposition), and 9 (Model Context
-Protocol). Chapter 9 is the protocol audit and comes last; chapter 6 is the one
-that changed the code.
+Three separate questions, and they are not the same question. Are the tools
+designed well? Does the connector help or hinder an agent that has to plan? And
+does it implement the protocol correctly? The protocol audit is the one people
+ask for and the one that found the least. Tool design is the one that changed
+the code.
 
-### Chapter 6: tool design
+### Tool design
 
-The five schema patterns, each checked against the code rather than against the
-description of the code.
+Five rules I hold this tool set to, each checked against the code rather than
+against the description of the code.
 
-| Pattern | Verdict |
+| Rule | Verdict |
 |---|---|
 | **1.** Required fields document their fallback | **Met**, and enforced by a test |
 | **2.** Enums where the value space is bounded | **Met**, on every field where the space really is bounded |
 | **3.** A tool that does two things should be two tools | **Exceeds**: no mode argument anywhere |
-| **4.** Meta-tool with a mode, done properly | **Met**: `tool_list_by_kind` takes an enum `kind` |
+| **4.** A mode argument only for a genuine meta-tool | **Met**: `tool_list_by_kind` takes an enum `kind` |
 | **5.** The description says when *not* to call | **Exceeds**: a `when_not_to_use` section, not one sentence |
 
-**Pattern 1 was the chapter's opening bug and it was live here.** Eleven
-required fields said what the field was and not what to do when the value
-could not be determined. That is the exact shape that makes a model fill a
-required field with the nearest string in scope. All eleven now answer the
-question, and
+**Rule 1 is the one that matters most, and it was broken here.** Eleven
+required fields said what the field *was* and never what to do when the value
+could not be determined from the conversation.
+
+That gap does not produce a refusal. It produces an invention. A model told it
+must supply a value, with no value available, does not stop; it fills the field
+with the most semantically related string in scope, which is often the field's
+own description. The call then succeeds, because a string was supplied and the
+schema is satisfied, and the damage lands somewhere downstream where nothing
+connects it back to a missing sentence. No unit test sees it, because unit
+tests pass real values.
+
+All eleven now answer the question, and
 `tests/contract/test_required_fields_document_their_fallback.py` fails the
-build if a new one does not.
+build if a new one does not. It bit immediately: it caught four fields on its
+first run, two of which I had just written myself.
 
 Four answers are accepted, and the fourth is the interesting one: ask the user,
 call a named tool first, refuse to call at all, or **send a best guess where
@@ -1112,14 +1199,15 @@ constrained the identical three values.
 | Contract requirement | Verdict |
 |---|---|
 | Typed result, not a raw string | **Met**, and validated before return |
-| Idempotency key on non-idempotent writes | **Exceeds**: the chapter says add it as optional, ours is required |
+| Idempotency key on non-idempotent writes | **Exceeds**: it is required, not optional |
 | Timeout enforced by the calling code | **Met**: 10s read, 22s write |
 | Four error categories distinguishable from the message alone | **Exceeds**: nine types mapping onto the four, each with a `next_step` |
 | Compensating action or manual recovery | **Met**, enforced by a test on every write |
 | Side effects documented | **Met** structurally, through MCP annotations |
 
-That last row is a real trade rather than a clean pass. The chapter wants a
-`side_effects` *sentence* the model reads; we publish machine-readable
+That last row is a real trade rather than a clean pass. What a model actually
+reads is the description, and there is no side-effects sentence in it. We
+publish machine-readable
 `readOnlyHint`, `destructiveHint` and `idempotentHint` instead. Better for a
 client, worse for a model, since the model reads the description and many
 clients never surface annotations.
@@ -1134,53 +1222,55 @@ intervention instead of a recovery.
 
 | Scaling requirement | Verdict |
 |---|---|
-| Tool count against the 10-to-12 inflection point | **17, past it.** Answered with routing, and **measured** rather than assumed |
+| Tool count against the point where selection degrades | **17, past it.** Answered with routing, and **measured** rather than assumed |
 | Domain prefix in the name | **Exceeds**: `salesforce_<object>_<action>_by_<key>` |
 | Versioned tool names for breaking changes | **Met**, written below |
 | Debug cycle: run, observe, diagnose, fix, re-run | **Met**: this is what `evals/` is for |
 
-The chapter's three remedies for a large tool set are a smaller set, a routing
-step, or few-shot examples. We use routing. The unusual part is that the
+There are three ways to handle a tool set this size: cut it down, route to a
+subset, or add few-shot examples showing which tool wins when two look
+applicable. We route. The unusual part is that the
 degradation is measured rather than assumed, and the debug cycle has actually
 run: the eval observed `contact_update_by_id` losing a case to
 `record_update_by_id`, the trace showed why (`when_to_use` lists "email, phone,
 title, or account" and the prompt said *department*), and the fix is a
-description change, not a model change. That is section 6.5.1 exactly.
+description change, not a model change.
 
-### Chapter 8: planning
+### What this connector does to an agent that plans
 
-This connector is not an agent and has no planning loop, so most of the chapter
-does not apply to it. Three things do.
+A connector has no plan of its own. It still decides how hard planning is for
+whatever is calling it, in three ways.
 
-**It supplies the mechanism behind a decision already made.** ReAct's failure
-mode is local optimisation: pursuing the most salient thread and missing the
-global structure. That is the argument for one tool, one end-to-end action.
-Collapsing create, create, link into a single composite call removes two points
-at which a ReAct loop can wander off. The README asserted the conclusion; the
-chapter supplies the reason.
+**Every tool call collapsed is a decision point removed.** An agent working
+step by step optimises locally: it pursues whatever is most salient right now
+and loses the shape of the overall task. Each extra call is another chance to
+wander. That is the real argument for one tool, one end-to-end action, and it
+is why `opportunity_create_with_contact_by_id` exists as one composite write
+rather than create, create, link. Three decision points become one.
 
-**The error contract is what makes Reflexion possible.** Reflexion needs the
-model to work out what went wrong and try something different rather than
-repeating. Nine failure types, each stamped `RETRY` or `DO NOT RETRY` or `FIX
-THE CALL` and each carrying a `next_step`, is precisely the signal that turns a
-repeat into a change of approach.
+**An agent can only change approach if the failure told it something.** A tool
+that comes back with "upstream error" leaves the model guessing, and a guessing
+model repeats what it just did. Nine failure types, each stamped `RETRY` or `DO
+NOT RETRY` or `FIX THE CALL`, each carrying a `next_step`, is what turns a
+repeat into a different attempt. That is the whole purpose of the error
+taxonomy, and it is worth more here than it would be in a library, because the
+caller cannot read our source to work out what went wrong.
 
-**And it names the largest untested gap precisely.** The eval harness sends an
+**And the largest untested gap is exactly here.** The eval harness sends an
 instruction that says: call exactly one tool, do not first search or read or
 verify. That was right for isolating tool *choice*, and it means **every number
-in this README is single-step**. The connector has never been measured under an
-agent that plans. Chapter 8's whole subject is that the interesting failures
-live in multi-step execution, which makes that the next thing worth building
-rather than a nice-to-have.
+in this README is single-step**. This connector has never been measured under
+an agent that plans across several calls, which is the only way it will
+actually be used. Single-step scores say nothing about whether a model recovers
+from the third failure of a five-step sequence.
 
-### Chapter 9: Model Context Protocol
+### Protocol
 
-Measured against the chapter, the O'Reilly *AI Agents with MCP* early release,
-and the current specification. Where a book and the specification disagree, the
-specification wins: both books predate protocol revision 2026-07-28, and one
-still describes HTTP+SSE as current and `notifications/message` logging as
-live, which it is
-not.
+Measured against the current specification, which wins wherever anything else
+disagrees with it. Most secondary material predates protocol revision
+2026-07-28: HTTP+SSE is widely described as current and `notifications/message`
+logging as live, and neither is
+true.
 
 | Area | Verdict |
 |---|---|
@@ -1190,7 +1280,7 @@ not.
 | Timeouts | Met |
 | Crash mid write | Met, stronger than asked: idempotency ledger and compensating escalation |
 | Capability scoping | Met in Executor, and a deliberate trade here. See below |
-| Audit logging | Met, and narrower than the chapter asks. See below |
+| Audit logging | Met, and narrower than it should be. See below |
 | Sandboxing | Met: non-root, and `--read-only --cap-drop ALL` both work |
 | Tool result injection | Met: nonce fence, and the rule for reading it stated in `instructions` and repeated above every result |
 | Output sanitising and size | Met: errors fenced, structured twin marked, width and row counts both bounded |
@@ -1206,11 +1296,11 @@ not.
 **Two of those rows are trades, not clean passes, and are worth stating as
 trades.**
 
-*Capability scoping.* The chapter is blunt: "if you deploy a single server that
+*Capability scoping.* The rule is blunt: if you deploy a single server that
 exposes both read-only tools and write tools, every agent that connects has
 access to the write tools." That is true of this connector. `tools/list`
 returns all seventeen to every client, unfiltered, and scoping is pushed to
-Executor. The chapter's alternatives are separate server instances per context
+Executor. The alternatives are separate server instances per context
 or per-client filtering in `list_tools`, and the second needs authentication
 this connector deliberately does not have, because on stdio the security
 boundary is the process's own permissions. What we rely on instead is that
@@ -1218,7 +1308,7 @@ every write is refused without a person's signed approval, which is a stronger
 mitigation than hiding the tool. The residual risk is real all the same: a
 client that should only read can see, and attempt, eight tools that write.
 
-*Audit logging.* The chapter asks for the calling identity, the tool, the
+*Audit logging.* A production log should carry the calling identity, the tool, the
 **sanitized arguments**, the result status and the elapsed time. We log
 everything on that list except the arguments, and we log no payloads at all.
 More conservative, and it costs something concrete: after an incident you know
