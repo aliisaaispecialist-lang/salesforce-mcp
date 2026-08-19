@@ -1,4 +1,4 @@
-﻿# Salesforce Connector: an MCP server with approval-gated writes
+# Salesforce Connector: an MCP server with approval-gated writes
 
 An MCP server that lets an AI assistant read and change Salesforce records
 safely. Seventeen tools, every write held behind a person's approval, and every
@@ -954,35 +954,42 @@ xychart-beta
 
 ### Per tool, across all three runs
 
-Each cell is how many of that tool's cases the model got right.
+Each cell is how many of that tool's cases the model chose correctly, out of the
+four it was given. The colour is the same number, so the table can be read at a
+glance or read exactly.
 
-**Legend:** ðŸŸ© every case &nbsp; ðŸŸ¨ one miss &nbsp; ðŸŸ§ half &nbsp; ðŸŸ¥ most or all missed
+| Colour | Means | Score |
+|:--:|---|---|
+| 🟩 | every case chosen correctly | 100% |
+| 🟨 | one miss | 75% to 99% |
+| 🟧 | half | 50% to 74% |
+| 🟥 | most or all missed | under 50% |
 
 | Tool | 1. Flawed | 2. Fixed | 3. Happy path |
 |---|:--:|:--:|:--:|
-| `contact_search_by_text` | ðŸŸ© 4/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
-| `record_search_by_text` | ðŸŸ© 4/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
-| `record_get_by_id` | ðŸŸ© 4/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
-| `record_query_by_soql` | ðŸŸ¨ 4/5 | ðŸŸ© 5/5 | ðŸŸ© 4/4 |
-| `record_count_by_object` | ðŸŸ¨ 3/4 | ðŸŸ¨ 3/4 | ðŸŸ© 4/4 |
-| `object_describe_by_name` | ðŸŸ© 4/4 | ðŸŸ§ 2/4 | ðŸŸ© 4/4 |
-| `record_get_related_by_id` | ðŸŸ¥ 1/4 | ðŸŸ§ 2/4 | ðŸŸ© 4/4 |
-| `contact_create` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
-| `opportunity_link_contact_by_id` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
-| `record_update_by_id` | ðŸŸ¥ 0/4 | ðŸŸ¨ 3/4 | ðŸŸ© 4/4 |
-| `opportunity_create` | ðŸŸ¥ 0/4 | ðŸŸ¥ 1/4 | ðŸŸ© 4/4 |
-| `opportunity_create_with_contact_by_id` | ðŸŸ¥ 0/4 | ðŸŸ¥ 1/4 | ðŸŸ© 4/4 |
-| `record_upsert_by_external_id` | ðŸŸ¥ 0/4 | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 |
-| `contact_update_by_id` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ¨ 3/4 |
-| `activity_create_by_related_id` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ§ 2/4 |
-| `tool_list_by_kind` | ðŸŸ¥ 1/4 | ðŸŸ§ 2/4 | ðŸŸ¥ 1/4 |
-| `tool_describe_by_name` | ðŸŸ¥ 1/4 | ðŸŸ¥ 1/4 | ðŸŸ¥ 1/4 |
+| `contact_search_by_text` | 🟩 4/4 | 🟩 4/4 | 🟩 4/4 |
+| `record_search_by_text` | 🟩 4/4 | 🟩 4/4 | 🟩 4/4 |
+| `record_get_by_id` | 🟩 4/4 | 🟩 4/4 | 🟩 4/4 |
+| `record_query_by_soql` | 🟨 4/5 | 🟩 5/5 | 🟩 4/4 |
+| `record_count_by_object` | 🟨 3/4 | 🟨 3/4 | 🟩 4/4 |
+| `object_describe_by_name` | 🟩 4/4 | 🟧 2/4 | 🟩 4/4 |
+| `record_get_related_by_id` | 🟥 1/4 | 🟧 2/4 | 🟩 4/4 |
+| `contact_create` | 🟥 0/4 | 🟩 4/4 | 🟩 4/4 |
+| `opportunity_link_contact_by_id` | 🟥 0/4 | 🟩 4/4 | 🟩 4/4 |
+| `record_update_by_id` | 🟥 0/4 | 🟨 3/4 | 🟩 4/4 |
+| `opportunity_create` | 🟥 0/4 | 🟥 1/4 | 🟩 4/4 |
+| `opportunity_create_with_contact_by_id` | 🟥 0/4 | 🟥 1/4 | 🟩 4/4 |
+| `record_upsert_by_external_id` | 🟥 0/4 | 🟥 0/4 | 🟩 4/4 |
+| `contact_update_by_id` | 🟥 0/4 | 🟩 4/4 | 🟨 3/4 |
+| `activity_create_by_related_id` | 🟥 0/4 | 🟩 4/4 | 🟧 2/4 |
+| `tool_list_by_kind` | 🟥 1/4 | 🟧 2/4 | 🟥 1/4 |
+| `tool_describe_by_name` | 🟥 1/4 | 🟥 1/4 | 🟥 1/4 |
 
 The columns are not strictly comparable and the table is more useful for it.
 Runs 1 and 2 share an eighty-case set that includes eleven prompts with no
 right answer; run 3 is a different, generated, sixty-eight-case set with no
 negatives. So read the **shape** rather than the arithmetic: the whole write
-half of the connector sitting at ðŸŸ¥ in run 1 is the signature of a harness that
+half of the connector sitting at 🟥 in run 1 is the signature of a harness that
 could not call a write at all, not of thirteen badly written descriptions.
 
 ### What the nine remaining misses actually are
