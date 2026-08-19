@@ -109,6 +109,13 @@ def test_every_write_is_refused_unless_writes_are_turned_on(request_: dict[str, 
 
     Exempt: the token request and the gateway's JSON-RPC calls, which are POSTs
     that write nothing. Everything aimed at a Salesforce sObject is gated.
+
+    The mechanism is asserted, not the variable name. An earlier version of this
+    checked only that the script mentioned `allow_writes`, and passed against a
+    guard built on `postman.setNextRequest(null)` -- which halts the request
+    *after* this one and lets this one go out. A test that confirms a guard is
+    mentioned, while the guard does not guard, is worse than no test: it is the
+    reason nobody looks again.
     """
     aimed_at_salesforce = "{{instance_url}}" in _text(request_)
     if not aimed_at_salesforce:
@@ -122,6 +129,15 @@ def test_every_write_is_refused_unless_writes_are_turned_on(request_: dict[str, 
     assert "allow_writes" in scripts, (
         f"{request_['name']} writes to Salesforce with nothing stopping it. "
         f"A collection run would create real records."
+    )
+    stops_this_request = "skipRequest" in scripts or ".invalid" in scripts
+    assert stops_this_request, (
+        f"{request_['name']} checks allow_writes but nothing stops the request itself. "
+        f"It would be sent, and the org would be changed."
+    )
+    assert "setNextRequest" not in scripts, (
+        f"{request_['name']} relies on setNextRequest, which stops the request after "
+        f"this one. This write still goes out."
     )
 
 

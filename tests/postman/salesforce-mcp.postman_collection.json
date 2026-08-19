@@ -171,7 +171,7 @@
                 "mcp"
               ]
             },
-            "description": "A read that needs no Salesforce call at all. It exercises the whole path -- gateway, policy, connector, dispatch -- and touches no org."
+            "description": "A read that needs no Salesforce call at all, so it exercises the whole path -- gateway, policy, connector, dispatch -- and touches no org.\n\nNOT YET VERIFIED. It assumes the gateway's MCP endpoint accepts a namespaced tool path, which is the vocabulary its CLI and its `execute` tool use. If this answers 'unknown tool', reach the same tool through `execute` instead, and correct this request. Run it first: it is the cheapest way to find out whether the whole path works."
           }
         },
         {
@@ -218,14 +218,19 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const WRITES = [\"salesforce_activity_create_by_related_id\", \"salesforce_contact_create\", \"salesforce_contact_update_by_id\", \"salesforce_opportunity_create\", \"salesforce_opportunity_create_with_contact_by_id\", \"salesforce_opportunity_link_contact_by_id\", \"salesforce_record_update_by_id\", \"salesforce_record_upsert_by_external_id\"];",
                   "pm.test('answered 200', () => pm.response.to.have.status(200));",
-                  "const rules = pm.response.json()",
-                  "    .filter(p => (p.pattern || '').startsWith('salesforce.'));",
-                  "const approving = rules.filter(p => p.action === 'approve')",
-                  "    .map(p => p.pattern);",
+                  "const approving = pm.response.json()",
+                  "    .filter(p => p.action === 'approve')",
+                  "    .map(p => p.pattern || '');",
                   "pm.test('no write is auto-approved', () => {",
-                  "    const writes = approving.filter(p => /_(create|update|upsert)/.test(p));",
-                  "    pm.expect(writes, 'these writes run unattended').to.be.empty;",
+                  "    const loose = WRITES.filter(w => approving.some(p => p.endsWith(w)));",
+                  "    pm.expect(loose, 'these writes run unattended').to.be.empty;",
+                  "});",
+                  "pm.test('every write is covered by a policy', () => {",
+                  "    const all = pm.response.json().map(p => p.pattern || '');",
+                  "    const uncovered = WRITES.filter(w => !all.some(p => p.endsWith(w)));",
+                  "    pm.expect(uncovered, 'no policy names these').to.be.empty;",
                   "});"
                 ]
               }
@@ -497,8 +502,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -542,8 +548,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -587,8 +594,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -632,8 +640,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -677,8 +686,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -722,8 +732,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -767,8 +778,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }
@@ -812,8 +824,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (pm.environment.get('allow_writes') !== 'true') {",
-                  "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-                  "    postman.setNextRequest(null);",
+                  "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+                  "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "    pm.request.url = 'https://writes-are-off.invalid/refused';",
                   "}"
                 ]
               }

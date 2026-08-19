@@ -333,9 +333,12 @@ fetched over each route, and the result counted with `cl100k_base`. An earlier
 version of this table reconstructed the two gateway rows from Executor's
 published source and reported 20,597 / 1,363 / 293. Those ratios held up -- the
 measured ones are 92.7% and 98.7% against a claimed 93.4% and 98.6% -- but the
-absolute figures did not, because the descriptions have grown since. Reproduce
-it with `pytest -m performance`, which fails if the catalogue passes its
-ceiling or if any single tool takes more than a quarter of it.
+absolute figures did not, because the descriptions have grown since.
+
+`pytest -m performance` guards the baseline row: it fails if the catalogue
+passes its ceiling, or if any single tool grows past a quarter of the whole. It
+does not check the other two rows, which need a live Executor with this
+connector registered. Those are measured, not tested.
 
 ---
 

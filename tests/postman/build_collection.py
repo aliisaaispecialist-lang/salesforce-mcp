@@ -53,13 +53,23 @@ Json = dict[str, Any]
 
 SCHEMA = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 
-# Stops a write dead unless someone has deliberately turned writes on. Postman
-# offers no "skip this request", so the request is sent nowhere instead: the
-# URL is replaced with a value that cannot resolve, and the reason is logged.
+# Stops a write dead unless someone has deliberately turned writes on.
+#
+# Two mechanisms, because one of them is not enough. `pm.execution.skipRequest`
+# is the right answer and is the newer API, so the URL is also pointed at a host
+# that cannot resolve. An older Postman ignores the first and fails on the
+# second, which is the outcome we want either way.
+#
+# What is deliberately *not* used here is `postman.setNextRequest(null)`. It
+# reads as though it stops things, and it does -- it stops the request *after*
+# this one. The write itself still goes out, and a manual Send ignores it
+# entirely. A guard that fires after the damage is worse than none, because it
+# is believed.
 REFUSE_UNLESS_ALLOWED = [
     "if (pm.environment.get('allow_writes') !== 'true') {",
-    "    console.log('Refused: this request writes to Salesforce and allow_writes is not true.');",
-    "    postman.setNextRequest(null);",
+    "    console.log('Refused: this writes to Salesforce and allow_writes is not true.');",
+    "    if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+    "    pm.request.url = 'https://writes-are-off.invalid/refused';",
     "}",
 ]
 
@@ -243,6 +253,22 @@ ENDPOINTS: list[tuple[str, str, str, str, Json | None]] = [
 WRITE_METHODS = frozenset({"POST", "PATCH", "PUT", "DELETE"})
 
 
+def _write_names() -> list[str]:
+    """Every tool that changes state, read from the registry.
+
+    The policy check used to match these with a regular expression over the
+    names, which looked fine and quietly missed
+    `salesforce_opportunity_link_contact_by_id`: it creates a record and says
+    neither "create" nor "update". A hand-written pattern standing in for the
+    registry is the exact mistake this generator exists to avoid.
+    """
+    return [
+        action.spec.tool_name
+        for action in BY_ID.values()
+        if action.spec.kind is not ActionKind.READ
+    ]
+
+
 def _script(lines: list[str], when: str) -> Json:
     return {"listen": when, "script": {"type": "text/javascript", "exec": lines}}
 
@@ -323,8 +349,13 @@ def gateway_folder() -> Json:
             _rpc(
                 Rpc(
                     name=f"Call a read tool ({a_read})",
-                    description="A read that needs no Salesforce call at all. It exercises the "
-                    "whole path -- gateway, policy, connector, dispatch -- and touches no org.",
+                    description="A read that needs no Salesforce call at all, so it exercises "
+                    "the whole path -- gateway, policy, connector, dispatch -- and touches no "
+                    "org.\n\nNOT YET VERIFIED. It assumes the gateway's MCP endpoint accepts a "
+                    "namespaced tool path, which is the vocabulary its CLI and its `execute` "
+                    "tool use. If this answers 'unknown tool', reach the same tool through "
+                    "`execute` instead, and correct this request. Run it first: it is the "
+                    "cheapest way to find out whether the whole path works.",
                     payload={
                         "jsonrpc": "2.0",
                         "id": 3,
@@ -367,15 +398,21 @@ def gateway_folder() -> Json:
                 "event": [
                     _script(
                         [
+                            f"const WRITES = {json.dumps(sorted(_write_names()))};",
                             "pm.test('answered 200', () => pm.response.to.have.status(200));",
-                            "const rules = pm.response.json()",
-                            "    .filter(p => (p.pattern || '').startsWith('salesforce.'));",
-                            "const approving = rules.filter(p => p.action === 'approve')",
-                            "    .map(p => p.pattern);",
+                            "const approving = pm.response.json()",
+                            "    .filter(p => p.action === 'approve')",
+                            "    .map(p => p.pattern || '');",
                             "pm.test('no write is auto-approved', () => {",
-                            "    const writes = approving"
-                            ".filter(p => /_(create|update|upsert)/.test(p));",
-                            "    pm.expect(writes, 'these writes run unattended').to.be.empty;",
+                            "    const loose = WRITES.filter(w =>"
+                            " approving.some(p => p.endsWith(w)));",
+                            "    pm.expect(loose, 'these writes run unattended').to.be.empty;",
+                            "});",
+                            "pm.test('every write is covered by a policy', () => {",
+                            "    const all = pm.response.json().map(p => p.pattern || '');",
+                            "    const uncovered = WRITES.filter(w =>"
+                            " !all.some(p => p.endsWith(w)));",
+                            "    pm.expect(uncovered, 'no policy names these').to.be.empty;",
                             "});",
                         ],
                         "test",
