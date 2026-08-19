@@ -48,7 +48,10 @@ class UpsertRecordInput(BaseModel):
             pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object, spelled as Salesforce spells it: Contact, "
-                "Opportunity, Account, or a custom object ending __c."
+                "Opportunity, Account, or a custom object ending __c. If you are not "
+                "certain, call salesforce_object_describe_by_name first and confirm "
+                "both the object and that it carries the external id field you are "
+                "about to key on. This is a write, so a guess here is not free."
             ),
             examples=["Contact", "Opportunity"],
         ),
@@ -79,7 +82,10 @@ class UpsertRecordInput(BaseModel):
                 "This decides everything: a value already on a record updates that "
                 "record, and a value not on any record creates a new one. Never "
                 "invent one, because inventing a value that happens to exist "
-                "overwrites somebody else's record."
+                "overwrites somebody else's record. If the user did not give you the "
+                "identifier, do not call this tool: ask them for it, or find the "
+                "record with salesforce_record_search_by_text and change it with "
+                "salesforce_record_update_by_id instead."
             ),
             examples=["CRM-4471"],
         ),

@@ -146,7 +146,15 @@ SPEC = ActionSpec(
     ),
     kind=ActionKind.WRITE,
     risk=RiskLevel.MEDIUM,
-    idempotent=False,
+    # Idempotent for the same reason `update_contact` is, and it said so while this
+    # said the opposite: setting a field to a value it already holds leaves the record
+    # exactly as it was. Both are a PATCH to the same endpoint with named fields, so
+    # the general tool cannot be less safe to repeat than the specific one.
+    #
+    # The old `False` was wrong in the expensive direction. A client reading the
+    # idempotency hint declines to retry, so a dropped packet on a call that was
+    # perfectly safe to repeat became a manual intervention instead of a recovery.
+    idempotent=True,
     requires_approval=True,
     input_schema=schema_of(UpdateRecordInput),
     output_schema=schema_of(UpdateRecordOutput),

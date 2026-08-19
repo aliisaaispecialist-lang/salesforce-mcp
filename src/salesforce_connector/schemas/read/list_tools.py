@@ -76,7 +76,15 @@ class ListToolsOutput(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    kind: Annotated[str, Field(description="Which half was listed.")]
+    # The same closed set as the input field, and constrained the same way. It
+    # was a bare `str` while the argument it echoes was a Literal, which is the
+    # asymmetry worth avoiding: a model reading the output schema learned less
+    # about the value space than one reading the input schema, from the field
+    # that carries the identical three values.
+    kind: Annotated[
+        Literal["read", "write", "all"],
+        Field(description="Which half was listed: read, write, or all."),
+    ]
     tools: Annotated[
         tuple[ToolSummary, ...],
         Field(description="Every matching tool, in a stable order."),

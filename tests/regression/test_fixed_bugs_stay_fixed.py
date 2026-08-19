@@ -148,11 +148,16 @@ class TestFormatIsActuallyChecked:
 class TestDescriptionsMatchTheEndpointTheyCall:
     """Two descriptions contradict Salesforce's own documentation.
 
-    Found by reading each tool against the endpoint it calls. Both are live:
-    the fix is a wording change and the decision to make it has not been taken,
-    so these are marked expected to fail rather than left out. Left out, they
-    would be a note somebody has to remember. Here, they are the acceptance
-    test for a change that has not happened yet.
+    Found by reading each tool against the endpoint it calls, which is the only
+    way either could have been found: both descriptions are internally
+    consistent, pass every schema check, and are wrong about Salesforce.
+
+    Both are now fixed, and these tests were written before the fix rather than
+    after it. They spent a while marked expected-to-fail, strictly, so that
+    correcting the wording made pytest refuse the marker and demand it be
+    deleted. That is the useful shape for a defect found before it can be
+    fixed: an executable statement of what "fixed" means, which turns red the
+    moment somebody words it back the old way.
 
     A third suspect was dropped after being written. `record_count_by_object`
     looked as though it presented a cached figure as fact, because the summary
@@ -164,10 +169,6 @@ class TestDescriptionsMatchTheEndpointTheyCall:
     much as one that turns out to be right, and only if it is written down.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Known defect, fix pending approval: it contradicts the SOSL FIND docs.",
-    )
     def test_the_two_search_tools_agree_about_partial_words(self) -> None:
         """One says a partial word matches. Salesforce says it does not.
 
@@ -185,10 +186,6 @@ class TestDescriptionsMatchTheEndpointTheyCall:
         query = BY_NAME["salesforce_record_search_by_text"].input_schema["properties"]["query"]
         assert "a partial word finds records containing it" not in query["description"]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Known defect, fix pending approval: the 404 remedy offers a false dichotomy.",
-    )
     def test_the_missing_record_remedy_allows_for_an_unset_lookup(self) -> None:
         """A contact with no account produces the same 404 as a bad id.
 

@@ -64,7 +64,10 @@ class AddActivityNoteInput(BaseModel):
             description=(
                 "Required. One line summarising what happened, for example "
                 "'Renewal call - agreed to 12 month extension'. This is what a person "
-                "sees in the activity timeline, so make it readable on its own."
+                "sees in the activity timeline, so make it readable on its own. Write "
+                "it from what the user actually told you. If they described no "
+                "activity at all, do not call this tool and ask them what happened: a "
+                "subject invented here is indistinguishable, later, from a real one."
             ),
         ),
     ]

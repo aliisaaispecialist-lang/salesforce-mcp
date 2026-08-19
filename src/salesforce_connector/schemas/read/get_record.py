@@ -38,7 +38,11 @@ class GetRecordInput(BaseModel):
             pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object, spelled as Salesforce spells it: Contact, "
-                "Opportunity, Account, Lead, Task, or a custom object ending __c."
+                "Opportunity, Account, Lead, Task, or a custom object ending __c. "
+                "If you are not sure, read it off the id you already have: the first "
+                "three characters name the object, 001 Account, 003 Contact, 006 "
+                "Opportunity, 00Q Lead, 500 Case. Where the prefix and the name you "
+                "were about to send disagree, the prefix is right."
             ),
         ),
     ]

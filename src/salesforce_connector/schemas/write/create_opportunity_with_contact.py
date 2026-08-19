@@ -44,7 +44,8 @@ class CreateOpportunityWithContactInput(BaseModel):
             max_length=120,
             description=(
                 "Required. What the deal is called. Use something a person would "
-                "recognise in a list, usually the account and what it is for."
+                "recognise in a list, usually the account and what it is for. If the "
+                "user did not say what to call it, ask rather than inventing a name."
             ),
             examples=["Example Corp - annual renewal"],
         ),
@@ -55,9 +56,12 @@ class CreateOpportunityWithContactInput(BaseModel):
             min_length=1,
             max_length=80,
             description=(
-                "Required. The sales stage. Stages are configured per org, so do not "
-                "assume the Salesforce defaults: call salesforce_object_describe_by_name on "
-                "Opportunity and use a value it reports. A stage this org does not "
+                "Required. The sales stage, for example 'Prospecting' or "
+                "'Closed Won'. Every Salesforce org configures its own stages, so "
+                "there is no universal list. If you are not certain which stages this "
+                "org uses, send your best guess: the value is checked before anything "
+                "is created, and the error lists the exact values this org accepts. "
+                "A stage this org does not "
                 "have fails the whole write, including the contact link."
             ),
         ),

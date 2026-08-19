@@ -39,7 +39,12 @@ class DescribeObjectInput(BaseModel):
             pattern=r"^[A-Za-z][A-Za-z0-9_]*$",
             description=(
                 "Required. The object, spelled as Salesforce spells it: Contact, "
-                "Opportunity, Account, Lead, Task, or a custom object ending __c."
+                "Opportunity, Account, Lead, Task, or a custom object ending __c. "
+                "Translate the user's word first: a company is Account, a deal is "
+                "Opportunity, a person is Contact, a prospect is Lead. If you still "
+                "cannot tell which object they mean, ask them rather than guessing. A "
+                "name this org does not have comes back as not-found, not as a "
+                "correction, so a guess costs a call and teaches you nothing."
             ),
             examples=["Contact", "Opportunity"],
         ),

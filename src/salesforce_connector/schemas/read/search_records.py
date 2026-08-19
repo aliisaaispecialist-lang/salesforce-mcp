@@ -45,7 +45,11 @@ class SearchRecordsInput(BaseModel):
                 "Required. The object to search, spelled as Salesforce spells it: "
                 "Account, Lead, Opportunity, Case, Task, or a custom object ending "
                 "__c. For Contact use salesforce_contact_search_by_text instead, which "
-                "returns the contact fields the contact tools need."
+                "returns the contact fields the contact tools need. If you are not "
+                "sure this org spells it the way you are about to, call "
+                "salesforce_object_describe_by_name on it first: a name that does not "
+                "exist returns nothing found, which reads exactly like a real search "
+                "that matched nothing."
             ),
             examples=["Account", "Lead", "Opportunity"],
         ),
@@ -57,9 +61,13 @@ class SearchRecordsInput(BaseModel):
             max_length=200,
             description=(
                 "Required. The words to search for, as the user said them: a "
-                "company name, a subject line, part of a title. This matches the "
-                "way a search box matches, not the way a filter matches, so a "
-                "partial word finds records containing it.\n\n"
+                "company name, a subject line, part of a title. This is a search, "
+                "not a filter: it matches whole words, and a partial word may not "
+                "match. Searching 'Contos' does not find 'Contoso', and what comes "
+                "back is an empty result rather than an error, which reads exactly "
+                "like the record not existing. If a search finds nothing, widen it or "
+                "use salesforce_record_query_by_soql with a LIKE condition before "
+                "concluding there is no such record.\n\n"
                 "For a condition rather than words, such as a date range or an "
                 "amount over a threshold, use salesforce_record_query_by_soql."
             ),

@@ -39,7 +39,9 @@ class CreateOpportunityInput(BaseModel):
             description=(
                 "Required. What the deal is called, for example "
                 "'Acme Corp - annual renewal'. Salesforce does not require this to be "
-                "unique, so make it recognisable to a person."
+                "unique, so make it recognisable to a person. If the user did not say "
+                "what to call it, ask rather than inventing a name: this is the label "
+                "everyone will search for the deal by afterwards."
             ),
         ),
     ]
@@ -61,7 +63,9 @@ class CreateOpportunityInput(BaseModel):
             description=(
                 "Required. Expected close date, written as YYYY-MM-DD. Salesforce "
                 "accepts a date in the past, so use the date the user actually "
-                "meant rather than today's."
+                "meant rather than today's. If the user did not give one, ask for it "
+                "and do not call this tool until they do: a date invented here becomes "
+                "a forecast somebody relies on, and nothing will flag it as a guess."
             ),
             examples=["2026-12-01"],
         ),

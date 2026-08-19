@@ -42,7 +42,9 @@ class GetRelatedInput(BaseModel):
             description=(
                 "Required. The object you are starting from, spelled as Salesforce "
                 "spells it: Contact, Opportunity, Account, or a custom object "
-                "ending __c."
+                "ending __c. If you are not sure, read it off the id: the first "
+                "three characters name the object, 001 Account, 003 Contact, 006 "
+                "Opportunity, 00Q Lead, 500 Case."
             ),
         ),
     ]
@@ -188,12 +190,18 @@ SPEC = ActionSpec(
     errors=(
         ErrorGuidance(
             code="salesforce.record_not_found",
-            when="No record has that id, or the relationship name does not exist.",
+            when=(
+                "No record has that id, the relationship name does not exist, or "
+                "the relationship is a lookup that is not set on this record."
+            ),
             remedy=(
-                "Check the id first by searching for the record. If the id is "
-                "right, the relationship name is wrong: call "
-                "salesforce_object_describe_by_name on the starting object and use a "
-                "relationshipName it actually lists."
+                "Three different causes, so rule them out in order. Check the id by "
+                "searching for the record. Then call "
+                "salesforce_object_describe_by_name on the starting object and "
+                "confirm the relationship is a relationshipName it actually lists. "
+                "If the id is right and the name is listed, the lookup is simply "
+                "empty on this record, which Salesforce also answers 404: report "
+                "that nothing is attached rather than searching again."
             ),
         ),
         ErrorGuidance(

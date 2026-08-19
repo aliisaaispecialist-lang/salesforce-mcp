@@ -1050,11 +1050,136 @@ model cannot act on measures nothing about whether it would have chosen well.
 
 ## Conformance
 
-Measured against Chapter 9 of *The Agentic AI Bible* ("Model Context
-Protocol"), the O'Reilly *AI Agents with MCP* early release, and the current
-specification. Where a book and the specification disagree, the specification
-wins: both books predate protocol revision 2026-07-28, and one still describes
-HTTP+SSE as current and `notifications/message` logging as live, which it is
+Measured against three chapters of *The Agentic AI Bible*: 6 (tool use and
+function calling), 8 (planning and decomposition), and 9 (Model Context
+Protocol). Chapter 9 is the protocol audit and comes last; chapter 6 is the one
+that changed the code.
+
+### Chapter 6: tool design
+
+The five schema patterns, each checked against the code rather than against the
+description of the code.
+
+| Pattern | Verdict |
+|---|---|
+| **1.** Required fields document their fallback | **Met**, and enforced by a test |
+| **2.** Enums where the value space is bounded | **Met**, on every field where the space really is bounded |
+| **3.** A tool that does two things should be two tools | **Exceeds**: no mode argument anywhere |
+| **4.** Meta-tool with a mode, done properly | **Met**: `tool_list_by_kind` takes an enum `kind` |
+| **5.** The description says when *not* to call | **Exceeds**: a `when_not_to_use` section, not one sentence |
+
+**Pattern 1 was the chapter's opening bug and it was live here.** Eleven
+required fields said what the field was and not what to do when the value
+could not be determined. That is the exact shape that makes a model fill a
+required field with the nearest string in scope. All eleven now answer the
+question, and
+`tests/contract/test_required_fields_document_their_fallback.py` fails the
+build if a new one does not.
+
+Four answers are accepted, and the fourth is the interesting one: ask the user,
+call a named tool first, refuse to call at all, or **send a best guess where
+the connector itself validates the value and returns the acceptable ones**.
+`stage_name` uses the fourth, honestly, because `stages.py` reads the org's own
+picklist and puts the real list in the error. That is better than "call
+describe first": no round trip, and it cannot go stale. It would be the worst
+of the four the moment that check was removed, which is why the check has its
+own tests.
+
+Fixing this also surfaced a contradiction. The two `stage_name` fields, on
+sibling tools a model chooses between, gave opposite advice: one said call
+describe first, the other said guess and read the error. Both were defensible;
+only one can be true of the same field. They now agree, on the guess, because
+the shared validation makes it accurate.
+
+**Pattern 2, stated precisely, because "make everything an enum" would break
+this connector.** An enum is right where the value space is closed. `kind` is
+`read | write | all`. `activity_kind` is a closed set. Both are enums. But
+`object_name` cannot be one, because every org has custom objects ending `__c`;
+`stage_name` and `role` cannot be, because they are picklists configured per
+org and a static list would be wrong in most of them; and `query`, `soql`,
+`record_id`, `close_date`, `fields` and `external_id_value` have no bounded
+space at all. For the org-configured ones the connector does something better
+than a static enum: it validates against the org's live describe and returns
+the values that org actually accepts. A runtime enum, correct per org.
+
+The same rule holds on output, and more sharply. An output enum is an assertion
+about what Salesforce will send back, and Salesforce adding a value would make
+this connector reject a legitimate response. So output fields are constrained
+only where **we** own the value space. One gap was found and fixed:
+`tool_list_by_kind` returned `kind` as a bare string while its own input
+constrained the identical three values.
+
+| Contract requirement | Verdict |
+|---|---|
+| Typed result, not a raw string | **Met**, and validated before return |
+| Idempotency key on non-idempotent writes | **Exceeds**: the chapter says add it as optional, ours is required |
+| Timeout enforced by the calling code | **Met**: 10s read, 22s write |
+| Four error categories distinguishable from the message alone | **Exceeds**: nine types mapping onto the four, each with a `next_step` |
+| Compensating action or manual recovery | **Met**, enforced by a test on every write |
+| Side effects documented | **Met** structurally, through MCP annotations |
+
+That last row is a real trade rather than a clean pass. The chapter wants a
+`side_effects` *sentence* the model reads; we publish machine-readable
+`readOnlyHint`, `destructiveHint` and `idempotentHint` instead. Better for a
+client, worse for a model, since the model reads the description and many
+clients never surface annotations.
+
+**Checking those annotations found a defect, now fixed.** `record_update_by_id`
+declared `idempotentHint: false` while `contact_update_by_id` declared `true`
+and documented why. Both are a PATCH to the same endpoint with named fields, so
+the general tool cannot be less safe to repeat than the specific one. It was
+wrong in the expensive direction: a client reading the hint declines to retry,
+so a dropped packet on a call that was perfectly safe to repeat became a manual
+intervention instead of a recovery.
+
+| Scaling requirement | Verdict |
+|---|---|
+| Tool count against the 10-to-12 inflection point | **17, past it.** Answered with routing, and **measured** rather than assumed |
+| Domain prefix in the name | **Exceeds**: `salesforce_<object>_<action>_by_<key>` |
+| Versioned tool names for breaking changes | **Met**, written below |
+| Debug cycle: run, observe, diagnose, fix, re-run | **Met**: this is what `evals/` is for |
+
+The chapter's three remedies for a large tool set are a smaller set, a routing
+step, or few-shot examples. We use routing. The unusual part is that the
+degradation is measured rather than assumed, and the debug cycle has actually
+run: the eval observed `contact_update_by_id` losing a case to
+`record_update_by_id`, the trace showed why (`when_to_use` lists "email, phone,
+title, or account" and the prompt said *department*), and the fix is a
+description change, not a model change. That is section 6.5.1 exactly.
+
+### Chapter 8: planning
+
+This connector is not an agent and has no planning loop, so most of the chapter
+does not apply to it. Three things do.
+
+**It supplies the mechanism behind a decision already made.** ReAct's failure
+mode is local optimisation: pursuing the most salient thread and missing the
+global structure. That is the argument for one tool, one end-to-end action.
+Collapsing create, create, link into a single composite call removes two points
+at which a ReAct loop can wander off. The README asserted the conclusion; the
+chapter supplies the reason.
+
+**The error contract is what makes Reflexion possible.** Reflexion needs the
+model to work out what went wrong and try something different rather than
+repeating. Nine failure types, each stamped `RETRY` or `DO NOT RETRY` or `FIX
+THE CALL` and each carrying a `next_step`, is precisely the signal that turns a
+repeat into a change of approach.
+
+**And it names the largest untested gap precisely.** The eval harness sends an
+instruction that says: call exactly one tool, do not first search or read or
+verify. That was right for isolating tool *choice*, and it means **every number
+in this README is single-step**. The connector has never been measured under an
+agent that plans. Chapter 8's whole subject is that the interesting failures
+live in multi-step execution, which makes that the next thing worth building
+rather than a nice-to-have.
+
+### Chapter 9: Model Context Protocol
+
+Measured against the chapter, the O'Reilly *AI Agents with MCP* early release,
+and the current specification. Where a book and the specification disagree, the
+specification wins: both books predate protocol revision 2026-07-28, and one
+still describes HTTP+SSE as current and `notifications/message` logging as
+live, which it is
 not.
 
 | Area | Verdict |
@@ -1064,8 +1189,8 @@ not.
 | Tool error taxonomy | Met |
 | Timeouts | Met |
 | Crash mid write | Met, stronger than asked: idempotency ledger and compensating escalation |
-| Capability scoping | Met, in Executor, where a policy is set per tool and shared by every agent |
-| Audit logging | Met: identity, tool, status, category, elapsed, secrets censored, payloads never logged |
+| Capability scoping | Met in Executor, and a deliberate trade here. See below |
+| Audit logging | Met, and narrower than the chapter asks. See below |
 | Sandboxing | Met: non-root, and `--read-only --cap-drop ALL` both work |
 | Tool result injection | Met: nonce fence, and the rule for reading it stated in `instructions` and repeated above every result |
 | Output sanitising and size | Met: errors fenced, structured twin marked, width and row counts both bounded |
@@ -1077,6 +1202,27 @@ not.
 | Protocol version negotiation | Met, handled by the SDK |
 | Breaking change policy | Met, written below |
 | Reproducible dependencies | Met: `uv.lock`, 58 packages, 614 hashes, CI and image both install from it |
+
+**Two of those rows are trades, not clean passes, and are worth stating as
+trades.**
+
+*Capability scoping.* The chapter is blunt: "if you deploy a single server that
+exposes both read-only tools and write tools, every agent that connects has
+access to the write tools." That is true of this connector. `tools/list`
+returns all seventeen to every client, unfiltered, and scoping is pushed to
+Executor. The chapter's alternatives are separate server instances per context
+or per-client filtering in `list_tools`, and the second needs authentication
+this connector deliberately does not have, because on stdio the security
+boundary is the process's own permissions. What we rely on instead is that
+every write is refused without a person's signed approval, which is a stronger
+mitigation than hiding the tool. The residual risk is real all the same: a
+client that should only read can see, and attempt, eight tools that write.
+
+*Audit logging.* The chapter asks for the calling identity, the tool, the
+**sanitized arguments**, the result status and the elapsed time. We log
+everything on that list except the arguments, and we log no payloads at all.
+More conservative, and it costs something concrete: after an incident you know
+which tool was called and not with what.
 
 ## Changing a tool
 

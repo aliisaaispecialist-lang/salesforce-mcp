@@ -31,33 +31,35 @@ paths:
         \ 006. Search for it first if you do not have it. A note on the wrong record is worse\
         \ than no note.\n  - subject (required, text): Required. One line summarising what\
         \ happened, for example 'Renewal call - agreed to 12 month extension'. This is what\
-        \ a person sees in the activity timeline, so make it readable on its own.\n  - idempotency_key\
-        \ (required, text): A unique id you generate for this logical write, for example a\
-        \ UUID. Required. If you retry this call after a timeout or an unclear failure, send\
-        \ the identical value: the connector recognises it and returns the original outcome\
-        \ instead of writing a second record. Generate a new value only when you genuinely\
-        \ intend a separate record.\n  - approved (optional, true or false): Optional, defaults\
-        \ to false. Set to true only after a person has seen and confirmed this write. A write\
-        \ arriving without it is refused, and the refusal says so. It is declared here because\
-        \ a tool must not ask for an argument its own schema does not offer: a caller working\
-        \ from the schema alone would have no way to supply it.\n  - body (optional, text):\
-        \ Optional. The detail behind the subject. Write what was said or agreed, not a restatement\
-        \ of the subject line.\n  - activity_kind (optional, exactly one of: Call, Email,\
-        \ Meeting, Other) e.g. 'Call': Optional. How the interaction happened. Omit it for\
-        \ a plain note and Salesforce applies this org's own default: the underlying field\
-        \ is a restricted picklist configured per org, so a value invented here can be rejected\
-        \ outright. Send one only when the user actually said how the interaction happened.\n\
-        \  - activity_date (optional, a date, written as YYYY-MM-DD) e.g. '2026-08-09': Optional.\
-        \ When it happened, written as YYYY-MM-DD. Defaults to today. Use the date the user\
-        \ described, not today's, when logging something past.\n\nReturns:\n  - id (required,\
-        \ text): Record id of the created activity, starting 00T.\n  - subject (required,\
-        \ text): Subject as stored.\n  - related_to_id (required, text): Record the activity\
-        \ is attached to.\n  - created (required, true or false): True if this call created\
-        \ it. False means the identical key had already created it and this is the original\
-        \ outcome.\n\nExample -- Log a call against a contact\n  call: {\"activity_kind\"\
-        : \"Call\", \"approved\": true, \"body\": \"Walked through pricing. Wants a quote\
-        \ by Friday.\", \"idempotency_key\": \"d4e5f6a7-b8c9-4d0e-9f1a-3b4c5d6e7f8a\", \"\
-        related_to_id\": \"003xx000004TmiQAAS\", \"subject\": \"Intro call\"}\n  returns:\
+        \ a person sees in the activity timeline, so make it readable on its own. Write it\
+        \ from what the user actually told you. If they described no activity at all, do not\
+        \ call this tool and ask them what happened: a subject invented here is indistinguishable,\
+        \ later, from a real one.\n  - idempotency_key (required, text): A unique id you generate\
+        \ for this logical write, for example a UUID. Required. If you retry this call after\
+        \ a timeout or an unclear failure, send the identical value: the connector recognises\
+        \ it and returns the original outcome instead of writing a second record. Generate\
+        \ a new value only when you genuinely intend a separate record.\n  - approved (optional,\
+        \ true or false): Optional, defaults to false. Set to true only after a person has\
+        \ seen and confirmed this write. A write arriving without it is refused, and the refusal\
+        \ says so. It is declared here because a tool must not ask for an argument its own\
+        \ schema does not offer: a caller working from the schema alone would have no way\
+        \ to supply it.\n  - body (optional, text): Optional. The detail behind the subject.\
+        \ Write what was said or agreed, not a restatement of the subject line.\n  - activity_kind\
+        \ (optional, exactly one of: Call, Email, Meeting, Other) e.g. 'Call': Optional. How\
+        \ the interaction happened. Omit it for a plain note and Salesforce applies this org's\
+        \ own default: the underlying field is a restricted picklist configured per org, so\
+        \ a value invented here can be rejected outright. Send one only when the user actually\
+        \ said how the interaction happened.\n  - activity_date (optional, a date, written\
+        \ as YYYY-MM-DD) e.g. '2026-08-09': Optional. When it happened, written as YYYY-MM-DD.\
+        \ Defaults to today. Use the date the user described, not today's, when logging something\
+        \ past.\n\nReturns:\n  - id (required, text): Record id of the created activity, starting\
+        \ 00T.\n  - subject (required, text): Subject as stored.\n  - related_to_id (required,\
+        \ text): Record the activity is attached to.\n  - created (required, true or false):\
+        \ True if this call created it. False means the identical key had already created\
+        \ it and this is the original outcome.\n\nExample -- Log a call against a contact\n\
+        \  call: {\"activity_kind\": \"Call\", \"approved\": true, \"body\": \"Walked through\
+        \ pricing. Wants a quote by Friday.\", \"idempotency_key\": \"d4e5f6a7-b8c9-4d0e-9f1a-3b4c5d6e7f8a\"\
+        , \"related_to_id\": \"003xx000004TmiQAAS\", \"subject\": \"Intro call\"}\n  returns:\
         \ {\"created\": true, \"id\": \"00Txx0000012345AAA\", \"related_to_id\": \"003xx000004TmiQAAS\"\
         , \"subject\": \"Intro call\"}\n\nFailures, why each happens, and what to do:\n  -\
         \ salesforce.record_not_found -- DO NOT RETRY. Find the right record first.\n    \
@@ -109,9 +111,12 @@ paths:
                   title: Related To Id
                   type: string
                 subject:
-                  description: Required. One line summarising what happened, for example 'Renewal
-                    call - agreed to 12 month extension'. This is what a person sees in the
-                    activity timeline, so make it readable on its own.
+                  description: 'Required. One line summarising what happened, for example
+                    ''Renewal call - agreed to 12 month extension''. This is what a person
+                    sees in the activity timeline, so make it readable on its own. Write it
+                    from what the user actually told you. If they described no activity at
+                    all, do not call this tool and ask them what happened: a subject invented
+                    here is indistinguishable, later, from a real one.'
                   maxLength: 255
                   minLength: 1
                   title: Subject
@@ -1044,31 +1049,35 @@ paths:
         \ themselves rather than the shape of them, which is salesforce_record_get_by_id or\
         \ salesforce_record_query_by_soql.\nYou need: object_name.\n\nInputs:\n  - object_name\
         \ (required, text) e.g. 'Contact': Required. The object, spelled as Salesforce spells\
-        \ it: Contact, Opportunity, Account, Lead, Task, or a custom object ending __c.\n\
-        \  - only_writable (optional, true or false): Optional, defaults to false. When true,\
-        \ returns only the fields that can be set, which is what you want before creating\
-        \ or updating a record. Formula fields, rollups and system fields such as CreatedDate\
-        \ are dropped, because writing to one fails.\n\nReturns:\n  - object_name (required,\
-        \ text): The object described.\n  - label (required, text): What a person calls it\
-        \ in the UI.\n  - fields (required, a list of values): Its fields, reduced to what\
-        \ is needed to read or write one.\n  - returned (required, a whole number, written\
-        \ in digits): How many fields are in this response.\n\nExample -- Learn which sales\
-        \ stages this org accepts\n  call: {\"object_name\": \"Opportunity\", \"only_writable\"\
-        : true}\n  returns: {\"fields\": [{\"label\": \"Stage\", \"name\": \"StageName\",\
-        \ \"picklist_values\": [\"Qualify\", \"Propose\", \"Closed Won\"], \"relationship_name\"\
-        : null, \"required\": true, \"type\": \"picklist\", \"updateable\": true}], \"label\"\
-        : \"Opportunity\", \"object_name\": \"Opportunity\", \"returned\": 1}\n\nFailures,\
-        \ why each happens, and what to do:\n  - salesforce.record_not_found -- DO NOT RETRY.\
-        \ Find the right record first.\n      why: No object has that name in this org.\n\
-        \      do:  Check the spelling: Salesforce object names are capitalised and custom\
-        \ ones end __c. Do not retry the same name.\n  - salesforce.permission_denied -- DO\
-        \ NOT RETRY. Report it; only an administrator can fix it.\n      why: This user may\
-        \ not see that object's definition.\n      do:  Do not retry. Report that an administrator\
-        \ must grant access to the object.\n  - salesforce.rate_limited -- WAIT, then repeat\
-        \ the identical call.\n      why: The org has spent its API allowance for now.\n \
-        \     do:  Wait the stated number of seconds, then repeat the same call.\n  - salesforce.transport_failed\
-        \ -- RETRY the identical call.\n      why: Salesforce did not answer in time.\n  \
-        \    do:  Wait briefly and repeat. A describe is a large response, so a timeout here\
+        \ it: Contact, Opportunity, Account, Lead, Task, or a custom object ending __c. Translate\
+        \ the user's word first: a company is Account, a deal is Opportunity, a person is\
+        \ Contact, a prospect is Lead. If you still cannot tell which object they mean, ask\
+        \ them rather than guessing. A name this org does not have comes back as not-found,\
+        \ not as a correction, so a guess costs a call and teaches you nothing.\n  - only_writable\
+        \ (optional, true or false): Optional, defaults to false. When true, returns only\
+        \ the fields that can be set, which is what you want before creating or updating a\
+        \ record. Formula fields, rollups and system fields such as CreatedDate are dropped,\
+        \ because writing to one fails.\n\nReturns:\n  - object_name (required, text): The\
+        \ object described.\n  - label (required, text): What a person calls it in the UI.\n\
+        \  - fields (required, a list of values): Its fields, reduced to what is needed to\
+        \ read or write one.\n  - returned (required, a whole number, written in digits):\
+        \ How many fields are in this response.\n\nExample -- Learn which sales stages this\
+        \ org accepts\n  call: {\"object_name\": \"Opportunity\", \"only_writable\": true}\n\
+        \  returns: {\"fields\": [{\"label\": \"Stage\", \"name\": \"StageName\", \"picklist_values\"\
+        : [\"Qualify\", \"Propose\", \"Closed Won\"], \"relationship_name\": null, \"required\"\
+        : true, \"type\": \"picklist\", \"updateable\": true}], \"label\": \"Opportunity\"\
+        , \"object_name\": \"Opportunity\", \"returned\": 1}\n\nFailures, why each happens,\
+        \ and what to do:\n  - salesforce.record_not_found -- DO NOT RETRY. Find the right\
+        \ record first.\n      why: No object has that name in this org.\n      do:  Check\
+        \ the spelling: Salesforce object names are capitalised and custom ones end __c. Do\
+        \ not retry the same name.\n  - salesforce.permission_denied -- DO NOT RETRY. Report\
+        \ it; only an administrator can fix it.\n      why: This user may not see that object's\
+        \ definition.\n      do:  Do not retry. Report that an administrator must grant access\
+        \ to the object.\n  - salesforce.rate_limited -- WAIT, then repeat the identical call.\n\
+        \      why: The org has spent its API allowance for now.\n      do:  Wait the stated\
+        \ number of seconds, then repeat the same call.\n  - salesforce.transport_failed --\
+        \ RETRY the identical call.\n      why: Salesforce did not answer in time.\n     \
+        \ do:  Wait briefly and repeat. A describe is a large response, so a timeout here\
         \ is more likely than on other reads."
       tags:
       - read
@@ -1082,7 +1091,12 @@ paths:
               properties:
                 object_name:
                   description: 'Required. The object, spelled as Salesforce spells it: Contact,
-                    Opportunity, Account, Lead, Task, or a custom object ending __c.'
+                    Opportunity, Account, Lead, Task, or a custom object ending __c. Translate
+                    the user''s word first: a company is Account, a deal is Opportunity, a
+                    person is Contact, a prospect is Lead. If you still cannot tell which
+                    object they mean, ask them rather than guessing. A name this org does
+                    not have comes back as not-found, not as a correction, so a guess costs
+                    a call and teaches you nothing.'
                   examples:
                   - Contact
                   - Opportunity
@@ -1256,64 +1270,68 @@ paths:
         \ them.\nYou need: name, stage_name, close_date, idempotency_key.\n\nInputs:\n  -\
         \ name (required, text): Required. What the deal is called, for example 'Acme Corp\
         \ - annual renewal'. Salesforce does not require this to be unique, so make it recognisable\
-        \ to a person.\n  - stage_name (required, text): Required. The sales stage, for example\
-        \ 'Prospecting' or 'Closed Won'. Every Salesforce org configures its own stages, so\
-        \ there is no universal list. If you are not certain which stages this org uses, send\
-        \ your best guess: an invalid value is rejected and the error lists the exact values\
-        \ this org accepts.\n  - close_date (required, a date, written as YYYY-MM-DD) e.g.\
-        \ '2026-12-01': Required. Expected close date, written as YYYY-MM-DD. Salesforce accepts\
-        \ a date in the past, so use the date the user actually meant rather than today's.\n\
-        \  - idempotency_key (required, text): A unique id you generate for this logical write,\
-        \ for example a UUID. Required. If you retry this call after a timeout or an unclear\
-        \ failure, send the identical value: the connector recognises it and returns the original\
-        \ outcome instead of writing a second record. Generate a new value only when you genuinely\
-        \ intend a separate record.\n  - approved (optional, true or false): Optional, defaults\
-        \ to false. Set to true only after a person has seen and confirmed this write. A write\
-        \ arriving without it is refused, and the refusal says so. It is declared here because\
-        \ a tool must not ask for an argument its own schema does not offer: a caller working\
-        \ from the schema alone would have no way to supply it.\n  - account_id (optional,\
-        \ text): Optional. Account the deal belongs to, id starting 001. Do not guess.\n \
-        \ - amount (optional, a number, written in digits) e.g. 45000: Optional. Value of\
-        \ the deal in the org's currency, written in digits rather than words.\n  - description\
-        \ (optional, text): Optional. Free-text notes.\n\nReturns:\n  - id (required, text):\
-        \ Record id of the created opportunity.\n  - name (required, text): Name as stored.\n\
-        \  - stage_name (required, text): Stage as stored.\n  - created (required, true or\
-        \ false): True if this call created the record. False means the identical key had\
-        \ already created it and this is the original outcome.\n  - next_action (optional,\
-        \ text): What is still unfinished, and which tool finishes it. Present only when the\
-        \ deal has no contact attached; absent means there is nothing further to do.\n\nExample\
-        \ -- Open a deal\n  call: {\"account_id\": \"001xx000003DGb2AAG\", \"amount\": 45000,\
-        \ \"approved\": true, \"close_date\": \"2026-12-01\", \"idempotency_key\": \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\"\
-        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Qualify\"}\n  returns:\
-        \ {\"created\": true, \"id\": \"006xx000004TmiQAAS\", \"name\": \"Example Corp - annual\
-        \ renewal\", \"next_action\": \"This deal has no contact attached. If it is for a\
-        \ specific person, call salesforce_opportunity_link_contact_by_id with opportunity_id=006xx000004TmiQAAS\
-        \ and their contact id.\", \"stage_name\": \"Qualify\"}\n\nFailures, why each happens,\
-        \ and what to do:\n  - connector.invalid_input -- FIX THE CALL. Retrying it unchanged\
-        \ fails identically.\n      why: A required field was missing, or stage_name is not\
-        \ a stage this org uses.\n      do:  The error lists the exact stages this org accepts.\
-        \ Choose one of them, or ask the user which they meant, then call again with the same\
-        \ idempotency key. Do not invent a stage name.\n  - salesforce.record_not_found --\
-        \ DO NOT RETRY. Find the right record first.\n      why: The account_id does not exist.\n\
-        \      do:  Search for the right record, or omit the optional id. Never guess an id:\
-        \ a valid-looking one may belong to something else.\n  - salesforce.permission_denied\
-        \ -- DO NOT RETRY. Report it; only an administrator can fix it.\n      why: This Salesforce\
-        \ user may not create opportunities.\n      do:  Do not retry. Report that the profile\
-        \ lacks Create on Opportunity and an administrator must grant it.\n  - salesforce.conflict\
-        \ -- DO NOT RETRY UNCHANGED. Act on what already exists.\n      why: Duplicate rules\
-        \ matched an existing opportunity.\n      do:  Do not repeat unchanged. Show the user\
-        \ the matching deal and ask whether they meant that one.\n  - salesforce.rate_limited\
-        \ -- WAIT, then repeat the identical call.\n      why: The org has spent its API allowance\
-        \ for now.\n      do:  Wait the stated number of seconds, then repeat with the same\
-        \ key.\n  - salesforce.transport_failed -- RETRY the identical call.\n      why: The\
-        \ request did not complete, so the opportunity may or may not exist.\n      do:  Repeat\
-        \ with the identical idempotency key, which returns the original result if it was\
-        \ already created. Read next_action in the result: it false, the deal exists and only\
-        \ the link is missing: do not create it again.\n\nIf it cannot be completed at all:\
-        \ Open Salesforce and search Opportunities for the name before doing anything, because\
-        \ the deal may exist without its contact link. If it does, add the contact under Related\
-        \ > Contact Roles rather than creating the opportunity again. If it does not, create\
-        \ it from Opportunities > New. "
+        \ to a person. If the user did not say what to call it, ask rather than inventing\
+        \ a name: this is the label everyone will search for the deal by afterwards.\n  -\
+        \ stage_name (required, text): Required. The sales stage, for example 'Prospecting'\
+        \ or 'Closed Won'. Every Salesforce org configures its own stages, so there is no\
+        \ universal list. If you are not certain which stages this org uses, send your best\
+        \ guess: an invalid value is rejected and the error lists the exact values this org\
+        \ accepts.\n  - close_date (required, a date, written as YYYY-MM-DD) e.g. '2026-12-01':\
+        \ Required. Expected close date, written as YYYY-MM-DD. Salesforce accepts a date\
+        \ in the past, so use the date the user actually meant rather than today's. If the\
+        \ user did not give one, ask for it and do not call this tool until they do: a date\
+        \ invented here becomes a forecast somebody relies on, and nothing will flag it as\
+        \ a guess.\n  - idempotency_key (required, text): A unique id you generate for this\
+        \ logical write, for example a UUID. Required. If you retry this call after a timeout\
+        \ or an unclear failure, send the identical value: the connector recognises it and\
+        \ returns the original outcome instead of writing a second record. Generate a new\
+        \ value only when you genuinely intend a separate record.\n  - approved (optional,\
+        \ true or false): Optional, defaults to false. Set to true only after a person has\
+        \ seen and confirmed this write. A write arriving without it is refused, and the refusal\
+        \ says so. It is declared here because a tool must not ask for an argument its own\
+        \ schema does not offer: a caller working from the schema alone would have no way\
+        \ to supply it.\n  - account_id (optional, text): Optional. Account the deal belongs\
+        \ to, id starting 001. Do not guess.\n  - amount (optional, a number, written in digits)\
+        \ e.g. 45000: Optional. Value of the deal in the org's currency, written in digits\
+        \ rather than words.\n  - description (optional, text): Optional. Free-text notes.\n\
+        \nReturns:\n  - id (required, text): Record id of the created opportunity.\n  - name\
+        \ (required, text): Name as stored.\n  - stage_name (required, text): Stage as stored.\n\
+        \  - created (required, true or false): True if this call created the record. False\
+        \ means the identical key had already created it and this is the original outcome.\n\
+        \  - next_action (optional, text): What is still unfinished, and which tool finishes\
+        \ it. Present only when the deal has no contact attached; absent means there is nothing\
+        \ further to do.\n\nExample -- Open a deal\n  call: {\"account_id\": \"001xx000003DGb2AAG\"\
+        , \"amount\": 45000, \"approved\": true, \"close_date\": \"2026-12-01\", \"idempotency_key\"\
+        : \"c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f\", \"name\": \"Example Corp - annual renewal\"\
+        , \"stage_name\": \"Qualify\"}\n  returns: {\"created\": true, \"id\": \"006xx000004TmiQAAS\"\
+        , \"name\": \"Example Corp - annual renewal\", \"next_action\": \"This deal has no\
+        \ contact attached. If it is for a specific person, call salesforce_opportunity_link_contact_by_id\
+        \ with opportunity_id=006xx000004TmiQAAS and their contact id.\", \"stage_name\":\
+        \ \"Qualify\"}\n\nFailures, why each happens, and what to do:\n  - connector.invalid_input\
+        \ -- FIX THE CALL. Retrying it unchanged fails identically.\n      why: A required\
+        \ field was missing, or stage_name is not a stage this org uses.\n      do:  The error\
+        \ lists the exact stages this org accepts. Choose one of them, or ask the user which\
+        \ they meant, then call again with the same idempotency key. Do not invent a stage\
+        \ name.\n  - salesforce.record_not_found -- DO NOT RETRY. Find the right record first.\n\
+        \      why: The account_id does not exist.\n      do:  Search for the right record,\
+        \ or omit the optional id. Never guess an id: a valid-looking one may belong to something\
+        \ else.\n  - salesforce.permission_denied -- DO NOT RETRY. Report it; only an administrator\
+        \ can fix it.\n      why: This Salesforce user may not create opportunities.\n   \
+        \   do:  Do not retry. Report that the profile lacks Create on Opportunity and an\
+        \ administrator must grant it.\n  - salesforce.conflict -- DO NOT RETRY UNCHANGED.\
+        \ Act on what already exists.\n      why: Duplicate rules matched an existing opportunity.\n\
+        \      do:  Do not repeat unchanged. Show the user the matching deal and ask whether\
+        \ they meant that one.\n  - salesforce.rate_limited -- WAIT, then repeat the identical\
+        \ call.\n      why: The org has spent its API allowance for now.\n      do:  Wait\
+        \ the stated number of seconds, then repeat with the same key.\n  - salesforce.transport_failed\
+        \ -- RETRY the identical call.\n      why: The request did not complete, so the opportunity\
+        \ may or may not exist.\n      do:  Repeat with the identical idempotency key, which\
+        \ returns the original result if it was already created. Read next_action in the result:\
+        \ it false, the deal exists and only the link is missing: do not create it again.\n\
+        \nIf it cannot be completed at all: Open Salesforce and search Opportunities for the\
+        \ name before doing anything, because the deal may exist without its contact link.\
+        \ If it does, add the contact under Related > Contact Roles rather than creating the\
+        \ opportunity again. If it does not, create it from Opportunities > New. "
       tags:
       - write
       requestBody:
@@ -1325,9 +1343,11 @@ paths:
               description: The deal to create.
               properties:
                 name:
-                  description: Required. What the deal is called, for example 'Acme Corp -
-                    annual renewal'. Salesforce does not require this to be unique, so make
-                    it recognisable to a person.
+                  description: 'Required. What the deal is called, for example ''Acme Corp
+                    - annual renewal''. Salesforce does not require this to be unique, so
+                    make it recognisable to a person. If the user did not say what to call
+                    it, ask rather than inventing a name: this is the label everyone will
+                    search for the deal by afterwards.'
                   maxLength: 120
                   minLength: 1
                   title: Name
@@ -1341,9 +1361,11 @@ paths:
                   title: Stage Name
                   type: string
                 close_date:
-                  description: Required. Expected close date, written as YYYY-MM-DD. Salesforce
+                  description: 'Required. Expected close date, written as YYYY-MM-DD. Salesforce
                     accepts a date in the past, so use the date the user actually meant rather
-                    than today's.
+                    than today''s. If the user did not give one, ask for it and do not call
+                    this tool until they do: a date invented here becomes a forecast somebody
+                    relies on, and nothing will flag it as a guess.'
                   examples:
                   - '2026-12-01'
                   format: date
@@ -1506,63 +1528,65 @@ paths:
         \ is salesforce_opportunity_link_contact_by_id.\nYou need: name, stage_name, close_date,\
         \ contact_id, idempotency_key.\n\nInputs:\n  - name (required, text) e.g. 'Example\
         \ Corp - annual renewal': Required. What the deal is called. Use something a person\
-        \ would recognise in a list, usually the account and what it is for.\n  - stage_name\
-        \ (required, text): Required. The sales stage. Stages are configured per org, so do\
-        \ not assume the Salesforce defaults: call salesforce_object_describe_by_name on Opportunity\
-        \ and use a value it reports. A stage this org does not have fails the whole write,\
-        \ including the contact link.\n  - close_date (required, a date, written as YYYY-MM-DD)\
-        \ e.g. '2026-12-01': Required. Expected close date, written as YYYY-MM-DD. Ask the\
-        \ user rather than inventing one; a date invented here becomes a forecast somebody\
-        \ relies on.\n  - contact_id (required, text): Required. The person the deal is for.\
-        \ Find them with salesforce_contact_search_by_text first. A contact id starts 003;\
-        \ if you do not have one, use salesforce_opportunity_create instead and attach the\
-        \ contact afterwards.\n  - amount (optional, a number, written in digits) e.g. 45000:\
-        \ Optional. Value of the deal, in the org's currency, written in digits rather than\
-        \ words.\n  - account_id (optional, text): Optional. The company the deal belongs\
-        \ to. An account id starts 001.\n  - role (optional, text): Optional. The contact's\
-        \ part in the deal, such as Decision Maker. Leave it out unless the user said one:\
-        \ roles are a restricted picklist in most orgs, and a value this org does not have\
-        \ fails the whole write.\n  - idempotency_key (required, text): Required. A unique\
-        \ string for this deal. Reuse it when retrying so the same deal is not opened twice.\n\
-        \  - approved (optional, true or false): Optional, defaults to false, but the call\
-        \ is refused without it. Confirmation that the user asked for this deal to be created.\n\
-        \nReturns:\n  - id (required, text): Record id of the created opportunity.\n  - name\
-        \ (required, text): Name as stored.\n  - stage_name (required, text): Stage as stored.\n\
-        \  - contact_id (required, text): The contact that was attached.\n  - contact_role_id\
-        \ (required, text): Record id of the contact role joining the two.\n  - created (required,\
-        \ true or false): True if this call created the deal. False means the identical key\
-        \ had already created it and this is the original outcome.\n\nExample -- Open a deal\
-        \ for a known contact\n  call: {\"amount\": 45000, \"approved\": true, \"close_date\"\
-        : \"2026-12-01\", \"contact_id\": \"003xx000004TmiQAAS\", \"idempotency_key\": \"\
-        a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d\", \"name\": \"Example Corp - annual renewal\"\
-        , \"stage_name\": \"Qualify\"}\n  returns: {\"contact_id\": \"003xx000004TmiQAAS\"\
-        , \"contact_role_id\": \"00Kxx0000011AAAI\", \"created\": true, \"id\": \"006xx000004TmiQAAS\"\
-        , \"name\": \"Example Corp - annual renewal\", \"stage_name\": \"Qualify\"}\n\nFailures,\
-        \ why each happens, and what to do:\n  - connector.invalid_input -- FIX THE CALL.\
-        \ Retrying it unchanged fails identically.\n      why: The stage or role is not a\
-        \ value this org accepts, or a required field is missing. The message names which\
-        \ of the two writes was rejected.\n      do:  Nothing was created, so fix the named\
-        \ value and call again with the same idempotency key. For a rejected stage or role,\
-        \ call salesforce_object_describe_by_name on Opportunity and use a value it lists.\n\
-        \  - salesforce.record_not_found -- DO NOT RETRY. Find the right record first.\n \
-        \     why: The contact id or account id does not refer to a record that exists.\n\
-        \      do:  Nothing was created. Search for the contact again rather than retrying\
-        \ the same id, then call again.\n  - salesforce.permission_denied -- DO NOT RETRY.\
-        \ Report it; only an administrator can fix it.\n      why: This user may not create\
-        \ opportunities or contact roles.\n      do:  Do not retry. Report which of the two\
-        \ was refused and that an administrator must grant create access.\n  - salesforce.rate_limited\
-        \ -- WAIT, then repeat the identical call.\n      why: The org has spent its API allowance\
-        \ for now.\n      do:  Wait the stated number of seconds, then repeat with the same\
-        \ idempotency key.\n  - salesforce.transport_failed -- RETRY the identical call.\n\
-        \      why: Salesforce did not answer in time.\n      do:  Repeat with the identical\
-        \ idempotency key. Either both records exist or neither does, so there is no partial\
-        \ state to inspect first.\n  - connector.escalate_to_human -- STOP and hand this to\
-        \ a person.\n      why: The write failed three times in a row and will not succeed\
-        \ by retrying.\n      do:  Stop calling this tool. Tell the user it must be done by\
-        \ hand and how.\n\nIf it cannot be completed at all: Nothing was left half-done: this\
-        \ write applies both records or neither, so there is no orphaned deal to clean up.\
-        \ Search Opportunities for the name to confirm, then create it from Opportunities\
-        \ > New and add the person under Related > Contact Roles. "
+        \ would recognise in a list, usually the account and what it is for. If the user did\
+        \ not say what to call it, ask rather than inventing a name.\n  - stage_name (required,\
+        \ text): Required. The sales stage, for example 'Prospecting' or 'Closed Won'. Every\
+        \ Salesforce org configures its own stages, so there is no universal list. If you\
+        \ are not certain which stages this org uses, send your best guess: the value is checked\
+        \ before anything is created, and the error lists the exact values this org accepts.\
+        \ A stage this org does not have fails the whole write, including the contact link.\n\
+        \  - close_date (required, a date, written as YYYY-MM-DD) e.g. '2026-12-01': Required.\
+        \ Expected close date, written as YYYY-MM-DD. Ask the user rather than inventing one;\
+        \ a date invented here becomes a forecast somebody relies on.\n  - contact_id (required,\
+        \ text): Required. The person the deal is for. Find them with salesforce_contact_search_by_text\
+        \ first. A contact id starts 003; if you do not have one, use salesforce_opportunity_create\
+        \ instead and attach the contact afterwards.\n  - amount (optional, a number, written\
+        \ in digits) e.g. 45000: Optional. Value of the deal, in the org's currency, written\
+        \ in digits rather than words.\n  - account_id (optional, text): Optional. The company\
+        \ the deal belongs to. An account id starts 001.\n  - role (optional, text): Optional.\
+        \ The contact's part in the deal, such as Decision Maker. Leave it out unless the\
+        \ user said one: roles are a restricted picklist in most orgs, and a value this org\
+        \ does not have fails the whole write.\n  - idempotency_key (required, text): Required.\
+        \ A unique string for this deal. Reuse it when retrying so the same deal is not opened\
+        \ twice.\n  - approved (optional, true or false): Optional, defaults to false, but\
+        \ the call is refused without it. Confirmation that the user asked for this deal to\
+        \ be created.\n\nReturns:\n  - id (required, text): Record id of the created opportunity.\n\
+        \  - name (required, text): Name as stored.\n  - stage_name (required, text): Stage\
+        \ as stored.\n  - contact_id (required, text): The contact that was attached.\n  -\
+        \ contact_role_id (required, text): Record id of the contact role joining the two.\n\
+        \  - created (required, true or false): True if this call created the deal. False\
+        \ means the identical key had already created it and this is the original outcome.\n\
+        \nExample -- Open a deal for a known contact\n  call: {\"amount\": 45000, \"approved\"\
+        : true, \"close_date\": \"2026-12-01\", \"contact_id\": \"003xx000004TmiQAAS\", \"\
+        idempotency_key\": \"a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d\", \"name\": \"Example Corp\
+        \ - annual renewal\", \"stage_name\": \"Qualify\"}\n  returns: {\"contact_id\": \"\
+        003xx000004TmiQAAS\", \"contact_role_id\": \"00Kxx0000011AAAI\", \"created\": true,\
+        \ \"id\": \"006xx000004TmiQAAS\", \"name\": \"Example Corp - annual renewal\", \"\
+        stage_name\": \"Qualify\"}\n\nFailures, why each happens, and what to do:\n  - connector.invalid_input\
+        \ -- FIX THE CALL. Retrying it unchanged fails identically.\n      why: The stage\
+        \ or role is not a value this org accepts, or a required field is missing. The message\
+        \ names which of the two writes was rejected.\n      do:  Nothing was created, so\
+        \ fix the named value and call again with the same idempotency key. For a rejected\
+        \ stage or role, call salesforce_object_describe_by_name on Opportunity and use a\
+        \ value it lists.\n  - salesforce.record_not_found -- DO NOT RETRY. Find the right\
+        \ record first.\n      why: The contact id or account id does not refer to a record\
+        \ that exists.\n      do:  Nothing was created. Search for the contact again rather\
+        \ than retrying the same id, then call again.\n  - salesforce.permission_denied --\
+        \ DO NOT RETRY. Report it; only an administrator can fix it.\n      why: This user\
+        \ may not create opportunities or contact roles.\n      do:  Do not retry. Report\
+        \ which of the two was refused and that an administrator must grant create access.\n\
+        \  - salesforce.rate_limited -- WAIT, then repeat the identical call.\n      why:\
+        \ The org has spent its API allowance for now.\n      do:  Wait the stated number\
+        \ of seconds, then repeat with the same idempotency key.\n  - salesforce.transport_failed\
+        \ -- RETRY the identical call.\n      why: Salesforce did not answer in time.\n  \
+        \    do:  Repeat with the identical idempotency key. Either both records exist or\
+        \ neither does, so there is no partial state to inspect first.\n  - connector.escalate_to_human\
+        \ -- STOP and hand this to a person.\n      why: The write failed three times in a\
+        \ row and will not succeed by retrying.\n      do:  Stop calling this tool. Tell the\
+        \ user it must be done by hand and how.\n\nIf it cannot be completed at all: Nothing\
+        \ was left half-done: this write applies both records or neither, so there is no orphaned\
+        \ deal to clean up. Search Opportunities for the name to confirm, then create it from\
+        \ Opportunities > New and add the person under Related > Contact Roles. "
       tags:
       - write
       requestBody:
@@ -1575,7 +1599,8 @@ paths:
               properties:
                 name:
                   description: Required. What the deal is called. Use something a person would
-                    recognise in a list, usually the account and what it is for.
+                    recognise in a list, usually the account and what it is for. If the user
+                    did not say what to call it, ask rather than inventing a name.
                   examples:
                   - Example Corp - annual renewal
                   maxLength: 120
@@ -1583,10 +1608,12 @@ paths:
                   title: Name
                   type: string
                 stage_name:
-                  description: 'Required. The sales stage. Stages are configured per org,
-                    so do not assume the Salesforce defaults: call salesforce_object_describe_by_name
-                    on Opportunity and use a value it reports. A stage this org does not have
-                    fails the whole write, including the contact link.'
+                  description: 'Required. The sales stage, for example ''Prospecting'' or
+                    ''Closed Won''. Every Salesforce org configures its own stages, so there
+                    is no universal list. If you are not certain which stages this org uses,
+                    send your best guess: the value is checked before anything is created,
+                    and the error lists the exact values this org accepts. A stage this org
+                    does not have fails the whole write, including the contact link.'
                   maxLength: 80
                   minLength: 1
                   title: Stage Name
@@ -2144,7 +2171,10 @@ paths:
         \ is salesforce_record_query_by_soql. This reads exactly one.\nYou need: object_name,\
         \ record_id.\n\nInputs:\n  - object_name (required, text): Required. The object, spelled\
         \ as Salesforce spells it: Contact, Opportunity, Account, Lead, Task, or a custom\
-        \ object ending __c.\n  - record_id (required, text): Required. The record's Salesforce\
+        \ object ending __c. If you are not sure, read it off the id you already have: the\
+        \ first three characters name the object, 001 Account, 003 Contact, 006 Opportunity,\
+        \ 00Q Lead, 500 Case. Where the prefix and the name you were about to send disagree,\
+        \ the prefix is right.\n  - record_id (required, text): Required. The record's Salesforce\
         \ id. Search for it first if you do not have it. Never guess: a well-formed id that\
         \ belongs to something else returns that something else, quietly.\n  - fields (optional,\
         \ a list of text) e.g. ['Name', 'Email']: Optional. Which fields to return, named\
@@ -2185,7 +2215,11 @@ paths:
               properties:
                 object_name:
                   description: 'Required. The object, spelled as Salesforce spells it: Contact,
-                    Opportunity, Account, Lead, Task, or a custom object ending __c.'
+                    Opportunity, Account, Lead, Task, or a custom object ending __c. If you
+                    are not sure, read it off the id you already have: the first three characters
+                    name the object, 001 Account, 003 Contact, 006 Opportunity, 00Q Lead,
+                    500 Case. Where the prefix and the name you were about to send disagree,
+                    the prefix is right.'
                   maxLength: 80
                   minLength: 1
                   pattern: ^[A-Za-z][A-Za-z0-9_]*$
@@ -2304,40 +2338,45 @@ paths:
         \ field such as Account.Name. This follows exactly one hop and applies no conditions.\n\
         You need: object_name, record_id, relationship.\n\nInputs:\n  - object_name (required,\
         \ text): Required. The object you are starting from, spelled as Salesforce spells\
-        \ it: Contact, Opportunity, Account, or a custom object ending __c.\n  - record_id\
-        \ (required, text): Required. The record to start from. Search for it first if you\
-        \ do not have the id; never guess one, because a valid-looking id may belong to a\
-        \ different record entirely.\n  - relationship (required, text) e.g. 'Account': Required.\
-        \ The relationship to follow, named as Salesforce names it. Following a lookup field\
-        \ drops the Id: a Contact's AccountId is followed as 'Account'. Child collections\
-        \ keep their plural name, such as 'Contacts' on an Account or 'OpportunityContactRoles'\
-        \ on an Opportunity.\n\nReturns:\n  - records (required, a list of an object of name\
-        \ and value pairs): What was found. A lookup returns exactly one record; a child collection\
-        \ returns many, or none. Empty means the relationship exists but nothing is attached,\
-        \ which is different from the relationship not existing at all.\n  - returned (required,\
-        \ a whole number, written in digits): How many records are in this response.\n  -\
-        \ total_size (optional, a whole number, written in digits): How many records the relationship\
-        \ holds in total. When this is larger than `returned`, the answer was cut to the connector's\
-        \ row ceiling and what you have is a first page, not the whole set. Use salesforce_record_query_by_soql\
+        \ it: Contact, Opportunity, Account, or a custom object ending __c. If you are not\
+        \ sure, read it off the id: the first three characters name the object, 001 Account,\
+        \ 003 Contact, 006 Opportunity, 00Q Lead, 500 Case.\n  - record_id (required, text):\
+        \ Required. The record to start from. Search for it first if you do not have the id;\
+        \ never guess one, because a valid-looking id may belong to a different record entirely.\n\
+        \  - relationship (required, text) e.g. 'Account': Required. The relationship to follow,\
+        \ named as Salesforce names it. Following a lookup field drops the Id: a Contact's\
+        \ AccountId is followed as 'Account'. Child collections keep their plural name, such\
+        \ as 'Contacts' on an Account or 'OpportunityContactRoles' on an Opportunity.\n\n\
+        Returns:\n  - records (required, a list of an object of name and value pairs): What\
+        \ was found. A lookup returns exactly one record; a child collection returns many,\
+        \ or none. Empty means the relationship exists but nothing is attached, which is different\
+        \ from the relationship not existing at all.\n  - returned (required, a whole number,\
+        \ written in digits): How many records are in this response.\n  - total_size (optional,\
+        \ a whole number, written in digits): How many records the relationship holds in total.\
+        \ When this is larger than `returned`, the answer was cut to the connector's row ceiling\
+        \ and what you have is a first page, not the whole set. Use salesforce_record_query_by_soql\
         \ for the rest.\n\nExample -- The account a contact belongs to\n  call: {\"object_name\"\
         : \"Contact\", \"record_id\": \"003xx000004TmiQAAS\", \"relationship\": \"Account\"\
         }\n  returns: {\"records\": [{\"Id\": \"001xx000003DGb2AAG\", \"Name\": \"Example\
         \ Corp\"}], \"returned\": 1}\n\nFailures, why each happens, and what to do:\n  - salesforce.record_not_found\
         \ -- DO NOT RETRY. Find the right record first.\n      why: No record has that id,\
-        \ or the relationship name does not exist.\n      do:  Check the id first by searching\
-        \ for the record. If the id is right, the relationship name is wrong: call salesforce_object_describe_by_name\
-        \ on the starting object and use a relationshipName it actually lists.\n  - connector.invalid_input\
-        \ -- FIX THE CALL. Retrying it unchanged fails identically.\n      why: The id is\
-        \ malformed, or the object name is empty.\n      do:  Correct the named field and\
-        \ call again.\n  - salesforce.permission_denied -- DO NOT RETRY. Report it; only an\
-        \ administrator can fix it.\n      why: This user may not read the object on the other\
-        \ side.\n      do:  Do not retry. Reading a contact does not imply permission to read\
-        \ its account. Report which object was refused.\n  - salesforce.rate_limited -- WAIT,\
-        \ then repeat the identical call.\n      why: The org has spent its API allowance\
-        \ for now.\n      do:  Wait the stated number of seconds, then repeat the same call.\n\
-        \  - salesforce.transport_failed -- RETRY the identical call.\n      why: Salesforce\
-        \ did not answer in time.\n      do:  Wait briefly and repeat. Reading again is always\
-        \ safe."
+        \ the relationship name does not exist, or the relationship is a lookup that is not\
+        \ set on this record.\n      do:  Three different causes, so rule them out in order.\
+        \ Check the id by searching for the record. Then call salesforce_object_describe_by_name\
+        \ on the starting object and confirm the relationship is a relationshipName it actually\
+        \ lists. If the id is right and the name is listed, the lookup is simply empty on\
+        \ this record, which Salesforce also answers 404: report that nothing is attached\
+        \ rather than searching again.\n  - connector.invalid_input -- FIX THE CALL. Retrying\
+        \ it unchanged fails identically.\n      why: The id is malformed, or the object name\
+        \ is empty.\n      do:  Correct the named field and call again.\n  - salesforce.permission_denied\
+        \ -- DO NOT RETRY. Report it; only an administrator can fix it.\n      why: This user\
+        \ may not read the object on the other side.\n      do:  Do not retry. Reading a contact\
+        \ does not imply permission to read its account. Report which object was refused.\n\
+        \  - salesforce.rate_limited -- WAIT, then repeat the identical call.\n      why:\
+        \ The org has spent its API allowance for now.\n      do:  Wait the stated number\
+        \ of seconds, then repeat the same call.\n  - salesforce.transport_failed -- RETRY\
+        \ the identical call.\n      why: Salesforce did not answer in time.\n      do:  Wait\
+        \ briefly and repeat. Reading again is always safe."
       tags:
       - read
       requestBody:
@@ -2350,7 +2389,9 @@ paths:
               properties:
                 object_name:
                   description: 'Required. The object you are starting from, spelled as Salesforce
-                    spells it: Contact, Opportunity, Account, or a custom object ending __c.'
+                    spells it: Contact, Opportunity, Account, or a custom object ending __c.
+                    If you are not sure, read it off the id: the first three characters name
+                    the object, 001 Account, 003 Contact, 006 Opportunity, 00Q Lead, 500 Case.'
                   maxLength: 80
                   minLength: 1
                   pattern: ^[A-Za-z][A-Za-z0-9_]*$
@@ -2502,7 +2543,10 @@ paths:
         \ so never reach for it to create or update.\nYou need: soql.\n\nInputs:\n  - soql\
         \ (required, text) e.g. 'SELECT Id, Name, Email FROM Contact ORDER BY CreatedDate\
         \ DESC LIMIT 20': Required. A SOQL SELECT statement. Compose it from what the user\
-        \ asked for: they describe a condition in words and you turn it into the query.\n\
+        \ asked for: they describe a condition in words and you turn it into the query. If\
+        \ you do not know the field names this org uses, call salesforce_object_describe_by_name\
+        \ first rather than trying a name to see whether it exists: a wrong field name fails\
+        \ the whole query, and a right-looking wrong one can quietly filter on nothing.\n\
         \  - cursor (optional, text): Optional. To read the next page, send back the exact\
         \ cursor from the previous result. Treat it as opaque: do not parse or edit it. Omit\
         \ it for the first page. A result with no cursor is the last page. When paging, send\
@@ -2546,7 +2590,10 @@ paths:
                 soql:
                   description: 'Required. A SOQL SELECT statement. Compose it from what the
                     user asked for: they describe a condition in words and you turn it into
-                    the query.
+                    the query. If you do not know the field names this org uses, call salesforce_object_describe_by_name
+                    first rather than trying a name to see whether it exists: a wrong field
+                    name fails the whole query, and a right-looking wrong one can quietly
+                    filter on nothing.
 
 
                     SOQL is not SQL. There are no joins and no SELECT *, so name every field
@@ -2701,41 +2748,46 @@ paths:
         \ text) e.g. 'Account': Required. The object to search, spelled as Salesforce spells\
         \ it: Account, Lead, Opportunity, Case, Task, or a custom object ending __c. For Contact\
         \ use salesforce_contact_search_by_text instead, which returns the contact fields\
-        \ the contact tools need.\n  - query (required, text) e.g. 'Example Corp': Required.\
-        \ The words to search for, as the user said them: a company name, a subject line,\
-        \ part of a title. This matches the way a search box matches, not the way a filter\
-        \ matches, so a partial word finds records containing it.\n  - fields (optional, a\
-        \ list of text) e.g. ['Id', 'Name', 'Industry']: Optional, defaults to Id and Name.\
-        \ The fields to return, named as Salesforce names them. Not every object has Name:\
-        \ a Task calls it Subject, and asking for a field an object does not have fails the\
-        \ search. Call salesforce_object_describe_by_name first if you are unsure.\n  - limit\
-        \ (optional, a whole number, written in digits) e.g. 20: Optional, defaults to 20.\
-        \ How many records to return at most, written in digits.\n  - cursor (optional, text):\
-        \ Optional. To read the next page, send back the exact cursor from the previous result.\
-        \ Treat it as opaque. Omit it for the first page; a result with no cursor is the last\
-        \ page.\n\nReturns:\n  - records (required, a list of an object of name and value\
-        \ pairs): The matching records, each holding the fields that were asked for. Empty\
-        \ means nothing matched, which for a search is an answer rather than a failure.\n\
-        \  - returned (required, a whole number, written in digits): How many records are\
-        \ in this response.\n  - next_cursor (optional, text): Send back verbatim for the\
-        \ next page. Absent means no more pages.\n\nExample -- Find an account by name\n \
-        \ call: {\"fields\": [\"Id\", \"Name\", \"Industry\"], \"object_name\": \"Account\"\
-        , \"query\": \"Example Corp\"}\n  returns: {\"next_cursor\": null, \"records\": [{\"\
-        Id\": \"001xx000003DGb2AAG\", \"Industry\": \"Technology\", \"Name\": \"Example Corp\"\
-        }], \"returned\": 1}\n\nFailures, why each happens, and what to do:\n  - connector.invalid_input\
-        \ -- FIX THE CALL. Retrying it unchanged fails identically.\n      why: The object\
-        \ does not exist, one of the named fields does not exist on it, or the search term\
-        \ is too short.\n      do:  Search for at least two characters. If a field was rejected,\
-        \ call salesforce_object_describe_by_name on the object and use names it actually\
-        \ lists rather than retrying the same list.\n  - salesforce.permission_denied -- DO\
-        \ NOT RETRY. Report it; only an administrator can fix it.\n      why: This user may\
-        \ not search that object.\n      do:  Do not retry. Report which object was refused\
-        \ and that an administrator must grant read access.\n  - salesforce.rate_limited --\
-        \ WAIT, then repeat the identical call.\n      why: The org has spent its API allowance\
-        \ for now.\n      do:  Wait the stated number of seconds, then repeat the same call.\n\
-        \  - salesforce.transport_failed -- RETRY the identical call.\n      why: Salesforce\
-        \ did not answer in time.\n      do:  Wait briefly and repeat. Searching changes nothing,\
-        \ so retrying is safe."
+        \ the contact tools need. If you are not sure this org spells it the way you are about\
+        \ to, call salesforce_object_describe_by_name on it first: a name that does not exist\
+        \ returns nothing found, which reads exactly like a real search that matched nothing.\n\
+        \  - query (required, text) e.g. 'Example Corp': Required. The words to search for,\
+        \ as the user said them: a company name, a subject line, part of a title. This is\
+        \ a search, not a filter: it matches whole words, and a partial word may not match.\
+        \ Searching 'Contos' does not find 'Contoso', and what comes back is an empty result\
+        \ rather than an error, which reads exactly like the record not existing. If a search\
+        \ finds nothing, widen it or use salesforce_record_query_by_soql with a LIKE condition\
+        \ before concluding there is no such record.\n  - fields (optional, a list of text)\
+        \ e.g. ['Id', 'Name', 'Industry']: Optional, defaults to Id and Name. The fields to\
+        \ return, named as Salesforce names them. Not every object has Name: a Task calls\
+        \ it Subject, and asking for a field an object does not have fails the search. Call\
+        \ salesforce_object_describe_by_name first if you are unsure.\n  - limit (optional,\
+        \ a whole number, written in digits) e.g. 20: Optional, defaults to 20. How many records\
+        \ to return at most, written in digits.\n  - cursor (optional, text): Optional. To\
+        \ read the next page, send back the exact cursor from the previous result. Treat it\
+        \ as opaque. Omit it for the first page; a result with no cursor is the last page.\n\
+        \nReturns:\n  - records (required, a list of an object of name and value pairs): The\
+        \ matching records, each holding the fields that were asked for. Empty means nothing\
+        \ matched, which for a search is an answer rather than a failure.\n  - returned (required,\
+        \ a whole number, written in digits): How many records are in this response.\n  -\
+        \ next_cursor (optional, text): Send back verbatim for the next page. Absent means\
+        \ no more pages.\n\nExample -- Find an account by name\n  call: {\"fields\": [\"Id\"\
+        , \"Name\", \"Industry\"], \"object_name\": \"Account\", \"query\": \"Example Corp\"\
+        }\n  returns: {\"next_cursor\": null, \"records\": [{\"Id\": \"001xx000003DGb2AAG\"\
+        , \"Industry\": \"Technology\", \"Name\": \"Example Corp\"}], \"returned\": 1}\n\n\
+        Failures, why each happens, and what to do:\n  - connector.invalid_input -- FIX THE\
+        \ CALL. Retrying it unchanged fails identically.\n      why: The object does not exist,\
+        \ one of the named fields does not exist on it, or the search term is too short.\n\
+        \      do:  Search for at least two characters. If a field was rejected, call salesforce_object_describe_by_name\
+        \ on the object and use names it actually lists rather than retrying the same list.\n\
+        \  - salesforce.permission_denied -- DO NOT RETRY. Report it; only an administrator\
+        \ can fix it.\n      why: This user may not search that object.\n      do:  Do not\
+        \ retry. Report which object was refused and that an administrator must grant read\
+        \ access.\n  - salesforce.rate_limited -- WAIT, then repeat the identical call.\n\
+        \      why: The org has spent its API allowance for now.\n      do:  Wait the stated\
+        \ number of seconds, then repeat the same call.\n  - salesforce.transport_failed --\
+        \ RETRY the identical call.\n      why: Salesforce did not answer in time.\n     \
+        \ do:  Wait briefly and repeat. Searching changes nothing, so retrying is safe."
       tags:
       - read
       requestBody:
@@ -2750,7 +2802,10 @@ paths:
                   description: 'Required. The object to search, spelled as Salesforce spells
                     it: Account, Lead, Opportunity, Case, Task, or a custom object ending
                     __c. For Contact use salesforce_contact_search_by_text instead, which
-                    returns the contact fields the contact tools need.'
+                    returns the contact fields the contact tools need. If you are not sure
+                    this org spells it the way you are about to, call salesforce_object_describe_by_name
+                    on it first: a name that does not exist returns nothing found, which reads
+                    exactly like a real search that matched nothing.'
                   examples:
                   - Account
                   - Lead
@@ -2761,9 +2816,12 @@ paths:
                   type: string
                 query:
                   description: 'Required. The words to search for, as the user said them:
-                    a company name, a subject line, part of a title. This matches the way
-                    a search box matches, not the way a filter matches, so a partial word
-                    finds records containing it.
+                    a company name, a subject line, part of a title. This is a search, not
+                    a filter: it matches whole words, and a partial word may not match. Searching
+                    ''Contos'' does not find ''Contoso'', and what comes back is an empty
+                    result rather than an error, which reads exactly like the record not existing.
+                    If a search finds nothing, widen it or use salesforce_record_query_by_soql
+                    with a LIKE condition before concluding there is no such record.
 
 
                     For a condition rather than words, such as a date range or an amount over
@@ -3135,32 +3193,37 @@ paths:
         \ need: object_name, external_id_field, external_id_value, fields, idempotency_key.\n\
         \nInputs:\n  - object_name (required, text) e.g. 'Contact': Required. The object,\
         \ spelled as Salesforce spells it: Contact, Opportunity, Account, or a custom object\
-        \ ending __c.\n  - external_id_field (required, text) e.g. 'External_Id__c': Required.\
-        \ The field that carries the outside system's identifier. It must be marked External\
-        \ Id on the object; an ordinary text field is refused. Custom fields end __c, as in\
-        \ External_Id__c. Call salesforce_object_describe_by_name if you do not know which\
-        \ field this org uses.\n  - external_id_value (required, text) e.g. 'CRM-4471': Required.\
-        \ The identifier itself, as the other system knows it. This decides everything: a\
-        \ value already on a record updates that record, and a value not on any record creates\
-        \ a new one. Never invent one, because inventing a value that happens to exist overwrites\
-        \ somebody else's record.\n  - fields (required, an object of name and value pairs)\
-        \ e.g. {'Email': 'ada@example.com', 'LastName': 'Lovelace'}: Required. The fields\
-        \ to set, keyed by Salesforce's own API names: LastName, Email, StageName, CloseDate.\
-        \ On a create these must include everything the object requires, or the write fails.\
-        \ On an update only what is named here changes.\n  - idempotency_key (required, text):\
-        \ Required. A unique string for this specific write. The external id already prevents\
-        \ duplicate records; this prevents a retry being counted as a second change.\n  -\
-        \ approved (optional, true or false): Optional, defaults to false, but the call is\
-        \ refused without it. Confirmation that the user asked for this. This can overwrite\
-        \ an existing record and there is no undo.\n\nReturns:\n  - id (required, text): Salesforce\
-        \ record id of the record written.\n  - object_name (required, text): The object it\
-        \ belongs to.\n  - external_id_value (required, text): The identifier that decided\
-        \ which record.\n  - created (required, true or false): True when no record carried\
-        \ that external id and one was created. False when a record already carried it and\
-        \ was updated instead. Salesforce decides this, not the caller.\n\nExample -- Sync\
-        \ a contact from another system\n  call: {\"approved\": true, \"external_id_field\"\
-        : \"External_Id__c\", \"external_id_value\": \"CRM-4471\", \"fields\": {\"Email\"\
-        : \"ada@example.com\", \"LastName\": \"Lovelace\"}, \"idempotency_key\": \"b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e\"\
+        \ ending __c. If you are not certain, call salesforce_object_describe_by_name first\
+        \ and confirm both the object and that it carries the external id field you are about\
+        \ to key on. This is a write, so a guess here is not free.\n  - external_id_field\
+        \ (required, text) e.g. 'External_Id__c': Required. The field that carries the outside\
+        \ system's identifier. It must be marked External Id on the object; an ordinary text\
+        \ field is refused. Custom fields end __c, as in External_Id__c. Call salesforce_object_describe_by_name\
+        \ if you do not know which field this org uses.\n  - external_id_value (required,\
+        \ text) e.g. 'CRM-4471': Required. The identifier itself, as the other system knows\
+        \ it. This decides everything: a value already on a record updates that record, and\
+        \ a value not on any record creates a new one. Never invent one, because inventing\
+        \ a value that happens to exist overwrites somebody else's record. If the user did\
+        \ not give you the identifier, do not call this tool: ask them for it, or find the\
+        \ record with salesforce_record_search_by_text and change it with salesforce_record_update_by_id\
+        \ instead.\n  - fields (required, an object of name and value pairs) e.g. {'Email':\
+        \ 'ada@example.com', 'LastName': 'Lovelace'}: Required. The fields to set, keyed by\
+        \ Salesforce's own API names: LastName, Email, StageName, CloseDate. On a create these\
+        \ must include everything the object requires, or the write fails. On an update only\
+        \ what is named here changes.\n  - idempotency_key (required, text): Required. A unique\
+        \ string for this specific write. The external id already prevents duplicate records;\
+        \ this prevents a retry being counted as a second change.\n  - approved (optional,\
+        \ true or false): Optional, defaults to false, but the call is refused without it.\
+        \ Confirmation that the user asked for this. This can overwrite an existing record\
+        \ and there is no undo.\n\nReturns:\n  - id (required, text): Salesforce record id\
+        \ of the record written.\n  - object_name (required, text): The object it belongs\
+        \ to.\n  - external_id_value (required, text): The identifier that decided which record.\n\
+        \  - created (required, true or false): True when no record carried that external\
+        \ id and one was created. False when a record already carried it and was updated instead.\
+        \ Salesforce decides this, not the caller.\n\nExample -- Sync a contact from another\
+        \ system\n  call: {\"approved\": true, \"external_id_field\": \"External_Id__c\",\
+        \ \"external_id_value\": \"CRM-4471\", \"fields\": {\"Email\": \"ada@example.com\"\
+        , \"LastName\": \"Lovelace\"}, \"idempotency_key\": \"b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e\"\
         , \"object_name\": \"Contact\"}\n  returns: {\"created\": true, \"external_id_value\"\
         : \"CRM-4471\", \"id\": \"003xx000004TmiQAAS\", \"object_name\": \"Contact\"}\n\n\
         Failures, why each happens, and what to do:\n  - connector.invalid_input -- FIX THE\
@@ -3201,7 +3264,10 @@ paths:
               properties:
                 object_name:
                   description: 'Required. The object, spelled as Salesforce spells it: Contact,
-                    Opportunity, Account, or a custom object ending __c.'
+                    Opportunity, Account, or a custom object ending __c. If you are not certain,
+                    call salesforce_object_describe_by_name first and confirm both the object
+                    and that it carries the external id field you are about to key on. This
+                    is a write, so a guess here is not free.'
                   examples:
                   - Contact
                   - Opportunity
@@ -3227,7 +3293,9 @@ paths:
                     it. This decides everything: a value already on a record updates that
                     record, and a value not on any record creates a new one. Never invent
                     one, because inventing a value that happens to exist overwrites somebody
-                    else''s record.'
+                    else''s record. If the user did not give you the identifier, do not call
+                    this tool: ask them for it, or find the record with salesforce_record_search_by_text
+                    and change it with salesforce_record_update_by_id instead.'
                   examples:
                   - CRM-4471
                   maxLength: 255
@@ -3589,13 +3657,14 @@ paths:
         \ tool, which is salesforce_tool_describe_by_name. This lists tools and never touches\
         \ Salesforce data.\nYou need: kind.\n\nInputs:\n  - kind (required, exactly one of:\
         \ read, write, all) e.g. 'read': Required. Exactly one of: read, write, all.\n\nReturns:\n\
-        \  - kind (required, text): Which half was listed.\n  - tools (required, a list of\
-        \ values): Every matching tool, in a stable order.\n  - returned (required, a whole\
-        \ number, written in digits): How many tools are listed here.\n  - next_action (required,\
-        \ text): What to do next. Always present, because a shortlist is never the answer\
-        \ to anything on its own.\n\nExample -- Which tools change Salesforce\n  call: {\"\
-        kind\": \"write\"}\n  returns: {\"kind\": \"write\", \"next_action\": \"Call salesforce_tool_describe_by_name\
-        \ with the tool_name you chose to see its fields and the exact type each one expects.\"\
+        \  - kind (required, exactly one of: read, write, all) e.g. 'read': Which half was\
+        \ listed: read, write, or all.\n  - tools (required, a list of values): Every matching\
+        \ tool, in a stable order.\n  - returned (required, a whole number, written in digits):\
+        \ How many tools are listed here.\n  - next_action (required, text): What to do next.\
+        \ Always present, because a shortlist is never the answer to anything on its own.\n\
+        \nExample -- Which tools change Salesforce\n  call: {\"kind\": \"write\"}\n  returns:\
+        \ {\"kind\": \"write\", \"next_action\": \"Call salesforce_tool_describe_by_name with\
+        \ the tool_name you chose to see its fields and the exact type each one expects.\"\
         , \"returned\": 1, \"tools\": [{\"changes_data\": true, \"name\": \"salesforce_contact_create\"\
         , \"needs_approval\": true, \"purpose\": \"Create a new contact and return its record\
         \ id.\", \"required_inputs\": [\"last_name\", \"idempotency_key\"], \"use_when\":\
@@ -3698,7 +3767,11 @@ paths:
                     description: The shortlist, and what to do with it.
                     properties:
                       kind:
-                        description: Which half was listed.
+                        description: 'Which half was listed: read, write, or all.'
+                        enum:
+                        - read
+                        - write
+                        - all
                         title: Kind
                         type: string
                       tools:

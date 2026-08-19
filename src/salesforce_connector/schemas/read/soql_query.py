@@ -47,7 +47,10 @@ class SoqlQueryInput(BaseModel):
             description=(
                 "Required. A SOQL SELECT statement. Compose it from what the user "
                 "asked for: they describe a condition in words and you turn it into "
-                "the query.\n\n"
+                "the query. If you do not know the field names this org uses, call "
+                "salesforce_object_describe_by_name first rather than trying a name "
+                "to see whether it exists: a wrong field name fails the whole query, "
+                "and a right-looking wrong one can quietly filter on nothing.\n\n"
                 "SOQL is not SQL. There are no joins and no SELECT *, so name every "
                 "field you want. Related fields are reached through the "
                 "relationship, as in Account.Name. Date literals are built in and "
