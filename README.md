@@ -1,4 +1,4 @@
-# Salesforce Connector: an MCP server with approval-gated writes
+﻿# Salesforce Connector: an MCP server with approval-gated writes
 
 An MCP server that lets an AI assistant read and change Salesforce records
 safely. Seventeen tools, every write held behind a person's approval, and every
@@ -29,6 +29,7 @@ pytest -q          # 930 tests, none of which touch Salesforce
   - [Call flow diagram](#call-flow-what-happens-to-one-tool-call)
   - [Repository structure](#repository-structure)
   - [Run the tests](#run-the-tests)
+  - [Test results](#test-results)
 - [The tools](#the-tools)
 - [What it costs at connect](#what-it-costs-at-connect)
 - [Configuration](#configuration)
@@ -397,6 +398,63 @@ makes it the endpoint audit in runnable form: when a tool description and the
 platform disagree, this is where you find out which is right. Its writes reach
 a real org, so each is gated behind `allow_writes`, which ships `false`. Point
 it at a sandbox.
+
+### Test results
+
+The default run, on a clean checkout, with no credentials and no network:
+
+```
+930 passed, 13 skipped, 38 deselected, 2 xfailed in 30.04s
+```
+
+| | Count | Why it is that number |
+|---|---:|---|
+| **Passed** | **930** | |
+| Skipped | 13 | Platform-specific paths, and cases needing an org that the tier does not require |
+| Deselected | 38 | `performance` (8), `integration` (22), `learning` (8): excluded by marker, run by name |
+| **Expected failures** | **2** | Two known wording defects, deliberately red until fixed. See [Descriptions are the product](#descriptions-are-the-product) |
+| Failed | **0** | |
+
+Where the 945 collected tests live:
+
+| Tier | Tests | In the default run |
+|---|---:|---|
+| `unit` | 700 | yes |
+| `contract` | 166 | yes |
+| `security` | 49 | yes |
+| `postman` | 18 | yes |
+| `regression` | 7 | yes |
+| `smoke` | 5 | yes |
+| `performance` | 8 | no, `-m performance` |
+| `integration` | 22 | no, needs an org |
+| `learning` | 8 | no, needs an org |
+
+```mermaid
+pie showData
+    title Where the tests are
+    "unit" : 700
+    "contract" : 166
+    "security" : 49
+    "integration" : 22
+    "postman" : 18
+    "performance" : 8
+    "learning" : 8
+    "regression" : 7
+    "smoke" : 5
+```
+
+Read that chart with one caveat. `unit` is three quarters of the count and
+nowhere near three quarters of the value: unit tests are cheap to write and
+many, while the five smoke tests are the only ones that start the actual
+process and the seven regression tests each stand for a bug that cost real
+money to find. **A test count is a measure of coverage breadth, not of
+confidence.**
+
+The two expected failures are not a defect in the suite. They are the
+acceptance criteria for two description fixes that have been identified and not
+yet made, written as strict `xfail`, so correcting either wording makes pytest
+demand its marker be deleted. A pin for a fixed bug and a pin for an open one
+should not be able to look alike.
 
 ## The tools
 
@@ -843,23 +901,129 @@ measures the descriptions as a host actually receives them.
 `tools` array. That isolates the connector from any host's own prompt and tools,
 which makes the number cleaner and less representative.
 
-### The numbers
+### The numbers, and how they moved
 
-| | |
-|---|---|
-| **Happy path, 68 cases** | **86.8%** |
-| On the 62 cases measurable in this configuration | **95.2%** |
-| Abstention, 11 cases with no right answer | **100%** |
+Three runs are saved in `runs/`, and they are kept rather than overwritten
+because the first one is the most instructive of the three.
+
+```mermaid
+xychart-beta
+    title "Selection accuracy across three runs"
+    x-axis ["Flawed harness", "Fixed harness", "Happy path"]
+    y-axis "Percent of cases with a right answer" 0 --> 100
+    bar [37.7, 69.6, 86.8]
+    line [37.7, 69.6, 86.8]
+```
+
+| Run | Selection | Abstention | Cost | What changed |
+|---|---:|---:|---:|---|
+| **1.** `first-attempt-flawed` | **37.7%** (26/69) | **9.1%** (1/11) | $3.41 | Nothing. This is the connector as it already was |
+| **2.** `baseline` | **69.6%** (48/69) | **100%** (11/11) | $2.58 | The **harness** was fixed. Not one line of the connector |
+| **3.** `happy-path` | **86.8%** (59/68) | not scored | $1.29 | The **case set** was fixed, and generated instead of written |
+
+**Run 1 measured the harness, not the connector.** Two faults, and each one hid
+the other. `--permission-mode plan` forbids a write tool call outright, so nine
+of the seventeen tools could not be chosen however well they were described.
+And the scorer read the **first** tool call rather than the **chosen** one,
+which punished the model for searching before creating, which is the exact
+behaviour this connector's own instructions demand.
+
+With the recon happening, both permission modes produced identical numbers, so
+the mode looked irrelevant and was cleared of suspicion. It was not irrelevant.
+Only after the recon was suppressed did the difference appear, and the score
+went from 37.7% to 69.6% **without a line of the connector changing**.
+
+**Run 2 to run 3 is the same lesson at a smaller scale.** Eleven of the
+remaining misses were prompts that omitted a value the schema requires. The
+model declined to invent one, which is correct and is exactly what this
+connector is built to do, and the eval recorded the refusal as a wrong choice.
+A prompt a model cannot act on measures nothing about whether it would have
+chosen well. The generator now reads each tool's required fields out of its own
+schema and refuses to emit such a prompt at all.
+
+**Cost fell as the measurement got better**, which is the direction to expect:
+a run that stops at the first correct choice is cheaper than one that wanders.
+
+```mermaid
+xychart-beta
+    title "Cost per run, US dollars"
+    x-axis ["Flawed harness", "Fixed harness", "Happy path"]
+    y-axis "USD" 0 --> 4
+    bar [3.41, 2.58, 1.29]
+```
+
+### Per tool, across all three runs
+
+Each cell is how many of that tool's cases the model got right.
+
+**Legend:** ðŸŸ© every case &nbsp; ðŸŸ¨ one miss &nbsp; ðŸŸ§ half &nbsp; ðŸŸ¥ most or all missed
+
+| Tool | 1. Flawed | 2. Fixed | 3. Happy path |
+|---|:--:|:--:|:--:|
+| `contact_search_by_text` | ðŸŸ© 4/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
+| `record_search_by_text` | ðŸŸ© 4/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
+| `record_get_by_id` | ðŸŸ© 4/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
+| `record_query_by_soql` | ðŸŸ¨ 4/5 | ðŸŸ© 5/5 | ðŸŸ© 4/4 |
+| `record_count_by_object` | ðŸŸ¨ 3/4 | ðŸŸ¨ 3/4 | ðŸŸ© 4/4 |
+| `object_describe_by_name` | ðŸŸ© 4/4 | ðŸŸ§ 2/4 | ðŸŸ© 4/4 |
+| `record_get_related_by_id` | ðŸŸ¥ 1/4 | ðŸŸ§ 2/4 | ðŸŸ© 4/4 |
+| `contact_create` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
+| `opportunity_link_contact_by_id` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ© 4/4 |
+| `record_update_by_id` | ðŸŸ¥ 0/4 | ðŸŸ¨ 3/4 | ðŸŸ© 4/4 |
+| `opportunity_create` | ðŸŸ¥ 0/4 | ðŸŸ¥ 1/4 | ðŸŸ© 4/4 |
+| `opportunity_create_with_contact_by_id` | ðŸŸ¥ 0/4 | ðŸŸ¥ 1/4 | ðŸŸ© 4/4 |
+| `record_upsert_by_external_id` | ðŸŸ¥ 0/4 | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 |
+| `contact_update_by_id` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ¨ 3/4 |
+| `activity_create_by_related_id` | ðŸŸ¥ 0/4 | ðŸŸ© 4/4 | ðŸŸ§ 2/4 |
+| `tool_list_by_kind` | ðŸŸ¥ 1/4 | ðŸŸ§ 2/4 | ðŸŸ¥ 1/4 |
+| `tool_describe_by_name` | ðŸŸ¥ 1/4 | ðŸŸ¥ 1/4 | ðŸŸ¥ 1/4 |
+
+The columns are not strictly comparable and the table is more useful for it.
+Runs 1 and 2 share an eighty-case set that includes eleven prompts with no
+right answer; run 3 is a different, generated, sixty-eight-case set with no
+negatives. So read the **shape** rather than the arithmetic: the whole write
+half of the connector sitting at ðŸŸ¥ in run 1 is the signature of a harness that
+could not call a write at all, not of thirteen badly written descriptions.
+
+### What the nine remaining misses actually are
+
+| Misses | Tool | Verdict |
+|---:|---|---|
+| 3 | `tool_list_by_kind` | **Not a defect.** Structural |
+| 3 | `tool_describe_by_name` | **Not a defect.** Structural |
+| 2 | `activity_create_by_related_id` | **Not a defect.** My prompts were wrong |
+| 1 | `contact_update_by_id` | **A real defect** |
+
+**Six are structural.** Both meta-tools exist for a host that must fetch
+descriptions lazily. Claude Code already holds all seventeen descriptions in
+context, so it answers correctly from what it was given and never calls them.
+The confusion table shows exactly that: `chosen: "none"`, three times each. They
+become measurable only behind a gateway, where descriptions are fetched on
+demand.
+
+**Two were my fault, not the connector's.** I wrote prompts passing an Account
+(`001`) and a Lead (`00Q`) to a field whose schema permits only a Contact
+(`003`) or an Opportunity (`006`). The model read the constraint and refused,
+which is the behaviour we want. The tool is narrower than Salesforce's Task
+object by design: `WhoId` is silently ignored if given the wrong kind of id, and
+an activity attached to nothing is worse than a refusal.
+
+**One is real.** "On contact `003xx...`, set the department to Research" chose
+`record_update_by_id` instead of `contact_update_by_id`. The cause is in the
+description: `when_to_use` reads "such as a new email, phone, title, or
+account", department is not on that list, and the model went generic. One
+missing word in one example cost one point.
+
+So on the sixty-two cases this configuration can actually measure, the score is
+**59/62, or 95.2%**. That is the honest number, and it is a floor rather than a
+result: the six structural misses become measurable behind a gateway, and the
+one real defect is a wording fix.
 
 Selection and abstention are scored separately on purpose. A connector that
 always picks something scores well on the first and nothing on the second, and
 this one is built to refuse what it cannot do, so the refusal is the half worth
-measuring.
-
-Six of the nine happy-path misses are structural rather than real:
-`tool_list_by_kind` and `tool_describe_by_name` exist for a host that must fetch
-descriptions lazily, and Claude Code already holds all seventeen, so it answers
-from context and never calls them. They become measurable only behind a gateway.
+measuring. Run 2 is the one that shows it: **11 out of 11**, on prompts asking
+for things this connector does not offer, deleting a record among them.
 
 ### The case set checks itself
 
