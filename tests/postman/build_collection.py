@@ -307,8 +307,7 @@ def _rpc(call: Rpc) -> Json:
 
 def gateway_folder() -> Json:
     """The connector as an agent reaches it: through Executor, over HTTP."""
-    a_read = "salesforce_tool_list_by_kind"
-    assert a_read in {action.spec.tool_name for action in BY_ID.values()}
+    published_count = len(BY_ID)
     return {
         "name": "1. Gateway (Executor)",
         "description": (
@@ -346,28 +345,41 @@ def gateway_folder() -> Json:
                     tests=LIST_HOLDS_EVERY_TOOL + ANSWERED_WITHOUT_ERROR,
                 )
             ),
-            _rpc(
-                Rpc(
-                    name=f"Call a read tool ({a_read})",
-                    description="A read that needs no Salesforce call at all, so it exercises "
-                    "the whole path -- gateway, policy, connector, dispatch -- and touches no "
-                    "org.\n\nNOT YET VERIFIED. It assumes the gateway's MCP endpoint accepts a "
-                    "namespaced tool path, which is the vocabulary its CLI and its `execute` "
-                    "tool use. If this answers 'unknown tool', reach the same tool through "
-                    "`execute` instead, and correct this request. Run it first: it is the "
-                    "cheapest way to find out whether the whole path works.",
-                    payload={
-                        "jsonrpc": "2.0",
-                        "id": 3,
-                        "method": "tools/call",
-                        "params": {
-                            "name": f"salesforce.org.default.{a_read}",
-                            "arguments": {"kind": "write"},
-                        },
+            {
+                "name": "The connector's tools, in the catalogue",
+                "event": [
+                    _script(
+                        [
+                            "pm.test('answered 200', () => pm.response.to.have.status(200));",
+                            "const body = pm.response.json();",
+                            "const items = body.items || body;",
+                            f"pm.test('all {published_count} are indexed', () =>",
+                            "    pm.expect(items.length, 'tools indexed')"
+                            f".to.eql({published_count}));",
+                        ],
+                        "test",
+                    )
+                ],
+                "request": {
+                    "method": "GET",
+                    "header": [{"key": "Authorization", "value": "Bearer {{executor_token}}"}],
+                    "url": {
+                        "raw": "{{executor_url}}/api/tools?integration=salesforce",
+                        "host": ["{{executor_url}}"],
+                        "path": ["api", "tools"],
+                        "query": [{"key": "integration", "value": "salesforce"}],
                     },
-                    tests=ANSWERED_WITHOUT_ERROR,
-                )
-            ),
+                    "description": "Proves the connector's seventeen tools are reachable, which "
+                    "the request above deliberately does not.\n\n"
+                    "There is no request here that calls a connector tool by name over /mcp, "
+                    "because that does not work and it was worth finding out rather than "
+                    "assuming. The endpoint exposes Executor's own tools only; asking it for "
+                    "salesforce.org.default.salesforce_record_count_by_object answers "
+                    "'Tool ... not found', and so does the bare name. Connector tools are "
+                    "reached by generated code through Executor's `execute` tool, or from a "
+                    "shell with `executor call <path> '<json>'`, which is verified to work.",
+                },
+            },
             {
                 "name": "Integrations and tool counts",
                 "event": [

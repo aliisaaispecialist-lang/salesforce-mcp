@@ -57,33 +57,56 @@ convenient: a test that needs a live org is a test nobody runs.
 
 ### Quick start
 
-Clone and install:
+Clone and install. The repository is private, so this needs an account with
+access to it:
 
 ```bash
 git clone https://github.com/aliisaaispecialist-lang/salesforce-mcp.git
 cd salesforce-mcp
-pip install -e ".[dev]"
 ```
 
-Or with `uv`, which installs the exact dependency tree this was tested against
-rather than resolving fresh versions:
+Then install, with `uv` for the exact dependency tree this was tested against
+rather than freshly resolved versions:
 
 ```bash
 uv sync --all-extras --frozen
 ```
 
+or with pip, into a virtual environment of your own:
+
+```bash
+python -m venv .venv
+.venv/bin/activate           # Windows: .venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
 Run the tests before anything else, because they need nothing from you:
 
 ```bash
-pytest -q
+uv run pytest -q             # or just `pytest -q` if you activated the venv
 ```
+
+That should report **994 passed**, with no credentials, no org and no network.
+If it does, the install is sound and everything below is about configuration
+rather than about the code.
 
 Then, when you have Salesforce credentials, start the server:
 
 ```bash
-cp .env.example .env      # fill in the three required values
-PYTHONPATH=src python mcp/server.py
+cp .env.example .env         # fill in the three required values
+uv run python mcp/server.py
 ```
+
+```powershell
+# Windows PowerShell
+Copy-Item .env.example .env
+uv run python mcp/server.py
+```
+
+`uv run` puts the package on the path for you. If you are using the server
+outside the project directory, or from a launcher that does not activate the
+environment, give it an absolute path to that environment's interpreter rather
+than setting `PYTHONPATH`.
 
 Three mistakes to avoid:
 

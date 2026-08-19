@@ -122,7 +122,7 @@
           }
         },
         {
-          "name": "Call a read tool (salesforce_tool_list_by_kind)",
+          "name": "The connector's tools, in the catalogue",
           "event": [
             {
               "listen": "test",
@@ -130,48 +130,39 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('answered 200', () => pm.response.to.have.status(200));",
-                  "pm.test('no JSON-RPC error', () => {",
-                  "    const body = pm.response.json();",
-                  "    pm.expect(body.error, JSON.stringify(body.error)).to.be.undefined;",
-                  "});"
+                  "const body = pm.response.json();",
+                  "const items = body.items || body;",
+                  "pm.test('all 17 are indexed', () =>",
+                  "    pm.expect(items.length, 'tools indexed').to.eql(17));"
                 ]
               }
             }
           ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Accept",
-                "value": "application/json, text/event-stream"
-              },
               {
                 "key": "Authorization",
                 "value": "Bearer {{executor_token}}"
-              },
-              {
-                "key": "mcp-session-id",
-                "value": "{{session_id}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 3,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"salesforce.org.default.salesforce_tool_list_by_kind\",\n    \"arguments\": {\n      \"kind\": \"write\"\n    }\n  }\n}"
-            },
             "url": {
-              "raw": "{{executor_url}}/mcp",
+              "raw": "{{executor_url}}/api/tools?integration=salesforce",
               "host": [
                 "{{executor_url}}"
               ],
               "path": [
-                "mcp"
+                "api",
+                "tools"
+              ],
+              "query": [
+                {
+                  "key": "integration",
+                  "value": "salesforce"
+                }
               ]
             },
-            "description": "A read that needs no Salesforce call at all, so it exercises the whole path -- gateway, policy, connector, dispatch -- and touches no org.\n\nNOT YET VERIFIED. It assumes the gateway's MCP endpoint accepts a namespaced tool path, which is the vocabulary its CLI and its `execute` tool use. If this answers 'unknown tool', reach the same tool through `execute` instead, and correct this request. Run it first: it is the cheapest way to find out whether the whole path works."
+            "description": "Proves the connector's seventeen tools are reachable, which the request above deliberately does not.\n\nThere is no request here that calls a connector tool by name over /mcp, because that does not work and it was worth finding out rather than assuming. The endpoint exposes Executor's own tools only; asking it for salesforce.org.default.salesforce_record_count_by_object answers 'Tool ... not found', and so does the bare name. Connector tools are reached by generated code through Executor's `execute` tool, or from a shell with `executor call <path> '<json>'`, which is verified to work."
           }
         },
         {
