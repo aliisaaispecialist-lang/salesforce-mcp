@@ -1,4 +1,4 @@
-# Salesforce Connector
+﻿# Salesforce Connector
 
 An MCP server that lets an AI assistant read and change Salesforce records
 safely. Seventeen tools, every write gated behind a person's approval, and
@@ -19,7 +19,7 @@ Executor launches it once and shares it with every agent on your machine.
 | **Docker** *or* **Python 3.12+** | Runs the connector itself. Pick either | Docker: [docker.com/get-started](https://www.docker.com/get-started). Python: [python.org/downloads](https://www.python.org/downloads) |
 | **A Salesforce sandbox** | Three values: a Consumer Key, a username, and a private key you generate | See [Salesforce credentials](#3-salesforce-credentials) |
 
-You need none of it to review the code. `pytest` runs 783 tests with no
+You need none of it to review the code. `pytest` runs 930 tests with no
 credentials, no org, and no network.
 
 ---
@@ -31,8 +31,8 @@ to it once, and Claude Code, Cursor, and anything else MCP-compatible all share
 it, with the same credentials and the same policies.
 
 It also keeps the connector's tool list out of your context. Connected
-directly, seventeen tools cost **20,597 tokens** at startup, before you have
-said anything. Behind Executor the same seventeen cost **293**, a **98.6%
+directly, seventeen tools cost **29,445 tokens** at startup, before you have
+said anything. Behind Executor the same seventeen cost **393**, a **98.7%
 reduction**, because Executor keeps them in a catalogue and hands the model a
 search instead of a list. Both figures were measured; the full comparison is in
 [What it costs at connect](#what-it-costs-at-connect).
@@ -201,8 +201,13 @@ catalogue. Set the policy on each one there. The eight write tools should be
 Then point your agent at Executor, once, for everything:
 
 ```bash
-npx add-mcp http://127.0.0.1:4788/mcp --transport http --name executor
+npx add-mcp http://127.0.0.1:4789/mcp --transport http --name executor
 ```
+
+Use whichever address `executor install` printed. A service installed with
+`executor install` and a daemon started by hand do not always listen on the
+same port, and pointing a client at the wrong one looks exactly like the
+connector being broken.
 
 Restart your client, or open a new chat. Most MCP clients only load servers at
 startup, and this is the step people skip before deciding it is broken.
@@ -210,11 +215,39 @@ startup, and this is the step people skip before deciding it is broken.
 Confirm:
 
 ```bash
-executor tools integrations
+executor tools integrations      # the connector, with 17 next to it
+executor tools search "create a new contact in the CRM"
 ```
+
+The second one is the check worth doing. The first says the tools were
+indexed; the second says the catalogue can actually find them, which is what a
+model depends on and the only part that can be silently wrong.
 
 If the connector appears there but not in your client, the problem is the
 restart, not the config.
+
+**Registering without the browser.** The console is the documented route, but
+everything it does is an API call, which is easier to script and to repeat:
+
+```bash
+TOKEN=$(jq -r .token ~/.executor/server-control/auth.json)
+
+curl -s -X POST http://127.0.0.1:4789/api/mcp/servers \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"transport":"stdio","name":"Salesforce","slug":"salesforce",
+       "command":"/absolute/path/to/.venv/bin/python",
+       "args":["/absolute/path/to/mcp/server.py"],
+       "cwd":"/absolute/path/to/salesforce-mcp"}'
+```
+
+Use an absolute path to the interpreter, not `python`. Executor spawns the
+process from its own environment, where a bare `python` may be one without this
+project's dependencies.
+
+Policies are `POST /api/policies`, one per tool, with `pattern`
+`salesforce.org.default.<tool_name>` and `action` either `require_approval` or
+`approve`. Set them per tool rather than with one wildcard: a catch-all relies
+on match ordering, and the direction it fails in is a write running unattended.
 
 ### Straight to one MCP host, without Executor
 
@@ -224,7 +257,7 @@ host's `mcpServers` object: one that runs the Docker image, one that runs
 
 This works, and it is what a reviewer reading the repository will do. It is
 also the expensive way: all seventeen tools land in context at startup, about
-20,597 tokens, because a client fetches the whole list and there is nothing in
+29,445 tokens, because a client fetches the whole list and there is nothing in
 front of it to keep them in a catalogue. See
 [What it costs at connect](#what-it-costs-at-connect).
 
@@ -272,32 +305,37 @@ serialised the way it travels on the wire and counted with a real tokenizer.
 
 | Setup | Tools the model sees | Tokens | Against the baseline |
 |---|---:|---:|---:|
-| Straight to one MCP host | 17 | 20,597 | baseline |
-| Behind Executor | 7 | 1,363 | **93.4% less** |
-| Behind Executor, `?artifacts=false` | 3 | 293 | **98.6% less** |
+| Straight to one MCP host | 17 | 29,445 | baseline |
+| Behind Executor | 7 | 2,143 | **92.7% less** |
+| Behind Executor, `?artifacts=false` | 3 | 393 | **98.7% less** |
 
 Executor publishes three tools of its own (`execute`, `skills`, `resume`) and
 four more for rendering artifacts, which its endpoint can be told to leave out.
 It never shows the model this connector's seventeen. They live in a catalog
-that generated code searches at runtime, which is why seventeen tools cost 293
-tokens instead of 20,597.
+that generated code searches at runtime, which is why seventeen tools cost 393
+tokens instead of 29,445.
 
-**Read the first-use number honestly.** Executor's 293 is not the whole cost of
+**Read the first-use number honestly.** Executor's 393 is not the whole cost of
 the first action: a model must fetch its `execute` guide once, about 3,900
 tokens, before it can write code, and then pull each tool's schema as a result.
-On the very first call it comes out around 4,200 rather than 293.
+On the very first call it comes out around 4,300 rather than 393.
 
-The advantage is what happens next. That 293 stays flat as you add
+The advantage is what happens next. That 393 stays flat as you add
 integrations, because only the inventory list grows, one line per integration.
 A direct connection is per server: connect a second MCP server and you pay its
-whole surface again. Add GitHub and a database and Executor still costs 293.
+whole surface again. Add GitHub and a database and Executor still costs 393.
 That is why routing belongs in the gateway rather than in each connector, and
 why this one no longer has a router of its own.
 
-Measured with `cl100k_base`, so the ratios are exact and the absolute figures
-are close rather than precise. The Executor rows were reconstructed from its
-published source; the artifact schemas were approximated downward, so the 1,363
-row understates if anything.
+Every row was measured, not estimated, and all three now come from the same
+run: this connector registered with a live Executor instance, `tools/list`
+fetched over each route, and the result counted with `cl100k_base`. An earlier
+version of this table reconstructed the two gateway rows from Executor's
+published source and reported 20,597 / 1,363 / 293. Those ratios held up -- the
+measured ones are 92.7% and 98.7% against a claimed 93.4% and 98.6% -- but the
+absolute figures did not, because the descriptions have grown since. Reproduce
+it with `pytest -m performance`, which fails if the catalogue passes its
+ceiling or if any single tool takes more than a quarter of it.
 
 ---
 
@@ -476,8 +514,8 @@ one host launches one process.
 
 **No router of our own.** This connector used to publish two doors behind an
 `SF_TOOL_SURFACE` switch, so a model could ask what existed before reading any
-of it: 20,597 tokens down to 2,950. It was removed. Executor does the same job
-one layer up, takes the cost to 293, keeps it flat as integrations are added,
+of it: a seven-fold reduction, measured at the time. It was removed. Executor
+does the same job one layer up, takes the cost to 393, keeps it flat as integrations are added,
 and applies to every server rather than to this one. Two routers in series
 would have meant generated code opening a door for nothing and a catalogue
 holding four entries instead of seventeen, which is the opposite of what a
@@ -530,7 +568,7 @@ not.
 | Output sanitising and size | Met: errors fenced, structured twin marked, width and row counts both bounded |
 | Input guards on an unknown tool | Met: the closed set, a verb-guarded suggestion, and an instruction not to substitute |
 | Tool design, one tool one action | Exceeds |
-| Tool count and discovery cost | Met, in Executor: 20,597 tokens to 293 |
+| Tool count and discovery cost | Met, in Executor: 29,445 tokens to 393 |
 | Structured output schemas | Met, and validated before return |
 | Resources and prompts | Deliberately absent |
 | Protocol version negotiation | Met, handled by the SDK |
@@ -559,15 +597,77 @@ here.
 ## Testing
 
 ```bash
-pytest -q                    # 783 tests, no credentials, no network
+pytest -q                    # 930 tests, no credentials, no network
 pytest -m security           # the attacks this connector must be immune to
-ruff check . && mypy src tests
+pytest -m performance        # costs that must not grow (run it on a quiet machine)
+ruff check . && mypy .
 ```
 
-Four tiers. `unit` and `contract` need nothing. `security` writes the attacks
-as attempts rather than as assertions about design, so a refactor that quietly
-removes a defence fails there rather than in production. `learning` and
-`integration` run against a real sandbox and are excluded by marker.
+Eight tiers, each answering a question the others cannot.
+
+| Tier | Asks | Default run |
+|---|---|---|
+| `unit` | does each piece behave? | yes |
+| `contract` | do the descriptions tell the truth about their own schemas? | yes |
+| `smoke` | does the process a client launches actually start and answer? | yes |
+| `regression` | can a bug that was fixed come back quietly? | yes |
+| `postman` | is the committed collection still true? | yes |
+| `security` | is this connector immune to the attack? | yes |
+| `performance` | has a cost grown, or stopped being constant time? | no, `-m performance` |
+| `learning`, `integration` | does Salesforce still behave as assumed? | no, needs an org |
+
+Three of those are worth explaining, because they exist for reasons a test
+count does not convey.
+
+**`security`** writes each attack as an attempt rather than as an assertion
+about the design, so a refactor that quietly removes a defence fails there
+rather than in production.
+
+**`smoke`** is the only tier that does not import the package. It launches
+`mcp/server.py` as a subprocess with worthless credentials, speaks raw JSON-RPC
+over stdio, and checks that a full catalogue comes back. Everything else here
+would still pass if the entry point were broken, if startup demanded
+credentials it does not need, or if a dependency existed only in a developer's
+shell. Those are the failures that make a connector look broken in the first
+minute of somebody else's evaluation, and nothing that imports the package can
+see any of them.
+
+**`performance`** is excluded by default because its assertions are about time
+and scaling, and a run competing with a build reports a regression that is not
+there. The assertions that matter in it are the shape ones: that a ledger
+lookup costs the same at ten thousand keys as at ten, that the call budget
+admits exactly the number it was configured for. Those hold on any machine. The
+timing ceilings are set an order of magnitude above what is observed, to catch a
+change of order rather than a change of weather.
+
+### Postman
+
+`tests/postman/` holds a collection with two folders: the gateway, and the
+Salesforce endpoints behind it.
+
+```bash
+python tests/postman/build_collection.py     # regenerate after any tool change
+```
+
+Import `salesforce-mcp.postman_collection.json` and
+`environment.template.json`, fill the template in, and select it. Nothing in
+either committed file carries a credential, and a test enforces that.
+
+The collection is **generated from the registry**, not written by hand, which
+is the only way it stays true: a collection is committed, read by people
+evaluating the connector, and executed by no build, so a renamed tool would
+leave it confidently wrong. `tests/postman/` regenerates it and fails if the
+committed file differs.
+
+The gateway folder reaches Executor over HTTP, because Postman cannot speak
+stdio and that is the route an agent takes anyway. One of its tests fails if
+any write tool has been left on `approve` rather than `require_approval`.
+
+The Salesforce folder is one request per endpoint the connector calls. It is
+the endpoint audit in a form you can run: when a tool description and the
+platform disagree, this is where you find out which is right. Its writes reach
+a real org, so each is gated behind `allow_writes`, which ships `false`. Point
+it at a sandbox.
 
 ### Does the model pick the right tool?
 

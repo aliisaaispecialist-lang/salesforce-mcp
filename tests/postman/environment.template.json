@@ -1,0 +1,96 @@
+{
+  "name": "Salesforce MCP (fill this in)",
+  "values": [
+    {
+      "key": "executor_url",
+      "value": "http://127.0.0.1:4789",
+      "type": "default",
+      "enabled": true,
+      "description": "Where Executor is listening."
+    },
+    {
+      "key": "executor_token",
+      "value": "",
+      "type": "secret",
+      "enabled": true,
+      "description": "From ~/.executor/server-control/auth.json. Secret."
+    },
+    {
+      "key": "session_id",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Filled in by the initialize request. Leave empty."
+    },
+    {
+      "key": "sf_login_url",
+      "value": "https://test.salesforce.com",
+      "type": "default",
+      "enabled": true,
+      "description": "test. for a sandbox, login. for production."
+    },
+    {
+      "key": "sf_client_id",
+      "value": "",
+      "type": "secret",
+      "enabled": true,
+      "description": "Consumer key of the External Client App. Secret."
+    },
+    {
+      "key": "sf_client_secret",
+      "value": "",
+      "type": "secret",
+      "enabled": true,
+      "description": "Consumer secret. Secret."
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Filled in by the token request. Leave empty."
+    },
+    {
+      "key": "instance_url",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "Filled in by the token request. Leave empty."
+    },
+    {
+      "key": "api_version",
+      "value": "v67.0",
+      "type": "default",
+      "enabled": true,
+      "description": "Match SF_API_VERSION in your .env."
+    },
+    {
+      "key": "contact_id",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "A real contact in your sandbox, starting 003."
+    },
+    {
+      "key": "opportunity_id",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "A real opportunity, starting 006."
+    },
+    {
+      "key": "account_id",
+      "value": "",
+      "type": "default",
+      "enabled": true,
+      "description": "A real account, starting 001."
+    },
+    {
+      "key": "allow_writes",
+      "value": "false",
+      "type": "default",
+      "enabled": true,
+      "description": "Set to true only against a sandbox you can afford to dirty."
+    }
+  ]
+}

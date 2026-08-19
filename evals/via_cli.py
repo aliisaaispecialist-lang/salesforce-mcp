@@ -176,9 +176,13 @@ def _parsed(line: str) -> dict[str, Any] | None:
     if not line.startswith("{"):
         return None
     try:
-        return json.loads(line)
+        parsed = json.loads(line)
     except json.JSONDecodeError:
         return None
+    # A line can be valid JSON and still not be an event: the CLI prints arrays
+    # and bare strings too, and returning one of those would fail later, further
+    # from the cause.
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _trouble_in(event: dict[str, Any]) -> str | None:

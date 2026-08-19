@@ -135,10 +135,18 @@ testpaths = ["tests"]
 pythonpath = ["src"]  # the package is imported from source, not installed
 markers = [
     "security: an attack this connector should be immune to",
+    "smoke: the server starts and publishes its catalogue, as a process",
+    "regression: a bug that was fixed, pinned so it cannot come back quietly",
+    "performance: a cost that must not grow (needs a quiet machine to mean anything)",
     "learning: pins real Salesforce behaviour (needs an org)",
     "integration: end to end against a live sandbox (needs an org)",
 ]
-addopts = "-m 'not learning and not integration'"
+# Three tiers are excluded by default, for two different reasons. `learning` and
+# `integration` need a real org and would fail on a laptop without one.
+# `performance` needs a machine that is not busy: its assertions are about time
+# and scaling, so a run competing with a build would report a regression that is
+# not there. Run them by name: `pytest -m performance`.
+addopts = "-m 'not learning and not integration and not performance'"
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
