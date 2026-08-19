@@ -25,6 +25,74 @@ pytestmark = [pytest.mark.learning, needs_an_org]
 MISSING_CONTACT = "003000000000000AAA"
 
 
+class TestHowMuchOfAWordSearchNeeds:
+    """Where a search term has to line up with the word it is meant to find.
+
+    This was got wrong twice, in opposite directions, from documentation alone,
+    and only a live org settled it.
+
+    `record_search_by_text` originally promised that "a partial word finds
+    records containing it". Reading the SOSL FIND documentation, which says an
+    asterisk matches "at the middle or end of your search term" and offers no
+    leading wildcard, that looked plainly false, and it was rewritten to say
+    partial words may not match at all.
+
+    That correction was worse than the thing it corrected. Against a real org,
+    a prefix matches perfectly well: `Pager` finds `PagerDemo`, and so does
+    `Pag`. What fails is a suffix or a fragment from the middle -- `Demo` and
+    `agerDemo` both find nothing. The rule is not "whole words" and not
+    "contains"; it is **matches from the start of a word**.
+
+    The cost of getting it wrong runs in both directions, which is why it is
+    pinned here. Promise too much and a model trusts a search that cannot work.
+    Promise too little and a model skips a search that would have worked, finds
+    nothing, and creates the duplicate the whole connector is arranged to
+    prevent.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_prefix_finds_the_word(self, org: Org) -> None:
+        """Both search descriptions promise this, so it has to be true."""
+        made = unwrap(
+            await org.call(
+                "salesforce.contact_create", last_name=org.marker, idempotency_key=org.key
+            )
+        )
+        org.litter.track("Contact", made["id"])
+
+        found = unwrap(await org.call("salesforce.contact_search_by_text", query=org.marker[:-3]))
+
+        assert any(c["id"] == made["id"] for c in found["contacts"]), (
+            f"A prefix of the name found nothing. Both search descriptions tell a "
+            f"model that the start of a word matches, and searching "
+            f"{org.marker[:-3]!r} for {org.marker!r} did not. They are now wrong in "
+            f"the direction that makes a model skip a search that would have worked."
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_fragment_from_the_middle_does_not(self, org: Org) -> None:
+        """The half that makes the rule a rule rather than a coincidence.
+
+        Without this, "a prefix matches" cannot be told apart from "any
+        substring matches", and the descriptions would be asking a model for
+        more of the name than it actually needs to supply.
+        """
+        made = unwrap(
+            await org.call(
+                "salesforce.contact_create", last_name=org.marker, idempotency_key=org.key
+            )
+        )
+        org.litter.track("Contact", made["id"])
+
+        found = unwrap(await org.call("salesforce.contact_search_by_text", query=org.marker[4:]))
+
+        assert not any(c["id"] == made["id"] for c in found["contacts"]), (
+            f"Searching {org.marker[4:]!r} matched {org.marker!r}, so Salesforce now "
+            f"finds fragments from the middle of a word. Both search descriptions say "
+            f"it does not, and are understating what a model can do."
+        )
+
+
 class TestWhatTheSearchEndpointHonours:
     @pytest.mark.asyncio
     async def test_parameterized_search_accepts_an_offset(self, org: Org) -> None:

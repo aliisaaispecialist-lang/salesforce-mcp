@@ -61,13 +61,16 @@ class SearchRecordsInput(BaseModel):
             max_length=200,
             description=(
                 "Required. The words to search for, as the user said them: a "
-                "company name, a subject line, part of a title. This is a search, "
-                "not a filter: it matches whole words, and a partial word may not "
-                "match. Searching 'Contos' does not find 'Contoso', and what comes "
-                "back is an empty result rather than an error, which reads exactly "
-                "like the record not existing. If a search finds nothing, widen it or "
-                "use salesforce_record_query_by_soql with a LIKE condition before "
-                "concluding there is no such record.\n\n"
+                "company name, a subject line, part of a title.\n\n"
+                "It matches from the start of a word. 'Contos' finds 'Contoso' and "
+                "so does 'Cont', but 'ontoso' and 'oso' find nothing: the beginning "
+                "of the word has to be there. So send the first part of what you "
+                "know, never the end of it, and never a fragment from the middle.\n\n"
+                "A search that matches nothing returns an empty list, not an error, "
+                "which reads exactly like the record not existing. Before concluding "
+                "that it does not exist, try a shorter prefix, or use "
+                "salesforce_record_query_by_soql with a LIKE '%...%' condition, which "
+                "does match the middle of a word.\n\n"
                 "For a condition rather than words, such as a date range or an "
                 "amount over a threshold, use salesforce_record_query_by_soql."
             ),

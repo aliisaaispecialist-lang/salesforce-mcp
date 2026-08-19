@@ -564,22 +564,21 @@ paths:
         \ a record, which the write tools do.\nYou need: query.\n\nInputs:\n  - query (required,\
         \ text) e.g. 'Ada Lovelace': Required. One piece of text, matched against the contact's\
         \ own searchable fields at once: name, email, phone, title and the like. For example\
-        \ 'Ada Lovelace', 'ada@example.com', or '+973 1234 5678'. Two characters minimum.\
-        \ This is a search, not a filter: it matches whole words, and a partial word may not\
-        \ match.\n  - limit (optional, a whole number, written in digits) e.g. 20: Optional.\
-        \ How many contacts to return, 1 to 200. Defaults to 20. Ask for more only when you\
-        \ intend to read them all; large results cost context and rarely help. Written in\
-        \ digits.\n  - cursor (optional, text): Optional. To read the next page, send back\
-        \ the exact cursor from the previous result. Treat it as opaque: do not parse or edit\
-        \ it. Omit it for the first page. When a result comes back without a cursor, there\
-        \ are no more pages.\n\nReturns:\n  - contacts (required, a list of values): Matches,\
-        \ most relevant first. Empty when nothing matched.\n  - returned (required, a whole\
-        \ number, written in digits): How many contacts are in this response.\n  - next_cursor\
-        \ (optional, text): Send back verbatim for the next page. Absent means no more pages.\n\
-        \nExample -- Find someone by name\n  call: {\"query\": \"Ada Lovelace\"}\n  returns:\
-        \ {\"contacts\": [{\"account_id\": \"001xx000003DGb2AAG\", \"email\": \"ada@example.com\"\
-        , \"id\": \"003xx000004TmiQAAS\", \"name\": \"Ada Lovelace\", \"phone\": \"+973 1234\
-        \ 5678\", \"title\": \"Chief Analyst\"}], \"returned\": 1}\n\nFailures, why each happens,\
+        \ 'Ada Lovelace', 'ada@example.com', or '+973 1234 5678'. Two characters minimum.\n\
+        \  - limit (optional, a whole number, written in digits) e.g. 20: Optional. How many\
+        \ contacts to return, 1 to 200. Defaults to 20. Ask for more only when you intend\
+        \ to read them all; large results cost context and rarely help. Written in digits.\n\
+        \  - cursor (optional, text): Optional. To read the next page, send back the exact\
+        \ cursor from the previous result. Treat it as opaque: do not parse or edit it. Omit\
+        \ it for the first page. When a result comes back without a cursor, there are no more\
+        \ pages.\n\nReturns:\n  - contacts (required, a list of values): Matches, most relevant\
+        \ first. Empty when nothing matched.\n  - returned (required, a whole number, written\
+        \ in digits): How many contacts are in this response.\n  - next_cursor (optional,\
+        \ text): Send back verbatim for the next page. Absent means no more pages.\n\nExample\
+        \ -- Find someone by name\n  call: {\"query\": \"Ada Lovelace\"}\n  returns: {\"contacts\"\
+        : [{\"account_id\": \"001xx000003DGb2AAG\", \"email\": \"ada@example.com\", \"id\"\
+        : \"003xx000004TmiQAAS\", \"name\": \"Ada Lovelace\", \"phone\": \"+973 1234 5678\"\
+        , \"title\": \"Chief Analyst\"}], \"returned\": 1}\n\nFailures, why each happens,\
         \ and what to do:\n  - connector.invalid_input -- FIX THE CALL. Retrying it unchanged\
         \ fails identically.\n      why: The search text is shorter than two characters.\n\
         \      do:  Ask the user for more of the name or email, then call again.\n  - salesforce.permission_denied\
@@ -608,8 +607,16 @@ paths:
                   description: 'Required. One piece of text, matched against the contact''s
                     own searchable fields at once: name, email, phone, title and the like.
                     For example ''Ada Lovelace'', ''ada@example.com'', or ''+973 1234 5678''.
-                    Two characters minimum. This is a search, not a filter: it matches whole
-                    words, and a partial word may not match.
+                    Two characters minimum.
+
+
+                    It matches from the start of a word. ''Lovel'' finds ''Lovelace'' and
+                    so does ''Lov'', but ''ovelace'' and ''lace'' find nothing: the beginning
+                    of the word has to be there. Send the first part of a name, never the
+                    end of it. A search that matches nothing returns an empty list rather
+                    than an error, so try a shorter prefix before deciding the person is not
+                    in Salesforce -- deciding that wrongly is how a duplicate contact gets
+                    created.
 
 
                     It does not search the account''s name, which lives on the Account record
@@ -2752,42 +2759,38 @@ paths:
         \ to, call salesforce_object_describe_by_name on it first: a name that does not exist\
         \ returns nothing found, which reads exactly like a real search that matched nothing.\n\
         \  - query (required, text) e.g. 'Example Corp': Required. The words to search for,\
-        \ as the user said them: a company name, a subject line, part of a title. This is\
-        \ a search, not a filter: it matches whole words, and a partial word may not match.\
-        \ Searching 'Contos' does not find 'Contoso', and what comes back is an empty result\
-        \ rather than an error, which reads exactly like the record not existing. If a search\
-        \ finds nothing, widen it or use salesforce_record_query_by_soql with a LIKE condition\
-        \ before concluding there is no such record.\n  - fields (optional, a list of text)\
-        \ e.g. ['Id', 'Name', 'Industry']: Optional, defaults to Id and Name. The fields to\
-        \ return, named as Salesforce names them. Not every object has Name: a Task calls\
-        \ it Subject, and asking for a field an object does not have fails the search. Call\
-        \ salesforce_object_describe_by_name first if you are unsure.\n  - limit (optional,\
-        \ a whole number, written in digits) e.g. 20: Optional, defaults to 20. How many records\
-        \ to return at most, written in digits.\n  - cursor (optional, text): Optional. To\
-        \ read the next page, send back the exact cursor from the previous result. Treat it\
-        \ as opaque. Omit it for the first page; a result with no cursor is the last page.\n\
-        \nReturns:\n  - records (required, a list of an object of name and value pairs): The\
-        \ matching records, each holding the fields that were asked for. Empty means nothing\
-        \ matched, which for a search is an answer rather than a failure.\n  - returned (required,\
-        \ a whole number, written in digits): How many records are in this response.\n  -\
-        \ next_cursor (optional, text): Send back verbatim for the next page. Absent means\
-        \ no more pages.\n\nExample -- Find an account by name\n  call: {\"fields\": [\"Id\"\
-        , \"Name\", \"Industry\"], \"object_name\": \"Account\", \"query\": \"Example Corp\"\
-        }\n  returns: {\"next_cursor\": null, \"records\": [{\"Id\": \"001xx000003DGb2AAG\"\
-        , \"Industry\": \"Technology\", \"Name\": \"Example Corp\"}], \"returned\": 1}\n\n\
-        Failures, why each happens, and what to do:\n  - connector.invalid_input -- FIX THE\
-        \ CALL. Retrying it unchanged fails identically.\n      why: The object does not exist,\
-        \ one of the named fields does not exist on it, or the search term is too short.\n\
-        \      do:  Search for at least two characters. If a field was rejected, call salesforce_object_describe_by_name\
-        \ on the object and use names it actually lists rather than retrying the same list.\n\
-        \  - salesforce.permission_denied -- DO NOT RETRY. Report it; only an administrator\
-        \ can fix it.\n      why: This user may not search that object.\n      do:  Do not\
-        \ retry. Report which object was refused and that an administrator must grant read\
-        \ access.\n  - salesforce.rate_limited -- WAIT, then repeat the identical call.\n\
-        \      why: The org has spent its API allowance for now.\n      do:  Wait the stated\
-        \ number of seconds, then repeat the same call.\n  - salesforce.transport_failed --\
-        \ RETRY the identical call.\n      why: Salesforce did not answer in time.\n     \
-        \ do:  Wait briefly and repeat. Searching changes nothing, so retrying is safe."
+        \ as the user said them: a company name, a subject line, part of a title.\n  - fields\
+        \ (optional, a list of text) e.g. ['Id', 'Name', 'Industry']: Optional, defaults to\
+        \ Id and Name. The fields to return, named as Salesforce names them. Not every object\
+        \ has Name: a Task calls it Subject, and asking for a field an object does not have\
+        \ fails the search. Call salesforce_object_describe_by_name first if you are unsure.\n\
+        \  - limit (optional, a whole number, written in digits) e.g. 20: Optional, defaults\
+        \ to 20. How many records to return at most, written in digits.\n  - cursor (optional,\
+        \ text): Optional. To read the next page, send back the exact cursor from the previous\
+        \ result. Treat it as opaque. Omit it for the first page; a result with no cursor\
+        \ is the last page.\n\nReturns:\n  - records (required, a list of an object of name\
+        \ and value pairs): The matching records, each holding the fields that were asked\
+        \ for. Empty means nothing matched, which for a search is an answer rather than a\
+        \ failure.\n  - returned (required, a whole number, written in digits): How many records\
+        \ are in this response.\n  - next_cursor (optional, text): Send back verbatim for\
+        \ the next page. Absent means no more pages.\n\nExample -- Find an account by name\n\
+        \  call: {\"fields\": [\"Id\", \"Name\", \"Industry\"], \"object_name\": \"Account\"\
+        , \"query\": \"Example Corp\"}\n  returns: {\"next_cursor\": null, \"records\": [{\"\
+        Id\": \"001xx000003DGb2AAG\", \"Industry\": \"Technology\", \"Name\": \"Example Corp\"\
+        }], \"returned\": 1}\n\nFailures, why each happens, and what to do:\n  - connector.invalid_input\
+        \ -- FIX THE CALL. Retrying it unchanged fails identically.\n      why: The object\
+        \ does not exist, one of the named fields does not exist on it, or the search term\
+        \ is too short.\n      do:  Search for at least two characters. If a field was rejected,\
+        \ call salesforce_object_describe_by_name on the object and use names it actually\
+        \ lists rather than retrying the same list.\n  - salesforce.permission_denied -- DO\
+        \ NOT RETRY. Report it; only an administrator can fix it.\n      why: This user may\
+        \ not search that object.\n      do:  Do not retry. Report which object was refused\
+        \ and that an administrator must grant read access.\n  - salesforce.rate_limited --\
+        \ WAIT, then repeat the identical call.\n      why: The org has spent its API allowance\
+        \ for now.\n      do:  Wait the stated number of seconds, then repeat the same call.\n\
+        \  - salesforce.transport_failed -- RETRY the identical call.\n      why: Salesforce\
+        \ did not answer in time.\n      do:  Wait briefly and repeat. Searching changes nothing,\
+        \ so retrying is safe."
       tags:
       - read
       requestBody:
@@ -2816,12 +2819,19 @@ paths:
                   type: string
                 query:
                   description: 'Required. The words to search for, as the user said them:
-                    a company name, a subject line, part of a title. This is a search, not
-                    a filter: it matches whole words, and a partial word may not match. Searching
-                    ''Contos'' does not find ''Contoso'', and what comes back is an empty
-                    result rather than an error, which reads exactly like the record not existing.
-                    If a search finds nothing, widen it or use salesforce_record_query_by_soql
-                    with a LIKE condition before concluding there is no such record.
+                    a company name, a subject line, part of a title.
+
+
+                    It matches from the start of a word. ''Contos'' finds ''Contoso'' and
+                    so does ''Cont'', but ''ontoso'' and ''oso'' find nothing: the beginning
+                    of the word has to be there. So send the first part of what you know,
+                    never the end of it, and never a fragment from the middle.
+
+
+                    A search that matches nothing returns an empty list, not an error, which
+                    reads exactly like the record not existing. Before concluding that it
+                    does not exist, try a shorter prefix, or use salesforce_record_query_by_soql
+                    with a LIKE ''%...%'' condition, which does match the middle of a word.
 
 
                     For a condition rather than words, such as a date range or an amount over

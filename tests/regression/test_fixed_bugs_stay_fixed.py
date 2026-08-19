@@ -170,21 +170,38 @@ class TestDescriptionsMatchTheEndpointTheyCall:
     """
 
     def test_the_two_search_tools_agree_about_partial_words(self) -> None:
-        """One says a partial word matches. Salesforce says it does not.
+        """Both got this wrong, in opposite directions, and both are pinned here.
 
-        `salesforce_record_search_by_text` promises "a partial word finds
-        records containing it". SOSL tokenises, and the FIND documentation is
-        explicit that an asterisk matches "at the middle or end" of a term --
-        there is no leading wildcard. Our own contact search gets this right
-        and says a partial word may not match.
+        `record_search_by_text` promised "a partial word finds records
+        containing it". `contact_search_by_text` said the opposite: "it matches
+        whole words, and a partial word may not match". Two tools on one
+        endpoint, contradicting each other, and **both were wrong**.
 
-        The cost is not a confusing sentence. A model that believes it searches
-        "Contos", finds nothing, concludes the account does not exist, and
-        creates a duplicate. Creating a duplicate is the single most expensive
-        thing this connector can do, and its instructions say so.
+        Reading the SOSL FIND documentation settled it in the wrong direction.
+        An asterisk matches "at the middle or end" of a term and there is no
+        leading wildcard, from which the whole-words wording looks right. A
+        live org says otherwise: `Pager` finds `PagerDemo` and so does `Pag`,
+        while `Demo` and `agerDemo` find nothing. It matches from the **start
+        of a word**, which is neither "contains" nor "whole words only".
+
+        Both failures cost something, and in opposite directions. Promise too
+        much and a model trusts a search that cannot work. Promise too little
+        and a model skips a search that would have worked, finds nothing, and
+        creates the duplicate this connector is arranged to prevent.
+
+        The behaviour itself is pinned against a real org in
+        `tests/learning/`, under `TestHowMuchOfAWordSearchNeeds`. This test
+        only holds the wording to it, offline.
         """
-        query = BY_NAME["salesforce_record_search_by_text"].input_schema["properties"]["query"]
-        assert "a partial word finds records containing it" not in query["description"]
+        wrong_in_both_directions = ("finds records containing it", "matches whole words")
+        for tool in ("salesforce_record_search_by_text", "salesforce_contact_search_by_text"):
+            described = BY_NAME[tool].input_schema["properties"]["query"]["description"]
+            for claim in wrong_in_both_directions:
+                assert claim not in described, f"{tool} is back to claiming {claim!r}"
+            assert "start of a word" in described, (
+                f"{tool} no longer says where a search term has to line up, which is "
+                f"the one thing about it that was got wrong twice."
+            )
 
     def test_the_missing_record_remedy_allows_for_an_unset_lookup(self) -> None:
         """A contact with no account produces the same 404 as a bad id.
