@@ -352,14 +352,41 @@ Executor connects, calls `tools/list`, and indexes all seventeen tools into its
 catalogue. Set a policy on each: the **eight write tools should need approval**,
 the **nine read tools can be always allowed**.
 
-Then point your agent at Executor, once, for everything:
+Then point your agents at Executor, once, for everything. **Which command
+depends on whether the app can speak HTTP**, and most desktop apps cannot.
+
+For **Claude Desktop**, and anything else whose config file takes only stdio
+servers, run Executor itself as the stdio server:
 
 ```bash
-npx add-mcp http://127.0.0.1:4789/mcp --transport http --name executor
+npx add-mcp "executor mcp" --name executor -a claude-desktop --global --yes
 ```
 
+For **CLI agents that do speak HTTP**, point them at the endpoint:
+
+```bash
+npx add-mcp http://127.0.0.1:4789/mcp --transport http --name executor -a claude-code --yes
+```
+
+Two things about that command that are easy to get wrong, both verified the
+hard way:
+
+- **It is interactive without `-a`.** Given no agent it opens a picker, and in
+  any non-TTY shell, a script or CI, it dies with `ERR_TTY_INIT_FAILED` and a
+  Node stack trace that says nothing about the cause. Always name the agent.
+- **Claude Desktop refuses HTTP outright.** `add-mcp` stops with "Claude
+  Desktop only supports local (stdio) servers via its config file". That is why
+  the first form exists. Use `npx add-mcp list-agents` to see the rest and
+  which transports each accepts.
+
 Restart your client, or open a new chat. Most MCP clients load servers only at
-startup, and this is the step people skip before deciding it is broken.
+startup, and this is the step people skip before deciding it is broken. On
+Claude Desktop, quit from the tray or menu bar: closing the window leaves it
+running.
+
+Either way the app now sees **Executor's seven tools, not this connector's
+seventeen**, and reaches the seventeen through the catalogue. That is the whole
+point, and it is what the token table below is measuring.
 
 Confirm two things, not one:
 
