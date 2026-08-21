@@ -15,7 +15,7 @@ reads it.
 network:**
 
 ```bash
-uv run pytest -q          # 993 tests, none of which touch Salesforce
+uv run pytest -q          # 997 tests, none of which touch Salesforce
 ```
 
 ### 0.1 How to read the commands in this document
@@ -89,6 +89,7 @@ same result wrong.
   - [8.1 Bad arguments do not come back as a protocol error](#81-bad-arguments-do-not-come-back-as-a-protocol-error)
   - [8.2 The nine, and what each one tells a model to do next](#82-the-nine-and-what-each-one-tells-a-model-to-do-next)
   - [8.3 Nothing is swallowed](#83-nothing-is-swallowed)
+  - [8.4 What every result carries besides the answer](#84-what-every-result-carries-besides-the-answer)
 - [9. Security](#9-security)
 - [10. Does the model pick the right tool?](#10-does-the-model-pick-the-right-tool)
   - [10.1 The numbers, and how they moved](#101-the-numbers-and-how-they-moved)
@@ -180,7 +181,7 @@ flowchart TD
     D -->|yes| E[Ready]
     D1 --> E
     E --> F["uv sync --all-extras --frozen"]
-    F --> G["uv run pytest -q gives 993 passed"]
+    F --> G["uv run pytest -q gives 997 passed"]
 ```
 
 ### 1.2 Quick start
@@ -214,7 +215,7 @@ Run the tests before anything else, because they need nothing from you:
 uv run pytest -q             # or just `pytest -q` if you activated the venv
 ```
 
-That should report **993 passed**, with no credentials, no org and no network.
+That should report **997 passed**, with no credentials, no org and no network.
 If it does, the install is sound and everything below is about configuration
 rather than about the code.
 
@@ -767,7 +768,7 @@ CRM without touching the MCP half.
 ### 1.8 Run the tests
 
 ```bash
-uv run pytest -q             # 993 tests, no credentials, no network
+uv run pytest -q             # 997 tests, no credentials, no network
 pytest -m security           # the attacks this connector must be immune to
 pytest -m smoke              # the server as a process, not as an import
 pytest -m performance        # costs that must not grow (a quiet machine, please)
@@ -848,22 +849,22 @@ it at a sandbox.
 The default run, on a clean checkout, with no credentials and no network:
 
 ```
-993 passed, 13 skipped, 43 deselected in 30.16s
+997 passed, 13 skipped, 43 deselected in 35.06s
 ```
 
 | | Count | Why it is that number |
 |---|---:|---|
-| **Passed** | **993** | |
+| **Passed** | **997** | |
 | Skipped | 13 | Platform-specific paths, and cases needing an org that the tier does not require |
 | Deselected | 38 | `performance` (8), `integration` (22), `learning` (8): excluded by marker, run by name |
 | **Expected failures** | **0** | Two known wording defects used to sit here. Both are fixed |
 | Failed | **0** | |
 
-Where the 1,006 collected tests live:
+Where the 1,010 collected tests live:
 
 | Tier | Tests | In the default run |
 |---|---:|---|
-| `unit` | 700 | yes |
+| `unit` | 704 | yes |
 | `contract` | 228 | yes |
 | `security` | 49 | yes |
 | `postman` | 17 | yes |
@@ -876,7 +877,7 @@ Where the 1,006 collected tests live:
 ```mermaid
 pie showData
     title Where the tests are
-    "unit" : 700
+    "unit" : 704
     "contract" : 228
     "security" : 49
     "integration" : 22
@@ -1398,12 +1399,21 @@ call and a timeout leaves nothing to recognise the retry by. Put the gate
 
 **Decision:** A call naming something this connector cannot do is refused with
 the full list of what it can do, a suggested correction **only** when the
-mistake was spelling rather than intent, and a plain instruction not to
-substitute a nearby tool.
+mistake was spelling rather than intent, a plain instruction not to substitute
+a nearby tool, and **somewhere for the person to go instead**: the record's own
+link, and the note that deleting, merging and converting live in its Actions
+menu.
 
-**Benefit:** That last part is the one that matters. Without it, a model refused
-a delete reaches for the update that looks similar and blanks the fields
-instead, which is worse than the delete it was refused.
+**Benefit:** The no-substitution part is the one that prevents damage. Without
+it, a model refused a delete reaches for the update that looks similar and
+blanks the fields instead, which is worse than the delete it was refused.
+
+The link is the part that makes the refusal useful rather than merely correct.
+This connector will never delete, merge, or convert: those are the operations
+where a mistake cannot be undone, so the refusal is permanent. A permanent
+refusal owes the person somewhere to go, and it used to end at "tell the user
+this connector cannot do it and stop there" -- accurate, and no help at all to
+somebody who still wants the record gone.
 
 **Technical detail:** Near-miss matching compares the **second** segment of the
 name, not the first. Names are `<object>_<action>_by_<key>`, so matching on the
@@ -1688,6 +1698,54 @@ success with an empty id. It now raises, saying there is no way to confirm what
 was written. A read-back that fails after a successful update used to fail the
 whole action, telling the caller the update had not happened when it had. It now
 warns and reports the write.
+
+### 8.4 What every result carries besides the answer
+
+Four things travel in `_meta` rather than in the payload. None belongs in the
+declared output schema: a caller validating against it should not find
+bookkeeping mixed in.
+
+| Key | What it is |
+|---|---|
+| `rate_limit` | How much of the org's API allowance is spent |
+| `duration_ms` | How long the caller waited, retries and the token fetch included |
+| `response_tokens` | About what this answer will cost the reader's context |
+| `record_url` | A link straight to the record, when the result names one |
+
+**`duration_ms` was measured all along and thrown away.** It went to the
+metrics and the audit log, both read by an operator afterwards. Nobody waiting
+for the answer saw it, and neither did the model deciding what to try next. It
+is reported on failures too, and that is where it matters more: a failure that
+took twenty seconds is a timeout worth backing off from, and one that took
+twenty milliseconds is a rejection worth fixing. The error code alone does not
+separate them.
+
+**`response_tokens` is an estimate and says so.** Four characters to a token,
+no tokenizer, no dependency, and no pretence of matching whichever model is
+reading. The decision it informs is whether a result cost about ninety tokens
+or about nine hundred, and an estimate answers that as well as a precise count.
+It counts the text blocks only: `structured_content` is the same data again and
+a host sends one or the other.
+
+**`record_url` is built from the record id alone**, never from the object name.
+Salesforce redirects a bare id to whatever it belongs to, and the generic tools
+take an object name from the caller, so a link built from a name the caller got
+wrong would point confidently at nothing. There is no link before the first
+call, when no token has been fetched and the instance is not yet known. A
+missing link is better than a guessed one.
+
+That link exists for one reason. This connector will never delete, merge, or
+convert a record: those are the operations where a mistake cannot be undone, so
+refusing them is the design rather than a gap in it. A permanent refusal owes
+the person somewhere to go, and "open Salesforce and find it yourself" is a
+worse answer than a link to the record with its Actions menu already on it.
+
+**One thing the connector cannot do is make a model print any of this.** It
+supplies the numbers; how a reply is formatted is the client's business. If you
+want a `time: 2748ms | tokens: 91` line at the end of every answer, put that
+instruction in your own client's custom instructions. It does not belong in
+seventeen tool descriptions, where it would be paid for on every catalogue
+search by everybody, whether they wanted the line or not.
 
 ## 9. Security
 
