@@ -56,7 +56,8 @@ same result wrong.
   - [2.2 Write](#22-write)
 - [3. What it costs to run](#3-what-it-costs-to-run)
   - [3.1 The one real defect this analysis found](#31-the-one-real-defect-this-analysis-found)
-  - [3.2 What was left alone, and why](#32-what-was-left-alone-and-why)
+  - [3.2 The number that actually reaches a user](#32-the-number-that-actually-reaches-a-user)
+  - [3.3 What was left alone, and why](#33-what-was-left-alone-and-why)
 - [4. What it costs at connect](#4-what-it-costs-at-connect)
 - [5. Configuration](#5-configuration)
   - [5.1 Required](#51-required)
@@ -982,7 +983,50 @@ is a frozen model, so one `@cache` is correct and changes no behaviour at all.
 | Per `tools/list` | 691 µs | **60 µs** | **11.5× faster** |
 | Per refusal | 963 µs | **380 µs** | **2.5× faster** |
 
-### 3.2 What was left alone, and why
+### 3.2 The number that actually reaches a user
+
+Everything above is measured in microseconds and every one of those figures is
+real. None of them is what somebody waiting on an answer experiences, and a
+section that stopped at the microseconds would be true and misleading.
+
+Measured against a live org, driving the real server:
+
+| | |
+|---|---:|
+| Process boot and MCP handshake | **1.31 s** |
+| First tool call, which also fetches the OAuth token | **1.87 s** |
+| Every call after that, in the same process | **0.24 to 0.44 s** |
+
+A warm connector answers in **under half a second**, and that half second is
+almost entirely Salesforce. That is the number to judge it by.
+
+**The catch is that it is rarely warm.** This server speaks stdio, so the
+gateway launches it as a subprocess, and with `docker run --rm` the process and
+its container end when the call does. `docker ps` between two calls shows
+nothing running. So each call pays boot and authentication again:
+
+**~3.2 s of cold start per call, to do 0.3 s of work.**
+
+That is the single largest cost in this connector, it dwarfs every optimisation
+in the section above, and it is not in the connector's gift to fix. Three
+things would:
+
+- **The gateway keeping the process alive** between calls, which is its
+  decision and not ours.
+- **A long-lived transport** instead of stdio, which the connector deliberately
+  does not implement, for the reasons in [stdio only, no
+  HTTP](#61-stdio-only-no-http). This is the strongest argument against that
+  choice and it belongs beside it.
+- **Caching the access token somewhere outside the process.** That is a
+  credential on disk, which is a worse trade than a slow call.
+
+One thing this is *not* an explanation for. A request in a desktop assistant
+that takes a minute or two is not spending it here. It is spending it on model
+inference: fetching the gateway's guide, writing code, running it, reading the
+result. Four round trips through a frontier model dwarf four cold starts. The
+connector's share of a two-minute answer is a few seconds of it.
+
+### 3.3 What was left alone, and why
 
 **Resolving a name is O(n), a linear scan over seventeen tools.** It could be a
 dictionary, and it is not worth it: the scan costs a microsecond, and a
