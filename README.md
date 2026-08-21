@@ -15,11 +15,32 @@ reads it.
 network:**
 
 ```bash
-pytest -q          # 994 tests, none of which touch Salesforce
+uv run pytest -q          # 993 tests, none of which touch Salesforce
 ```
+
+### 0.1 How to read the commands in this document
+
+Every instruction here is a command. Run them in a **terminal**, not in an
+editor's run button and not in a Python prompt, and use the right one for your
+machine:
+
+- **Windows: PowerShell.** Not Command Prompt. Where a command differs, there
+  is a second block marked `# Windows PowerShell` directly beneath the first.
+  Use that one.
+- **macOS and Linux:** any shell. Terminal, iTerm, whatever you already have.
+- **Anywhere:** run from the **project root**, the folder holding
+  `pyproject.toml`. Several things read `.env` from the working directory, so
+  running from elsewhere looks exactly like missing credentials.
+
+Where a step belongs to another tool, use that tool's own CLI rather than
+editing its files: `executor ...` for the gateway, `claude mcp ...`,
+`gemini mcp ...` and `codex mcp ...` for the assistants. Each is shown in
+place. Editing the config files by hand works and is the slower way to get the
+same result wrong.
 
 ## Contents
 
+  - [0.1 How to read the commands in this document](#01-how-to-read-the-commands-in-this-document)
 - [1. Getting started](#1-getting-started)
   - [1.1 Prerequisites](#11-prerequisites)
   - [1.2 Quick start](#12-quick-start)
@@ -192,7 +213,7 @@ Run the tests before anything else, because they need nothing from you:
 uv run pytest -q             # or just `pytest -q` if you activated the venv
 ```
 
-That should report **994 passed**, with no credentials, no org and no network.
+That should report **993 passed**, with no credentials, no org and no network.
 If it does, the install is sound and everything below is about configuration
 rather than about the code.
 
@@ -406,25 +427,102 @@ moving parts.
 
 #### 1.5.3 Straight to one desktop app, without Executor
 
-One command per app. It reads your `.env`, writes the config where that app
-looks for it, and tells you the path:
+Two routes. If the app ships its own CLI, use it. If it does not, this
+repository has a script that writes the file for you.
+
+##### Route A: the provider's own CLI
+
+Three of them can do it themselves. Every command below is one line, safe to
+paste, and reads credentials from your shell rather than from a file.
+
+**Anthropic, Claude Code:**
 
 ```bash
-python scripts/install_client.py --list          # what it knows about
-python scripts/install_client.py claude-desktop  # write it
-python scripts/install_client.py claude-desktop --dry-run   # look first
+claude mcp add salesforce --scope user \
+  /absolute/path/to/salesforce-mcp/.venv/bin/python \
+  /absolute/path/to/salesforce-mcp/mcp/server.py
 ```
 
-| App | Name to pass | Where it writes |
+```powershell
+claude mcp add salesforce --scope user C:\path\to\salesforce-mcp\.venv\Scripts\python.exe C:\path\to\salesforce-mcp\mcp\server.py
+```
+
+**Google, Gemini CLI:**
+
+```bash
+gemini mcp add salesforce --scope user \
+  /absolute/path/to/salesforce-mcp/.venv/bin/python \
+  /absolute/path/to/salesforce-mcp/mcp/server.py
+```
+
+```powershell
+gemini mcp add salesforce --scope user C:\path\to\salesforce-mcp\.venv\Scripts\python.exe C:\path\to\salesforce-mcp\mcp\server.py
+```
+
+**OpenAI, Codex CLI.** Note the `--` before the command, which Codex requires:
+
+```bash
+codex mcp add salesforce -- \
+  /absolute/path/to/salesforce-mcp/.venv/bin/python \
+  /absolute/path/to/salesforce-mcp/mcp/server.py
+```
+
+```powershell
+codex mcp add salesforce -- C:\path\to\salesforce-mcp\.venv\Scripts\python.exe C:\path\to\salesforce-mcp\mcp\server.py
+```
+
+Check it took, and remove it the same way:
+
+```bash
+claude mcp list
+gemini mcp list
+codex mcp list
+```
+
+```bash
+claude mcp remove salesforce
+gemini mcp remove salesforce
+codex mcp remove salesforce
+```
+
+All three take `-e KEY=value` (Codex spells it `--env KEY=VALUE`) if you would
+rather pass credentials on the command line than leave them in `.env`. They
+will be stored in that app's config file in clear text either way, which is
+worth knowing before you choose.
+
+##### Route B: the script in this repository
+
+For the apps with no CLI, and for all of them if you prefer one tool. It reads
+`.env`, writes the config where that app looks for it, and prints the path:
+
+```bash
+python scripts/install_client.py --list
+```
+
+```bash
+python scripts/install_client.py claude-desktop --dry-run
+```
+
+```bash
+python scripts/install_client.py claude-desktop
+```
+
+Swap the last word for any of these:
+
+```
+claude-desktop   codex   gemini   cursor   vscode   windsurf   zed   qwen
+```
+
+| App | Command | Writes to |
 |---|---|---|
-| **Claude Desktop** | `claude-desktop` | macOS `~/Library/Application Support/Claude/claude_desktop_config.json`<br>Windows `%APPDATA%\Claude\claude_desktop_config.json`<br>Linux `~/.config/Claude/claude_desktop_config.json` |
-| **OpenAI Codex CLI** | `codex` | `~/.codex/config.toml` |
-| **Gemini CLI** | `gemini` | `~/.gemini/settings.json` |
-| **Cursor** | `cursor` | `~/.cursor/mcp.json` |
-| **VS Code** (Copilot agent mode) | `vscode` | `.vscode/mcp.json` in this project |
-| **Windsurf** | `windsurf` | `~/.codeium/windsurf/mcp_config.json` |
-| **Zed** | `zed` | `~/.config/zed/settings.json` |
-| **Qwen Code** | `qwen` | `~/.qwen/settings.json` |
+| **Claude Desktop** | `python scripts/install_client.py claude-desktop` | macOS `~/Library/Application Support/Claude/claude_desktop_config.json`<br>Windows `%APPDATA%\Claude\claude_desktop_config.json`<br>Linux `~/.config/Claude/claude_desktop_config.json` |
+| **OpenAI Codex CLI** | `python scripts/install_client.py codex` | `~/.codex/config.toml` |
+| **Gemini CLI** | `python scripts/install_client.py gemini` | `~/.gemini/settings.json` |
+| **Cursor** | `python scripts/install_client.py cursor` | `~/.cursor/mcp.json` |
+| **VS Code** (Copilot agent mode) | `python scripts/install_client.py vscode` | `.vscode/mcp.json` in this project |
+| **Windsurf** | `python scripts/install_client.py windsurf` | `~/.codeium/windsurf/mcp_config.json` |
+| **Zed** | `python scripts/install_client.py zed` | `~/.config/zed/settings.json` |
+| **Qwen Code** | `python scripts/install_client.py qwen` | `~/.qwen/settings.json` |
 
 Every host wants the same three things, a command, its arguments and some
 environment, and then disagrees about where to put them and what to call them.
@@ -559,7 +657,7 @@ CRM without touching the MCP half.
 ### 1.8 Run the tests
 
 ```bash
-pytest -q                    # 994 tests, no credentials, no network
+uv run pytest -q             # 993 tests, no credentials, no network
 pytest -m security           # the attacks this connector must be immune to
 pytest -m smoke              # the server as a process, not as an import
 pytest -m performance        # costs that must not grow (a quiet machine, please)
@@ -640,25 +738,25 @@ it at a sandbox.
 The default run, on a clean checkout, with no credentials and no network:
 
 ```
-994 passed, 13 skipped, 38 deselected in 29.99s
+993 passed, 13 skipped, 43 deselected in 30.16s
 ```
 
 | | Count | Why it is that number |
 |---|---:|---|
-| **Passed** | **994** | |
+| **Passed** | **993** | |
 | Skipped | 13 | Platform-specific paths, and cases needing an org that the tier does not require |
 | Deselected | 38 | `performance` (8), `integration` (22), `learning` (8): excluded by marker, run by name |
 | **Expected failures** | **0** | Two known wording defects used to sit here. Both are fixed |
 | Failed | **0** | |
 
-Where the 1,007 collected tests live:
+Where the 1,006 collected tests live:
 
 | Tier | Tests | In the default run |
 |---|---:|---|
 | `unit` | 700 | yes |
 | `contract` | 228 | yes |
 | `security` | 49 | yes |
-| `postman` | 18 | yes |
+| `postman` | 17 | yes |
 | `regression` | 7 | yes |
 | `smoke` | 5 | yes |
 | `performance` | 8 | no, `-m performance` |
@@ -672,7 +770,7 @@ pie showData
     "contract" : 228
     "security" : 49
     "integration" : 22
-    "postman" : 18
+    "postman" : 17
     "performance" : 8
     "learning" : 8
     "regression" : 7
