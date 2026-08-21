@@ -20,43 +20,146 @@ pytest -q          # 994 tests, none of which touch Salesforce
 
 ## Contents
 
-- [Getting started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Quick start](#quick-start)
-  - [First test, with no Salesforce org at all](#first-test-with-no-salesforce-org-at-all)
-  - [Salesforce credentials](#salesforce-credentials)
-  - [Connect it to your agent](#connect-it-to-your-agent)
-  - [Call flow diagram](#call-flow-what-happens-to-one-tool-call)
-  - [Repository structure](#repository-structure)
-  - [Run the tests](#run-the-tests)
-  - [Test results](#test-results)
-- [The tools](#the-tools)
-- [What it costs at connect](#what-it-costs-at-connect)
-- [Configuration](#configuration)
-- [Design decisions and limitations](#design-decisions-and-limitations)
-- [Every file, and what it costs](#every-file-and-what-it-costs)
-- [How failures are handled](#how-failures-are-handled)
-- [Security](#security)
-- [Does the model pick the right tool?](#does-the-model-pick-the-right-tool)
-- [Conformance](#conformance)
-- [Changing a tool](#changing-a-tool)
+- [1. Getting started](#1-getting-started)
+  - [1.1 Prerequisites](#11-prerequisites)
+  - [1.2 Quick start](#12-quick-start)
+  - [1.3 First test, with no Salesforce org at all](#13-first-test-with-no-salesforce-org-at-all)
+  - [1.4 Salesforce credentials](#14-salesforce-credentials)
+  - [1.5 Connect it to your agent](#15-connect-it-to-your-agent)
+  - [1.6 Call flow: what happens to one tool call](#16-call-flow-what-happens-to-one-tool-call)
+  - [1.7 Repository structure](#17-repository-structure)
+  - [1.8 Run the tests](#18-run-the-tests)
+  - [1.9 Test results](#19-test-results)
+- [2. The tools](#2-the-tools)
+  - [2.1 Read](#21-read)
+  - [2.2 Write](#22-write)
+- [3. What it costs to run](#3-what-it-costs-to-run)
+  - [3.1 The one real defect this analysis found](#31-the-one-real-defect-this-analysis-found)
+  - [3.2 What was left alone, and why](#32-what-was-left-alone-and-why)
+- [4. What it costs at connect](#4-what-it-costs-at-connect)
+- [5. Configuration](#5-configuration)
+  - [5.1 Required](#51-required)
+  - [5.2 Everything else has a default](#52-everything-else-has-a-default)
+- [6. Design decisions and limitations](#6-design-decisions-and-limitations)
+  - [6.1 stdio only, no HTTP](#61-stdio-only-no-http)
+  - [6.2 No router of our own](#62-no-router-of-our-own)
+  - [6.3 Every write needs a person](#63-every-write-needs-a-person)
+  - [6.4 Record text is data, never instruction](#64-record-text-is-data-never-instruction)
+  - [6.5 One tool, one end-to-end action](#65-one-tool-one-end-to-end-action)
+  - [6.6 Nine failure types, not one per Salesforce error code](#66-nine-failure-types-not-one-per-salesforce-error-code)
+  - [6.7 An idempotency key on every write](#67-an-idempotency-key-on-every-write)
+  - [6.8 A tool that does not exist gets a real answer](#68-a-tool-that-does-not-exist-gets-a-real-answer)
+  - [6.9 The low-level `Server`, not the decorator API](#69-the-low-level-server-not-the-decorator-api)
+  - [6.10 Descriptions are the product](#610-descriptions-are-the-product)
+  - [6.11 Resources and prompts are not served](#611-resources-and-prompts-are-not-served)
+  - [6.12 Nothing is hardcoded](#612-nothing-is-hardcoded)
+- [7. Every file, and what it costs](#7-every-file-and-what-it-costs)
+  - [7.1 Entry point and protocol](#71-entry-point-and-protocol)
+  - [7.2 The tools](#72-the-tools)
+  - [7.3 Schemas](#73-schemas)
+  - [7.4 Transport](#74-transport)
+  - [7.5 Failure and recovery](#75-failure-and-recovery)
+  - [7.6 Approval and identity](#76-approval-and-identity)
+  - [7.7 Observability](#77-observability)
+- [8. How failures are handled](#8-how-failures-are-handled)
+  - [8.1 Bad arguments do not come back as a protocol error](#81-bad-arguments-do-not-come-back-as-a-protocol-error)
+  - [8.2 The nine, and what each one tells a model to do next](#82-the-nine-and-what-each-one-tells-a-model-to-do-next)
+  - [8.3 Nothing is swallowed](#83-nothing-is-swallowed)
+- [9. Security](#9-security)
+- [10. Does the model pick the right tool?](#10-does-the-model-pick-the-right-tool)
+  - [10.1 The numbers, and how they moved](#101-the-numbers-and-how-they-moved)
+  - [10.2 Per tool, across all three runs](#102-per-tool-across-all-three-runs)
+  - [10.3 What the nine remaining misses actually are](#103-what-the-nine-remaining-misses-actually-are)
+  - [10.4 The case set checks itself](#104-the-case-set-checks-itself)
+- [11. Conformance](#11-conformance)
+  - [11.1 Tool design](#111-tool-design)
+  - [11.2 What this connector does to an agent that plans](#112-what-this-connector-does-to-an-agent-that-plans)
+  - [11.3 Protocol](#113-protocol)
+- [12. Changing a tool](#12-changing-a-tool)
+- [13. Licence](#13-licence)
 
-## Getting started
+## 1. Getting started
 
-### Prerequisites
+### 1.1 Prerequisites
 
-| | Why | If you do not have it |
-|---|---|---|
-| **Python 3.12+** *or* **Docker** | Runs the connector. Pick either | [python.org/downloads](https://www.python.org/downloads) or [docker.com/get-started](https://www.docker.com/get-started) |
-| **Node.js 20+** | Runs Executor, the gateway that fronts this connector | [nodejs.org](https://nodejs.org), or `winget install OpenJS.NodeJS` / `brew install node` |
-| **Executor** | One MCP endpoint shared by every agent, so you configure this connector once instead of once per client | `npm install -g executor` |
-| **A Salesforce sandbox** | Three values: a Consumer Key, a username, and a private key you generate | [Salesforce credentials](#salesforce-credentials) |
+| | Why |
+|---|---|
+| **Python 3.12+** *or* **Docker** | Runs the connector. Pick either |
+| **Node.js 20+** | Runs Executor, the gateway that fronts this connector |
+| **Executor** | One MCP endpoint shared by every agent, so you configure this connector once instead of once per client |
+| **A Salesforce org** | The only one you cannot install. See [Salesforce credentials](#14-salesforce-credentials) |
+
+**Check what you already have.** Anything that prints a version is done:
+
+```bash
+python --version && node --version && executor --version && docker --version
+```
+
+```powershell
+# Windows PowerShell
+python --version; node --version; executor --version; docker --version
+```
+
+**Install whatever is missing.** One block per platform, top to bottom, safe to
+re-run:
+
+```bash
+# macOS
+brew install python@3.12 node
+brew install --cask docker
+npm install -g executor
+```
+
+```powershell
+# Windows
+winget install Python.Python.3.12
+winget install OpenJS.NodeJS
+winget install Docker.DockerDesktop
+npm install -g executor
+```
+
+```bash
+# Linux (Debian/Ubuntu)
+sudo apt update && sudo apt install -y python3.12 python3.12-venv
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
+curl -fsSL https://get.docker.com | sudo sh
+npm install -g executor
+```
+
+Node has to be installed before Executor: `npm` ships with it. Docker Desktop
+needs opening once after install so the daemon is running. And you can skip
+Docker entirely if you took the Python route, or Python entirely if you took
+Docker.
+
+Then confirm the two that run as services:
+
+```bash
+executor install && executor daemon status
+```
 
 You need none of it to review the code. The test suite runs with no
 credentials, no org, and no network, and that is deliberate rather than
 convenient: a test that needs a live org is a test nobody runs.
 
-### Quick start
+```mermaid
+flowchart TD
+    A[Have Python 3.12 or Docker?] -->|no| A1[install one of them]
+    A -->|yes| B[Have Node 20+?]
+    A1 --> B
+    B -->|no| B1[install Node, npm comes with it]
+    B -->|yes| C[Have Executor?]
+    B1 --> C
+    C -->|no| C1["npm install -g executor"]
+    C -->|yes| D[Have a Salesforce org?]
+    C1 --> D
+    D -->|no| D1[Sign up. This is the only step<br/>no command can do for you]
+    D -->|yes| E[Ready]
+    D1 --> E
+    E --> F["uv sync --all-extras --frozen"]
+    F --> G["uv run pytest -q gives 993 passed"]
+```
+
+### 1.2 Quick start
 
 Clone and install. The repository is private, so this needs an account with
 access to it:
@@ -123,7 +226,7 @@ Three mistakes to avoid:
 If a required variable is missing, the server stops at startup and names the
 one it needs, rather than accepting calls that can only fail.
 
-### First test, with no Salesforce org at all
+### 1.3 First test, with no Salesforce org at all
 
 The fastest check does not need Salesforce, credentials, or a network. It
 launches the server as a real process and asks it what tools it has:
@@ -145,7 +248,7 @@ it:
 python scripts/check_connection.py
 ```
 
-### Salesforce credentials
+### 1.4 Salesforce credentials
 
 Three values, and only one of them is secret.
 
@@ -177,9 +280,9 @@ SF_PRIVATE_KEY=<paste server.key, or a single line with \n between lines>
 The connector repairs a key that had to travel on one line, because container
 runtimes and CI secret stores generally cannot hold a multi-line value.
 
-### Connect it to your agent
+### 1.5 Connect it to your agent
 
-#### Through Executor, which is the recommended route
+#### 1.5.1 Through Executor, which is the recommended route
 
 Executor is a gateway. You register this connector with it once, and Claude
 Code, Cursor, and anything else MCP-compatible all reach it through the same
@@ -246,7 +349,7 @@ The first says the tools were indexed. The second says the catalogue can
 actually find them, which is what a model depends on and the only half that can
 be silently wrong.
 
-#### Registering without the browser
+#### 1.5.2 Registering without the browser
 
 The whole setup can be done from the CLI, with no HTTP client and no hunting
 for an auth token. Executor publishes its own management functions as tools, so
@@ -299,7 +402,7 @@ Everything above is also an HTTP API if you would rather script it that way:
 `~/.executor/server-control/auth.json`. Same operations, same shapes, more
 moving parts.
 
-#### Straight to one MCP host, without Executor
+#### 1.5.3 Straight to one MCP host, without Executor
 
 `examples/mcp_client_config.json` has two ready-to-paste entries for an MCP
 host's `mcpServers` object: one that runs the Docker image, one that runs
@@ -309,9 +412,9 @@ This works, and it is what a reviewer reading the repository will do. It is
 also the expensive way: all seventeen tools land in context at startup, about
 29,445 tokens, because a client fetches the whole list and there is nothing in
 front of it to keep them in a catalogue. See
-[What it costs at connect](#what-it-costs-at-connect).
+[What it costs at connect](#4-what-it-costs-at-connect).
 
-### Call flow: what happens to one tool call
+### 1.6 Call flow: what happens to one tool call
 
 ```mermaid
 flowchart TD
@@ -345,7 +448,7 @@ before the ledger, so nothing is recorded for a write a person never saw. The
 **ledger records the key before the call and completes it after**, which is the
 only way to survive the gap between a write leaving and its answer arriving.
 
-### Repository structure
+### 1.7 Repository structure
 
 Each directory does one job, and the boundary between the two halves is
 enforced by a test rather than by convention.
@@ -375,7 +478,42 @@ The MCP layer knows nothing about Salesforce, and the Salesforce layer knows
 nothing about MCP. A test asserts it: the moment an endpoint or a field name
 appears in `protocol/`, the core has stopped being reusable.
 
-### Run the tests
+That boundary is the shape of the whole package:
+
+```mermaid
+flowchart TB
+    subgraph P["protocol -- speaks MCP, knows no Salesforce"]
+        direction LR
+        P1[server.py<br/>lifecycle]
+        P2[surface.py<br/>publish and refuse]
+        P3[translate.py<br/>types and the data fence]
+    end
+    subgraph A["actions and schemas -- one file per tool"]
+        direction LR
+        A1[17 actions]
+        A2[17 input and<br/>output schemas]
+    end
+    subgraph S["shared machinery"]
+        direction LR
+        S1[approval/<br/>signed gate]
+        S2[replay/<br/>ledger, journal]
+        S3[errors/<br/>nine types]
+    end
+    subgraph T["transport -- the only code that opens a socket"]
+        direction LR
+        T1[client.py<br/>+ org-URL guard]
+        T2[ratelimit.py]
+        T3[auth/]
+    end
+    P --> A --> S --> T --> SF[(Salesforce)]
+```
+
+Read it downward and each layer only knows the one beneath it. Read it upward
+and nothing about Salesforce reaches `protocol/`, which is the property the
+test defends: it is what would let this connector be re-pointed at a different
+CRM without touching the MCP half.
+
+### 1.8 Run the tests
 
 ```bash
 pytest -q                    # 994 tests, no credentials, no network
@@ -426,7 +564,7 @@ The assertions that matter in it are the shape ones, which hold on any machine:
 that a ledger lookup costs the same at ten thousand keys as at ten, that the
 call budget admits exactly the number it was configured for.
 
-#### Postman
+#### 1.8.1 Postman
 
 `tests/postman/` holds a collection with two folders: the gateway, and the
 Salesforce endpoints behind it.
@@ -454,7 +592,7 @@ platform disagree, this is where you find out which is right. Its writes reach
 a real org, so each is gated behind `allow_writes`, which ships `false`. Point
 it at a sandbox.
 
-### Test results
+### 1.9 Test results
 
 The default run, on a clean checkout, with no credentials and no network:
 
@@ -514,11 +652,11 @@ be fixed. It is an executable statement of what "fixed" means, it cannot be
 forgotten, and it turns red again the moment somebody words it back the old
 way. Both are fixed and both markers are gone.
 
-## The tools
+## 2. The tools
 
 Nine read, eight write. Every write requires approval before it runs.
 
-### Read
+### 2.1 Read
 
 | Tool | What it is for |
 |---|---|
@@ -532,7 +670,7 @@ Nine read, eight write. Every write requires approval before it runs.
 | `salesforce_tool_list_by_kind` | Name the tools that read, or the tools that change, each with what it is for |
 | `salesforce_tool_describe_by_name` | Report one tool's fields, the exact type each expects, and a worked call |
 
-### Write
+### 2.2 Write
 
 | Tool | What it is for |
 |---|---|
@@ -549,7 +687,7 @@ Every write also requires an `idempotency_key`. That is the field that makes a
 retry safe, and it is required rather than optional because a caller who forgets
 it only finds out when a duplicate already exists.
 
-## What it costs to run
+## 3. What it costs to run
 
 Two different costs, and they are worth separating. The one above is paid in
 tokens, once per connection. This one is paid in time, on every call.
@@ -572,7 +710,7 @@ writes a process has seen.
 | Ledger lookup | every write | O(1) | **0.1 µs** |
 | Classify an error | on a failure | O(1) cached | negligible |
 
-### The one real defect this analysis found
+### 3.1 The one real defect this analysis found
 
 Resolving a name against a list already in hand takes about a microsecond.
 Dispatch was taking **602**, and every microsecond of the difference was
@@ -594,7 +732,7 @@ is a frozen model, so one `@cache` is correct and changes no behaviour at all.
 | Per `tools/list` | 691 µs | **60 µs** | **11.5× faster** |
 | Per refusal | 963 µs | **380 µs** | **2.5× faster** |
 
-### What was left alone, and why
+### 3.2 What was left alone, and why
 
 **Resolving a name is O(n), a linear scan over seventeen tools.** It could be a
 dictionary, and it is not worth it: the scan costs a microsecond, and a
@@ -623,7 +761,7 @@ because eviction is not free either: an evicted key means a retry re-executes,
 which is the exact duplicate the ledger exists to prevent. A large bound is
 almost certainly right; a small one would be worse than none.
 
-## What it costs at connect
+## 4. What it costs at connect
 
 Every MCP client fetches the tool list when it starts and holds it in context
 for the whole session, before the user has said anything. That fetch is the
@@ -635,7 +773,16 @@ number below.
 | Behind Executor | 7 | 2,143 | **92.7% less** |
 | Behind Executor, `?artifacts=false` | 3 | 393 | **98.7% less** |
 
-Executor publishes three tools of its own (`execute`, `skills`, `resume`) and
+```mermaid
+xychart-beta
+    title "Tokens spent before the user has said anything"
+    x-axis ["Direct", "Behind Executor", "Executor, no artifacts"]
+    y-axis "Tokens at connect" 0 --> 30000
+    bar [29445, 2143, 393]
+```
+
+The last two bars are almost invisible against the first, which is the shape of
+the argument. Executor publishes three tools of its own (`execute`, `skills`, `resume`) and
 four more for rendering artifacts, which its endpoint can be told to leave out.
 It never shows the model this connector's seventeen. They live in a catalogue
 that generated code searches at runtime, which is why seventeen tools cost 393
@@ -666,11 +813,11 @@ passes its ceiling, or if any single tool grows past a quarter of the whole. It
 does not check the other two rows, which need a live Executor with this
 connector registered. Those are measured, not tested.
 
-## Configuration
+## 5. Configuration
 
 Everything the connector reads. Full annotations are in `.env.example`.
 
-### Required
+### 5.1 Required
 
 | Variable | |
 |---|---|
@@ -678,7 +825,7 @@ Everything the connector reads. Full annotations are in `.env.example`.
 | `SF_USERNAME` | The integration user to act as |
 | `SF_PRIVATE_KEY` | The private key whose public half Salesforce holds |
 
-### Everything else has a default
+### 5.2 Everything else has a default
 
 | Variable | Default | |
 |---|---|---|
@@ -696,13 +843,13 @@ Everything the connector reads. Full annotations are in `.env.example`.
 | `SF_MAX_QUERY_ROWS` | `200` | The row ceiling a query or a relationship is held to |
 | `SF_MAX_FIELD_CHARACTERS` | `4000` | How wide one text value may be before it is shortened and says so |
 
-## Design decisions and limitations
+## 6. Design decisions and limitations
 
 The choices that are not obvious from reading the code, why each was made, and
 what each one costs. Nothing here is free, and the limitation under each is the
 part worth reading.
 
-### stdio only, no HTTP
+### 6.1 stdio only, no HTTP
 
 **Decision:** This server speaks stdio and nothing else. An MCP host launches it
 as a subprocess. There is no port, no HTTP endpoint, and no session layer.
@@ -722,7 +869,7 @@ put a gateway in front, which is what Executor is for. That is a real
 constraint and not a hypothetical one: a hosted agent on another machine cannot
 use this connector without something in between.
 
-### No router of our own
+### 6.2 No router of our own
 
 **Decision:** Every tool is published to every client, identically, on every
 connection. This connector used to publish two doors behind an
@@ -745,7 +892,7 @@ connector is expensive. That is the 29,445-token row in the table above, and it
 is the configuration a reviewer opening the repository will use first. The
 cheap number requires infrastructure that the repository itself cannot ship.
 
-### Every write needs a person
+### 6.3 Every write needs a person
 
 **Decision:** A write arriving without `approved: true` is refused, and the
 refusal says so. The approval is a signed token that expires after ten minutes
@@ -767,7 +914,7 @@ and upserting a thousand records by external id carry very different weight and
 get the same window. There is no per-tool or per-risk approval policy here, and
 adding one belongs in the gateway rather than in this connector.
 
-### Record text is data, never instruction
+### 6.4 Record text is data, never instruction
 
 **Decision:** Everything read out of Salesforce comes back inside a marker
 carrying a random suffix minted for that individual response. The rule for
@@ -789,7 +936,7 @@ its own system prompt is not stopped by a marker. The defence raises the cost
 of an injection and does not make one impossible, and no prompt-level defence
 can.
 
-### One tool, one end-to-end action
+### 6.5 One tool, one end-to-end action
 
 **Decision:** Tools map to intents, not to REST endpoints.
 `salesforce_opportunity_create_with_contact_by_id` is one call, backed by one
@@ -810,7 +957,7 @@ generated set of a hundred would. A request this connector has no intent for
 gets refused rather than assembled from parts. That refusal is deliberate, and
 it is still a smaller surface.
 
-### Nine failure types, not one per Salesforce error code
+### 6.6 Nine failure types, not one per Salesforce error code
 
 **Decision:** Every failure maps to one of nine: configuration invalid,
 authentication failed, permission denied, invalid input, record not found,
@@ -831,7 +978,7 @@ a label saying "this one was transient." A failure mode nobody has seen before
 needs a person to decide which of the nine it belongs to, and until then it
 lands in the most conservative bucket rather than the most accurate one.
 
-### An idempotency key on every write
+### 6.7 An idempotency key on every write
 
 **Decision:** Every write tool requires an `idempotency_key`. The ledger records
 it before the call goes out and completes it after the answer comes back.
@@ -852,7 +999,43 @@ protects a retry inside one session, not across a restart. Making it survive
 would mean a datastore, which means state to operate, back up, and expire, and
 that is a deliberate trade rather than an oversight.
 
-### A tool that does not exist gets a real answer
+The safety comes entirely from the **order** of these steps, which is why it is
+worth drawing. Both gates close before the write leaves, and the key is written
+down before anything can go wrong rather than after:
+
+```mermaid
+sequenceDiagram
+    participant M as Model
+    participant G as Approval gate
+    participant L as Ledger
+    participant SF as Salesforce
+
+    M->>G: write, with approved and an idempotency key
+    alt not approved, expired, or arguments changed
+        G-->>M: refused. Nothing recorded, nothing sent
+    else approved for these exact arguments
+        G->>L: key recorded as in flight
+        Note over L: written BEFORE the call,<br/>so a crash here is still known about
+        L->>SF: PATCH / POST
+        alt answered
+            SF-->>L: record id
+            L->>L: key completed, with the outcome
+            L-->>M: result
+        else timed out, so it may already have applied
+            SF--xL: no answer
+            L-->>M: retry with the SAME key
+            M->>G: retry
+            G->>L: key already known
+            L-->>M: the original outcome, with a warning.<br/>No second record
+        end
+    end
+```
+
+Reverse any two steps and the guarantee is gone. Record the key *after* the
+call and a timeout leaves nothing to recognise the retry by. Put the gate
+*after* the ledger and a refused write still leaves a key behind.
+
+### 6.8 A tool that does not exist gets a real answer
 
 **Decision:** A call naming something this connector cannot do is refused with
 the full list of what it can do, a suggested correction **only** when the
@@ -876,7 +1059,7 @@ using words that happen to resemble an existing tool still gets that tool
 offered, and only the "do not substitute" instruction stands between that and a
 wrong call.
 
-### The low-level `Server`, not the decorator API
+### 6.9 The low-level `Server`, not the decorator API
 
 **Decision:** The MCP SDK's low-level `Server` class is used directly, rather
 than the decorator API that derives tools from function signatures.
@@ -894,7 +1077,7 @@ the schema sees an envelope that has nothing to do with the task.
 the SDK that changes the low-level interface affects this connector more than
 it would affect a decorator-based one.
 
-### Descriptions are the product
+### 6.10 Descriptions are the product
 
 **Decision:** A model reads nothing but the description, so the descriptions are
 tested like code. Every published example is validated against its own schema,
@@ -918,7 +1101,7 @@ still misdescribe the endpoint it calls. Two such cases are known and currently
 pinned as expected failures; finding them took reading each tool against
 Salesforce's own documentation, and nothing automated would have caught either.
 
-### Resources and prompts are not served
+### 6.11 Resources and prompts are not served
 
 **Decision:** The protocol defines three server primitives. This connector
 serves one: tools.
@@ -934,7 +1117,7 @@ URIs is the cautionary example in the protocol literature, not a feature.
 that browses resource URIs rather than calling tools would see this connector as
 empty. That is a bet on how hosts behave, and it could age badly.
 
-### Nothing is hardcoded
+### 6.12 Nothing is hardcoded
 
 **Decision:** Every timeout, ceiling, retry count, rate limit, and TTL is read
 from the environment and validated once at startup.
@@ -951,7 +1134,7 @@ on the first tool call, where a model sees it and cannot fix it.
 value means restarting, which could surprise someone who edits `.env` and waits
 for the change to take effect.
 
-## Every file, and what it costs
+## 7. Every file, and what it costs
 
 The section above is thematic. This one is structural: each file, what was
 chosen there, what was rejected, and what the choice buys or spends in latency,
@@ -961,7 +1144,7 @@ saying which is the useful part.
 "Cost" means tokens or Salesforce API quota, not money directly. Both become
 money, at different rates.
 
-### Entry point and protocol
+### 7.1 Entry point and protocol
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
@@ -976,7 +1159,7 @@ key. That nesting measurably raises malformed calls, because a model reading
 the schema sees an envelope with nothing to do with the task. Every malformed
 call is a wasted round trip and a wasted retry.
 
-### The tools
+### 7.2 The tools
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
@@ -991,7 +1174,7 @@ expensive way round. Checking costs a describe call on the most common write.
 Not checking costs nothing until somebody's pipeline report is quietly wrong,
 and a quiet failure is the one you cannot price.
 
-### Schemas
+### 7.3 Schemas
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
@@ -1000,7 +1183,7 @@ and a quiet failure is the one you cannot price.
 | `schemas/plain_types.py` | showing raw JSON Schema types | none | a shorter, plainer line than `{"anyOf": [...]}` | a model that reads "a number, written in digits" does not send the word "one" |
 | `contract.py`, `immutable.py` | shallow `frozen=True` | one pass per response | one pass per response | pydantic freezes attributes and not the containers inside them; without the deep freeze a caller can mutate a result and the next reader sees something Salesforce never sent |
 
-### Transport
+### 7.4 Transport
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
@@ -1013,7 +1196,7 @@ problem inside a call that merely looks slow, and lets a backlog build that
 nobody asked for. A refusal that says how many seconds to wait is something the
 caller can act on, which is the entire point of the error taxonomy.
 
-### Failure and recovery
+### 7.5 Failure and recovery
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
@@ -1023,7 +1206,7 @@ caller can act on, which is the entire point of the error taxonomy.
 | `replay/ledger.py` | no deduplication | O(1) lookup, flat at ten thousand keys | no datastore to run | the only thing standing between a dropped packet and a **second contact**. Costs O(k) memory that is never evicted |
 | `replay/journal.py` | starting a multi-step write over | resumes from the last finished step | does not redo completed work | a partial write is never reported as success or as clean failure |
 
-### Approval and identity
+### 7.6 Approval and identity
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
@@ -1033,20 +1216,20 @@ caller can act on, which is the entire point of the error taxonomy.
 | `auth/client_credentials.py` | nothing; it is the fallback | same | same | simpler, and it does transmit a secret. Which is why it is not the default |
 | `config.py` | reading values where they are used | validated once, at startup | none | production is refused unless `SF_ALLOW_PRODUCTION` is set, so a mistyped login URL cannot reach real customer data |
 
-### Observability
+### 7.7 Observability
 
 | File | Chosen over | Latency | Cost | Security |
 |---|---|---|---|---|
 | `observability.py` | hand-rolled JSON to stdout | `cache_logger_on_first_use` on the hot path | no payloads means small logs | **stdout belongs to JSON-RPC**: one stray line corrupts the stream and ends the session, which is why `print` is banned by lint. Record values are never logged, because contacts carry names, emails and phone numbers |
 | `openapi.py` | maintaining a spec by hand | none | none | generated from the registry, so it cannot promise an action the registry does not have |
 
-## How failures are handled
+## 8. How failures are handled
 
 A tool that fails silently is worse than one that fails loudly, because the
 model proceeds as though it worked. Every failure here comes back as a result
 the model can read and act on.
 
-### Bad arguments do not come back as a protocol error
+### 8.1 Bad arguments do not come back as a protocol error
 
 The MCP specification puts tool execution errors inside the result rather than
 in a JSON-RPC error, because a protocol error is handled by the client's
@@ -1070,7 +1253,44 @@ will fail identically.
 Schema staleness, the usual cause of `-32602`, cannot happen: schemas are built
 at import time, so within one process the published list is frozen.
 
-### Nothing is swallowed
+### 8.2 The nine, and what each one tells a model to do next
+
+Salesforce has hundreds of error codes. A caller does not need to tell them
+apart; it needs to know which of a very small number of things to do. These are
+the only answers there are:
+
+```mermaid
+flowchart TD
+    F[A call failed] --> Q1{Would the identical<br/>call ever work?}
+
+    Q1 -->|yes, later| T[WAIT, then repeat<br/>the identical call]
+    T --> T1["salesforce.rate_limited<br/>wait the stated seconds"]
+    T --> T2["salesforce.transport_failed<br/>same key, so no duplicate"]
+
+    Q1 -->|not as sent| I[FIX THE CALL.<br/>Retrying unchanged fails identically]
+    I --> I1["connector.invalid_input<br/>the field is named"]
+
+    Q1 -->|no| Q2{Can the caller<br/>do anything about it?}
+
+    Q2 -->|find the right thing first| R[DO NOT RETRY.<br/>Act on what is really there]
+    R --> R1["salesforce.record_not_found"]
+    R --> R2["salesforce.conflict<br/>ids of what already exists"]
+
+    Q2 -->|only an administrator can| P[REPORT IT]
+    P --> P1["salesforce.permission_denied"]
+    P --> P2["salesforce.authentication_failed"]
+    P --> P3["salesforce.configuration_invalid"]
+
+    Q2 -->|a person must repair state| E[ESCALATE, with the<br/>manual recovery procedure]
+    E --> E1["connector.escalate<br/>names the orphaned records"]
+```
+
+The tree is the point, not the count. Nine exists because that is how many
+distinct answers the four questions produce, and every failure carries its
+`next_step` already written, so a model never has to infer which branch it is
+on from an error string.
+
+### 8.3 Nothing is swallowed
 
 A write that Salesforce accepted but answered without a record id used to report
 success with an empty id. It now raises, saying there is no way to confirm what
@@ -1078,7 +1298,7 @@ was written. A read-back that fails after a successful update used to fail the
 whole action, telling the caller the update had not happened when it had. It now
 warns and reports the write.
 
-## Security
+## 9. Security
 
 **Every write needs a person.** The approval token is signed, expires after ten
 minutes, and is bound to a digest of the exact arguments shown to the user. The
@@ -1102,7 +1322,7 @@ values are never logged at all. CI scans the whole git history with gitleaks.
 with `--frozen`; the image installs the same export with `--require-hashes`, so
 a substituted artefact fails the build rather than shipping inside it.
 
-## Does the model pick the right tool?
+## 10. Does the model pick the right tool?
 
 Tests prove a tool works when it is called correctly. They say nothing about
 whether a model chooses it in the first place, which is what a tool's name and
@@ -1122,7 +1342,7 @@ measures the descriptions as a host actually receives them.
 `tools` array. That isolates the connector from any host's own prompt and tools,
 which makes the number cleaner and less representative.
 
-### The numbers, and how they moved
+### 10.1 The numbers, and how they moved
 
 Three runs are saved in `runs/`, and they are kept rather than overwritten
 because the first one is the most instructive of the three.
@@ -1173,7 +1393,7 @@ xychart-beta
     bar [3.41, 2.58, 1.29]
 ```
 
-### Per tool, across all three runs
+### 10.2 Per tool, across all three runs
 
 Each cell is how many of that tool's cases the model chose correctly, out of the
 four it was given. The colour is the same number, so the table can be read at a
@@ -1213,7 +1433,7 @@ negatives. So read the **shape** rather than the arithmetic: the whole write
 half of the connector sitting at 🟥 in run 1 is the signature of a harness that
 could not call a write at all, not of thirteen badly written descriptions.
 
-### What the nine remaining misses actually are
+### 10.3 What the nine remaining misses actually are
 
 | Misses | Tool | Verdict |
 |---:|---|---|
@@ -1253,7 +1473,7 @@ this one is built to refuse what it cannot do, so the refusal is the half worth
 measuring. Run 2 is the one that shows it: **11 out of 11**, on prompts asking
 for things this connector does not offer, deleting a record among them.
 
-### The case set checks itself
+### 10.4 The case set checks itself
 
 `evals/happy_path.jsonl` is generated, not hand-written:
 
@@ -1269,7 +1489,7 @@ declined to invent one, which is correct and is exactly what this connector is
 built to do, and the eval recorded the refusal as a wrong choice. A prompt a
 model cannot act on measures nothing about whether it would have chosen well.
 
-## Conformance
+## 11. Conformance
 
 Three separate questions, and they are not the same question. Are the tools
 designed well? Does the connector help or hinder an agent that has to plan? And
@@ -1277,7 +1497,7 @@ does it implement the protocol correctly? The protocol audit is the one people
 ask for and the one that found the least. Tool design is the one that changed
 the code.
 
-### Tool design
+### 11.1 Tool design
 
 Five rules I hold this tool set to, each checked against the code rather than
 against the description of the code.
@@ -1380,7 +1600,7 @@ run: the eval observed `contact_update_by_id` losing a case to
 title, or account" and the prompt said *department*), and the fix is a
 description change, not a model change.
 
-### What this connector does to an agent that plans
+### 11.2 What this connector does to an agent that plans
 
 A connector has no plan of its own. It still decides how hard planning is for
 whatever is calling it, in three ways.
@@ -1408,7 +1628,7 @@ an agent that plans across several calls, which is the only way it will
 actually be used. Single-step scores say nothing about whether a model recovers
 from the third failure of a five-step sequence.
 
-### Protocol
+### 11.3 Protocol
 
 Measured against the current specification, which wins wherever anything else
 disagrees with it. Most secondary material predates protocol revision
@@ -1458,7 +1678,7 @@ everything on that list except the arguments, and we log no payloads at all.
 More conservative, and it costs something concrete: after an incident you know
 which tool was called and not with what.
 
-## Changing a tool
+## 12. Changing a tool
 
 MCP has no per-tool versioning. A tool's name is the only identifier a client
 uses, and clients cache the tool list. So:
@@ -1473,6 +1693,6 @@ uses, and clients cache the tool list. So:
 Both rules are enforced by review, not by a test, which is why they are written
 here.
 
-## Licence
+## 13. Licence
 
 MIT. See [LICENSE](LICENSE).
