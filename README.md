@@ -401,22 +401,37 @@ be silently wrong.
 
 ##### Claude Code, specifically
 
-Claude Code speaks HTTP, so it can point straight at the endpoint. `--scope
-user` makes it available in every project rather than only this one:
+Claude Code speaks HTTP, so it can point straight at the endpoint. Two things
+it needs: `--scope user`, so it is available in every project rather than only
+the directory you ran it in, and **the bearer token**, without which the
+endpoint answers with an error page and Claude Code reports
+`JSON Parse error: Unrecognized token '<'`:
 
 ```bash
-claude mcp add --transport http executor http://127.0.0.1:4789/mcp --scope user
+TOKEN=$(jq -r .token ~/.executor/server-control/auth.json)
+
+claude mcp add --transport http executor http://127.0.0.1:4789/mcp   --scope user --header "Authorization: Bearer $TOKEN"
 ```
 
 ```powershell
-claude mcp add --transport http executor http://127.0.0.1:4789/mcp --scope user
+# Windows PowerShell
+$TOKEN = (Get-Content "$env:USERPROFILE\.executor\server-controluth.json" | ConvertFrom-Json).token
+claude mcp add --transport http executor http://127.0.0.1:4789/mcp --scope user --header "Authorization: Bearer $TOKEN"
 ```
+
+That token is why Claude Desktop takes the `executor mcp` route instead. Over
+stdio the process is launched locally and needs no header at all; over HTTP
+every request has to carry one.
 
 Confirm, and see what it can reach:
 
 ```bash
 claude mcp list
 ```
+
+It should say `executor: http://127.0.0.1:4789/mcp (HTTP) - Connected`. If it
+says failed to connect, check Executor is actually up with `executor daemon
+status` before suspecting the token.
 
 The three scopes decide who gets it, and picking the wrong one is the usual
 reason it seems not to work:
