@@ -404,17 +404,58 @@ Everything above is also an HTTP API if you would rather script it that way:
 `~/.executor/server-control/auth.json`. Same operations, same shapes, more
 moving parts.
 
-#### 1.5.3 Straight to one MCP host, without Executor
+#### 1.5.3 Straight to one desktop app, without Executor
 
-`examples/mcp_client_config.json` has two ready-to-paste entries for an MCP
-host's `mcpServers` object: one that runs the Docker image, one that runs
+One command per app. It reads your `.env`, writes the config where that app
+looks for it, and tells you the path:
+
+```bash
+python scripts/install_client.py --list          # what it knows about
+python scripts/install_client.py claude-desktop  # write it
+python scripts/install_client.py claude-desktop --dry-run   # look first
+```
+
+| App | Name to pass | Where it writes |
+|---|---|---|
+| **Claude Desktop** | `claude-desktop` | macOS `~/Library/Application Support/Claude/claude_desktop_config.json`<br>Windows `%APPDATA%\Claude\claude_desktop_config.json`<br>Linux `~/.config/Claude/claude_desktop_config.json` |
+| **OpenAI Codex CLI** | `codex` | `~/.codex/config.toml` |
+| **Gemini CLI** | `gemini` | `~/.gemini/settings.json` |
+| **Cursor** | `cursor` | `~/.cursor/mcp.json` |
+| **VS Code** (Copilot agent mode) | `vscode` | `.vscode/mcp.json` in this project |
+| **Windsurf** | `windsurf` | `~/.codeium/windsurf/mcp_config.json` |
+| **Zed** | `zed` | `~/.config/zed/settings.json` |
+| **Qwen Code** | `qwen` | `~/.qwen/settings.json` |
+
+Every host wants the same three things, a command, its arguments and some
+environment, and then disagrees about where to put them and what to call them.
+Claude Desktop, Cursor, Windsurf, Gemini and Qwen all use `mcpServers`. VS Code
+calls it `servers`. Zed calls it `context_servers`. **Codex is TOML, not JSON,
+and spells the key `mcp_servers` with an underscore.** That disagreement is the
+entire reason this script exists.
+
+Three things it does without being asked:
+
+- **Never clobbers.** Backs the file up first and preserves every other key.
+  These files usually hold other servers and a tree of unrelated settings.
+- **Never invents credentials.** Values come from `.env`. If one is missing it
+  names it and stops.
+- **Prints where it wrote**, so undoing it is one file copy.
+
+Then restart the app. **Fully** restart it: on Claude Desktop, quit from the
+tray or menu bar, because closing the window leaves it running and it only
+loads MCP servers at startup. This is the step people skip before deciding the
+connector is broken.
+
+If you would rather paste it yourself, `examples/mcp_client_config.json` has
+two ready-made entries: one that runs the Docker image, one that runs
 `mcp/server.py` directly. Replace the placeholder absolute path.
 
-This works, and it is what a reviewer reading the repository will do. It is
-also the expensive way: all seventeen tools land in context at startup, about
-29,445 tokens, because a client fetches the whole list and there is nothing in
-front of it to keep them in a catalogue. See
-[What it costs at connect](#4-what-it-costs-at-connect).
+**This is the expensive route.** All seventeen tools land in context at startup,
+about 29,445 tokens, because the app fetches the whole list and there is
+nothing in front of it keeping them in a catalogue. It is also the honest one
+for a single desktop app you use alone. See
+[What it costs at connect](#4-what-it-costs-at-connect), and prefer Executor
+the moment you have a second agent or a second integration.
 
 ### 1.6 Call flow: what happens to one tool call
 
