@@ -181,6 +181,8 @@ def meta_of(outcome: ActionResult, tokens: int | None = None) -> dict[str, Any] 
         carried[f"{META_PREFIX}/rate_limit"] = outcome.rate_limit.model_dump()
     if tokens is not None:
         carried[f"{META_PREFIX}/response_tokens"] = tokens
+    if outcome.record_url is not None:
+        carried[f"{META_PREFIX}/record_url"] = outcome.record_url
     if outcome.duration_ms is not None:
         # What the caller waited, not what the connector spent. Retries and the
         # token fetch are inside it, because they are inside the wait.

@@ -211,7 +211,25 @@ class Action(ABC):
             rate_limit=self._client.last_rate_limit,
             warnings=tuple(self._warnings),
             duration_ms=round(elapsed, 1),
+            record_url=self._console_url(data),
         )
+
+    def _console_url(self, data: Mapping[str, Any]) -> str | None:
+        """A link to whatever record this result is about, if it is about one.
+
+        Only for results that name a single record. A search returns many and
+        a count returns none, and a link to the first of fifty would be worse
+        than no link: it reads as though that one were the answer.
+        """
+        found = data.get("id")
+        if not isinstance(found, str):
+            # `get_record` and friends return the record itself rather than an
+            # id beside it, and Salesforce spells the field `Id` there because
+            # that is what the API returned. Both shapes name one record, which
+            # is the only thing that decides whether a link is meaningful.
+            record = data.get("record")
+            found = record.get("Id") if isinstance(record, Mapping) else None
+        return self._client.console_url(found) if isinstance(found, str) and found else None
 
     def _failed(
         self, request: ActionRequest, failure: ConnectorError, started: float

@@ -81,9 +81,17 @@ def unavailable(asked: str, described: tuple[ActionDescriptor, ...]) -> str:
         f"{asked} is not something this connector can do."
         f"{suggestion}\n\n"
         f"{_available(described)}\n\n"
-        f"Do not substitute a different tool to approximate what was asked. If "
-        f"nothing above does it, tell the user this connector cannot do it and "
-        f"stop there."
+        f"Do not substitute a different tool to approximate what was asked. "
+        f"Approximating a delete with an update is worse than the refusal it "
+        f"replaces.\n\n"
+        f"If nothing above does it, do not stop at 'I cannot'. Say plainly that "
+        f"this connector is not permitted to do it, then hand the work back to "
+        f"the person: they can do it themselves in Salesforce. Every result "
+        f"naming a record carries a direct link to it as "
+        f"`salesforce-connector/record_url`; give them that link when you have "
+        f"one, otherwise tell them to open Salesforce and search for the "
+        f"record. Deleting, merging and converting are all in the record's own "
+        f"Actions menu."
     )
 
 

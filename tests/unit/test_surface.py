@@ -64,7 +64,22 @@ class TestSomethingTheConnectorCannotDo:
         said = surface.unavailable("salesforce_delete_contact", described())
 
         assert "Do not substitute a different tool" in said
-        assert "tell the user this connector cannot do it" in said
+        assert "not permitted to do it" in said
+
+    def test_it_says_where_the_person_can_do_it_themselves(self) -> None:
+        """A refusal that ends at "I cannot" leaves the user with nothing.
+
+        This connector will never delete, merge, or convert: those are the
+        operations where a mistake cannot be undone, and refusing them is the
+        design rather than a gap in it. That makes the refusal permanent, and a
+        permanent refusal owes the person somewhere to go. Salesforce is
+        already open in their browser and the record has a link.
+        """
+        said = surface.unavailable("salesforce_delete_contact", described())
+
+        assert "record_url" in said
+        assert "Actions menu" in said
+        assert "do not stop at" in said
 
     def test_a_near_miss_is_named_because_it_usually_is_one(self) -> None:
         said = surface.unavailable("salesforce_contact_creates", described())

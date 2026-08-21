@@ -86,6 +86,23 @@ class SalesforceClient:
         )
         return cls(settings, strategy, http)
 
+    def console_url(self, record_id: str) -> str | None:
+        """Where a person opens this record in Salesforce, to do it by hand.
+
+        Built from the id alone rather than from the object, because
+        Salesforce redirects a bare record id to whatever it belongs to. That
+        matters here: the generic tools are handed an object name by the
+        caller, and a link built from a name the caller got wrong would point
+        confidently at nothing.
+
+        Returns nothing before the first call, when no token has been fetched
+        and the instance is therefore not yet known. A missing link is better
+        than a guessed one.
+        """
+        if self._token is None:
+            return None
+        return f"{self._token.instance_url.rstrip('/')}/{record_id}"
+
     @property
     def settings(self) -> Settings:
         """The configuration this client was opened with.

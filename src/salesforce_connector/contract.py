@@ -123,6 +123,15 @@ class ActionResult(_Frozen):
     pagination: Pagination | None = None
     rate_limit: RateLimit | None = None
     warnings: tuple[str, ...] = ()
+    record_url: str | None = None
+    """Where to open this record in Salesforce and finish the job by hand.
+
+    This connector cannot delete, merge, or convert anything, and it never
+    will: those are the operations where getting it wrong is unrecoverable. So
+    when a caller asks for one, the useful answer is not only "no" but "here,
+    do it yourself" -- and a link is the shortest distance between a refusal
+    and a person who can act on it.
+    """
     duration_ms: float | None = None
     """How long this action took, wall clock, retries included.
 
