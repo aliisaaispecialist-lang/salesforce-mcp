@@ -261,7 +261,10 @@ class TestTheAdapterCarriesItBesideThePayload:
 
         assert "salesforce-connector/pagination" not in carried
         assert "salesforce-connector/rate_limit" not in carried
-        assert list(carried) == ["salesforce-connector/content_is_data"]
+        assert sorted(carried) == [
+            "salesforce-connector/content_is_data",
+            "salesforce-connector/response_tokens",
+        ]
 
     def test_a_failure_carries_no_data_notice_because_it_carries_no_structured_data(self) -> None:
         """The notice describes `structured_content`, and a failure has none.
