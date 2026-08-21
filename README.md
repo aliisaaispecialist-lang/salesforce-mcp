@@ -452,7 +452,36 @@ To take it away again:
 claude mcp remove executor --scope user
 ```
 
-#### 1.5.2 Registering without the browser
+#### 1.5.2 Seven things to try once it is connected
+
+Say these to the assistant in plain English. Every expected result below was
+run against a real org rather than predicted, so if yours differs the
+difference is real.
+
+The first two answers depend on what is in your org. The other five do not:
+they are about how the connector behaves, and they should look the same
+anywhere.
+
+| # | Say this | What should come back | What it proves |
+|---|---|---|---|
+| 1 | *How many contacts, accounts and opportunities are in Salesforce?* | Three counts, and a note that the figures are cached and approximate | Reads work end to end |
+| 2 | *Find contacts whose name starts with Pag* | Every contact whose surname begins that way | Search matches from the **start** of a word |
+| 3 | *Search contacts for "Demo"* | **Nothing found**, even though contacts contain that text | A suffix does **not** match. Not a bug, and the description says so |
+| 4 | *Create a contact with last name Testperson* | **A confirmation prompt, twice.** The gateway pauses first, then the connector asks "Go ahead?" | Two independent gates. Decline and nothing is written |
+| 5 | *Create an opportunity called Pipeline test, stage Prospecting, closing 2026-12-31* | **Refused**, naming your org's real stages | It validates against your picklist rather than trusting the model |
+| 6 | *Which account is <a contact with no account> attached to?* | A not-found error, not an empty answer | An unset lookup answers 404, the same as a bad id |
+| 7 | *Delete the contact Testperson* | A refusal. **No delete happens, and no other tool is substituted** | There is no delete tool, and it will not improvise one |
+
+Number 5 is the one worth watching closely. Salesforce's default stages are not
+what most orgs use, so a model that guesses `Prospecting` is usually wrong. The
+refusal comes back with the six values your org actually has, which is enough
+for it to correct itself and try again without asking you anything.
+
+Number 4 is worth doing twice: **once accepting and once declining.** Declining
+should leave the count from step 1 unchanged, which is the whole claim this
+connector makes about writes.
+
+#### 1.5.3 Registering without the browser
 
 The whole setup can be done from the CLI, with no HTTP client and no hunting
 for an auth token. Executor publishes its own management functions as tools, so
@@ -505,7 +534,7 @@ Everything above is also an HTTP API if you would rather script it that way:
 `~/.executor/server-control/auth.json`. Same operations, same shapes, more
 moving parts.
 
-#### 1.5.3 Straight to one desktop app, without Executor
+#### 1.5.4 Straight to one desktop app, without Executor
 
 Two routes. If the app ships its own CLI, use it. If it does not, this
 repository has a script that writes the file for you.
