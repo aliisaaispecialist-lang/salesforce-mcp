@@ -247,25 +247,56 @@ be silently wrong.
 
 #### Registering without the browser
 
-Everything the console does is an API call, which is easier to script and to
-repeat:
+The whole setup can be done from the CLI, with no HTTP client and no hunting
+for an auth token. Executor publishes its own management functions as tools, so
+registering an integration is a tool call like any other:
 
 ```bash
-TOKEN=$(jq -r .token ~/.executor/server-control/auth.json)
-
-curl -s -X POST http://127.0.0.1:4789/api/mcp/servers \
-  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"transport":"stdio","name":"Salesforce","slug":"salesforce",
-       "command":"/absolute/path/to/.venv/bin/python",
-       "args":["/absolute/path/to/mcp/server.py"],
-       "cwd":"/absolute/path/to/salesforce-mcp"}'
+executor call executor mcp addServer '{
+  "transport": "stdio",
+  "name": "Salesforce",
+  "slug": "salesforce",
+  "command": "/absolute/path/to/.venv/bin/python",
+  "args": ["/absolute/path/to/mcp/server.py"],
+  "cwd": "/absolute/path/to/salesforce-mcp"
+}'
 ```
 
-Policies are `POST /api/policies`, one per tool, with `pattern`
-`salesforce.org.default.<tool_name>` and `action` either `require_approval` or
-`approve`. Set them **per tool rather than with one wildcard**: a catch-all
-depends on match ordering, and the direction it fails in is a write running
-unattended.
+It will pause and show you the arguments before doing anything, because adding
+an integration is itself a write and Executor gates it the same way this
+connector gates a write to Salesforce. Accept it with the id it prints:
+
+```bash
+executor resume --execution-id exec_... --action accept --content '{}'
+```
+
+Then a policy per tool, `require_approval` for the eight writes and `approve`
+for the nine reads:
+
+```bash
+executor call executor coreTools policies create \
+  '{"owner":"org","pattern":"salesforce.org.default.salesforce_contact_create",
+    "action":"require_approval"}'
+```
+
+Set them **per tool rather than with one wildcard**. A catch-all depends on
+match ordering, and the direction it fails in is a write running unattended.
+
+`executor call executor coreTools integrations remove '{"slug":"salesforce"}'`
+undoes the registration, and `executor call executor coreTools --help` lists
+the rest.
+
+**One quoting note, because it costs ten minutes otherwise.** On Windows,
+PowerShell mangles the embedded JSON and Executor answers "Tool path segments
+must contain only letters, numbers, '.', '_' or '-'". Use a shell that passes
+single-quoted strings through unchanged, and write Windows paths with forward
+slashes: `C:/Users/you/...`. Python accepts them, and backslashes get eaten
+before Executor ever sees them.
+
+Everything above is also an HTTP API if you would rather script it that way:
+`POST /api/mcp/servers` and `POST /api/policies`, with a bearer token from
+`~/.executor/server-control/auth.json`. Same operations, same shapes, more
+moving parts.
 
 #### Straight to one MCP host, without Executor
 
