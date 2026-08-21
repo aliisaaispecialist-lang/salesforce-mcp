@@ -34,6 +34,7 @@ pytest -q          # 994 tests, none of which touch Salesforce
 - [What it costs at connect](#what-it-costs-at-connect)
 - [Configuration](#configuration)
 - [Design decisions and limitations](#design-decisions-and-limitations)
+- [Every file, and what it costs](#every-file-and-what-it-costs)
 - [How failures are handled](#how-failures-are-handled)
 - [Security](#security)
 - [Does the model pick the right tool?](#does-the-model-pick-the-right-tool)
@@ -949,6 +950,95 @@ on the first tool call, where a model sees it and cannot fix it.
 **Limitation:** Configuration is read at startup and never re-read. Changing a
 value means restarting, which could surprise someone who edits `.env` and waits
 for the change to take effect.
+
+## Every file, and what it costs
+
+The section above is thematic. This one is structural: each file, what was
+chosen there, what was rejected, and what the choice buys or spends in latency,
+in cost, and in security. Most files trade in only one or two of the three, and
+saying which is the useful part.
+
+"Cost" means tokens or Salesforce API quota, not money directly. Both become
+money, at different rates.
+
+### Entry point and protocol
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `mcp/server.py` | logic in the entry point | none | none | the directory is named `mcp` and so is the SDK; a module here that imports the SDK makes **which one loads depend on how the process was started** |
+| `protocol/server.py` | the decorator API | same | fewer malformed calls, so fewer wasted round trips | schemas are published exactly as authored, so what the tests checked is what a client receives |
+| `protocol/surface.py` | a router of our own | refusal 380 µs, no network | 29,445 tokens direct, 393 behind the gateway | a refused delete is not answered with the update that resembles it |
+| `protocol/translate.py` | hand-built MCP payloads | negligible | annotations let a client decide without a call | the data fence is applied here, on the way out |
+
+The decorator API is worth one more sentence. It derives a tool's schema from
+the function signature, and a pydantic parameter lands nested under a `params`
+key. That nesting measurably raises malformed calls, because a model reading
+the schema sees an envelope with nothing to do with the task. Every malformed
+call is a wasted round trip and a wasted retry.
+
+### The tools
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `actions/*.py`, one per tool | one tool per REST endpoint | a composite write is one round trip, not three | five chained choices at 95% each land near 77% | an atomic composite cannot leave an orphan record |
+| `actions/action.py` | free functions | none | none | one place where the client, the ledger and the fence are applied, so none can be skipped per action |
+| `actions/registry.py` | rebuilding descriptors per call | **562× on dispatch**, 602 µs to 1.07 | none | none |
+| `actions/sizing.py` | returning whatever came back | one pass over the response | bounds the tokens one record can spend | bounds what a hostile field can inject |
+| `actions/stages.py` | letting Salesforce judge | **+1 round trip per opportunity create** | **+1 API call against the org's quota** | `StageName` is often an *unrestricted* picklist, so an invented stage is accepted silently and lands in every forecast |
+
+`stages.py` is the clearest trade in the connector and it is deliberately the
+expensive way round. Checking costs a describe call on the most common write.
+Not checking costs nothing until somebody's pipeline report is quietly wrong,
+and a quiet failure is the one you cannot price.
+
+### Schemas
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `schemas/read\|write/*.py` | generating from the Salesforce OpenAPI | validation is microseconds | **descriptions are the token bill**: 71,000 characters across seventeen tools | a value is rejected before it can be dispatched |
+| `schemas/envelope.py` | writing descriptions by hand beside the schema | none | none | the description is derived from the schema, so the two cannot drift apart |
+| `schemas/plain_types.py` | showing raw JSON Schema types | none | a shorter, plainer line than `{"anyOf": [...]}` | a model that reads "a number, written in digits" does not send the word "one" |
+| `contract.py`, `immutable.py` | shallow `frozen=True` | one pass per response | one pass per response | pydantic freezes attributes and not the containers inside them; without the deep freeze a caller can mutate a result and the next reader sees something Salesforce never sent |
+
+### Transport
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `transport/client.py` | a new connection per call | connection pooling, no repeated TLS handshakes | fewer handshakes | **refuses any absolute URL outside this org's `/services/data/`**, so a redirected URL cannot carry the bearer token off-org |
+| `transport/exchange.py` | parsing headers inside the client | none | none | header parsing is testable without a connection, a token, or the retry loop |
+| `transport/ratelimit.py` | queueing when the budget is spent | a refusal is instant; a queued call is an unbounded wait that looks like slowness | caps what a runaway loop can spend | a loop cannot drain the org's daily quota and take **every other integration** down with it |
+
+Refusing rather than queueing is the decision worth defending. A wait hides the
+problem inside a call that merely looks slow, and lets a backlog build that
+nobody asked for. A refusal that says how many seconds to wait is something the
+caller can act on, which is the entire point of the error taxonomy.
+
+### Failure and recovery
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `errors/mapping.py` | one branch per Salesforce code | `lru_cache`, O(1) | fewer wrong retries | remedies name a field, never a value |
+| `errors/model.py` | raw strings | none | none | quoted text is fenced; our own remedy is not, because that is the part to act on |
+| `errors/retry.py` | retry until it works | bounded: 3 attempts or 120 s, whichever first | bounded API spend | jitter stops many agents retrying in lockstep after a shared failure |
+| `replay/ledger.py` | no deduplication | O(1) lookup, flat at ten thousand keys | no datastore to run | the only thing standing between a dropped packet and a **second contact**. Costs O(k) memory that is never evicted |
+| `replay/journal.py` | starting a multi-step write over | resumes from the last finished step | does not redo completed work | a partial write is never reported as success or as clean failure |
+
+### Approval and identity
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `approval/gate.py` | a boolean flag | negligible | none | signed, ten-minute expiry, bound to a digest of the exact arguments shown. You cannot approve one write and present it for another, or approve and then edit. The key dies with the process |
+| `approval/elicit.py` | approving out of band | human-bound, which is the point | none | the person sees the real arguments, not a summary of them |
+| `auth/jwt_bearer.py` | username and password | one token exchange per process | one call | **no secret is transmitted and no password exists.** The user in `sub` must be pre-authorised, so the connector cannot act as somebody nobody granted it |
+| `auth/client_credentials.py` | nothing; it is the fallback | same | same | simpler, and it does transmit a secret. Which is why it is not the default |
+| `config.py` | reading values where they are used | validated once, at startup | none | production is refused unless `SF_ALLOW_PRODUCTION` is set, so a mistyped login URL cannot reach real customer data |
+
+### Observability
+
+| File | Chosen over | Latency | Cost | Security |
+|---|---|---|---|---|
+| `observability.py` | hand-rolled JSON to stdout | `cache_logger_on_first_use` on the hot path | no payloads means small logs | **stdout belongs to JSON-RPC**: one stray line corrupts the stream and ends the session, which is why `print` is banned by lint. Record values are never logged, because contacts carry names, emails and phone numbers |
+| `openapi.py` | maintaining a spec by hand | none | none | generated from the registry, so it cannot promise an action the registry does not have |
 
 ## How failures are handled
 
