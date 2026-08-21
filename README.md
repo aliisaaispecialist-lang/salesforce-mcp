@@ -399,6 +399,44 @@ The first says the tools were indexed. The second says the catalogue can
 actually find them, which is what a model depends on and the only half that can
 be silently wrong.
 
+##### Claude Code, specifically
+
+Claude Code speaks HTTP, so it can point straight at the endpoint. `--scope
+user` makes it available in every project rather than only this one:
+
+```bash
+claude mcp add --transport http executor http://127.0.0.1:4789/mcp --scope user
+```
+
+```powershell
+claude mcp add --transport http executor http://127.0.0.1:4789/mcp --scope user
+```
+
+Confirm, and see what it can reach:
+
+```bash
+claude mcp list
+```
+
+The three scopes decide who gets it, and picking the wrong one is the usual
+reason it seems not to work:
+
+- `--scope user` -- you, in every project. Use this one.
+- `--scope project` -- written to `.mcp.json` and committed, so everyone
+  working on the repository gets it. Right for a team, wrong for anything
+  holding a credential.
+- `--scope local` -- this project only, just you. The default, and the reason a
+  server added in one directory is missing in the next.
+
+Then start a new session. Claude Code reads its MCP servers at startup, so an
+already-running one will not see it.
+
+To take it away again:
+
+```bash
+claude mcp remove executor --scope user
+```
+
 #### 1.5.2 Registering without the browser
 
 The whole setup can be done from the CLI, with no HTTP client and no hunting

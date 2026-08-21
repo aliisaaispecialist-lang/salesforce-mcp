@@ -153,3 +153,17 @@ init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
 
+
+[[tool.mypy.overrides]]
+# The Anthropic SDK is deliberately not a dependency of this project: only
+# `evals/run_tool_choice.py --via api` imports it, at call time, and it is
+# absent from `uv.lock` on purpose so the connector's tree stays small.
+#
+# The consequence is that `uv sync --frozen` removes it and `mypy .` then fails
+# on an import it was never going to find. That reads as a broken checkout and
+# is not one, so the absence is declared here rather than discovered.
+#
+# The runtime already handles it: the import sits inside the function that
+# needs it and raises `pip install anthropic` if it is missing.
+module = "anthropic.*"
+ignore_missing_imports = true
