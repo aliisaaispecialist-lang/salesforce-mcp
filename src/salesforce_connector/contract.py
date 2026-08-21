@@ -123,6 +123,14 @@ class ActionResult(_Frozen):
     pagination: Pagination | None = None
     rate_limit: RateLimit | None = None
     warnings: tuple[str, ...] = ()
+    duration_ms: float | None = None
+    """How long this action took, wall clock, retries included.
+
+    Measured already, for the metrics and the log, and then thrown away before
+    anything the caller can read. That is the wrong audience: a person waiting
+    on an answer and a model deciding whether to try something cheaper both
+    want it, and neither reads our logs.
+    """
 
     @model_validator(mode="after")
     def _outcome_must_be_consistent(self) -> Self:

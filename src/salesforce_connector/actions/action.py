@@ -210,6 +210,7 @@ class Action(ABC):
             pagination=_pagination_of(data),
             rate_limit=self._client.last_rate_limit,
             warnings=tuple(self._warnings),
+            duration_ms=round(elapsed, 1),
         )
 
     def _failed(
@@ -235,8 +236,12 @@ class Action(ABC):
             request_id=request.request_id,
             error=error,
             # Quota is reported even when the call failed: a caller deciding
-            # whether to retry wants to know how much allowance is left.
+            # whether to retry wants to know how much allowance is left. The
+            # same argument covers the duration, and more strongly: a failure
+            # that took twenty seconds is a timeout worth backing off from, and
+            # one that took twenty milliseconds is a rejection worth fixing.
             rate_limit=self._client.last_rate_limit,
+            duration_ms=round(elapsed, 1),
         )
 
     def _with_recovery(self, error: ActionError) -> ActionError:

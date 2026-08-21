@@ -159,6 +159,10 @@ def meta_of(outcome: ActionResult) -> dict[str, Any] | None:
         carried[f"{META_PREFIX}/pagination"] = outcome.pagination.model_dump()
     if outcome.rate_limit is not None:
         carried[f"{META_PREFIX}/rate_limit"] = outcome.rate_limit.model_dump()
+    if outcome.duration_ms is not None:
+        # What the caller waited, not what the connector spent. Retries and the
+        # token fetch are inside it, because they are inside the wait.
+        carried[f"{META_PREFIX}/duration_ms"] = outcome.duration_ms
     if outcome.ok:
         # `structured_content` carries the same records as the text block and
         # cannot carry the fence: a marker key would not be in the declared

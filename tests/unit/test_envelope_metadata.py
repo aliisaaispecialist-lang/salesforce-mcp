@@ -167,6 +167,70 @@ class TestQuotaReachesTheEnvelope:
             assert (await search(client, query="Ada")).rate_limit is None
 
 
+@pytest.mark.asyncio
+class TestHowLongItTookReachesTheEnvelope:
+    """The duration was measured, logged, and then dropped.
+
+    It went to the metrics and to the audit log, both of which are read by
+    operators after the fact. Nobody who was waiting for the answer ever saw
+    it, and neither did the model deciding what to do next.
+
+    That gap is wider than it sounds here. This connector is launched as a
+    subprocess and torn down with the call, so it pays process boot and an
+    OAuth token fetch on almost every request: about three seconds of cold
+    start around three hundred milliseconds of work. A model that can read the
+    duration can tell a slow connector from a slow Salesforce, and a person
+    reading a transcript can tell both from a slow model.
+    """
+
+    async def test_a_successful_call_reports_how_long_it_took(
+        self, client: SalesforceClient
+    ) -> None:
+        async with client, respx.mock:
+            token_route()
+            respx.post(f"{DATA}/parameterizedSearch").mock(
+                return_value=httpx.Response(200, json={"searchRecords": []}, headers=QUOTA)
+            )
+
+            result = await search(client, query="Ada")
+
+            assert result.duration_ms is not None
+            assert result.duration_ms >= 0
+
+    async def test_a_failure_reports_it_too(self, client: SalesforceClient) -> None:
+        """The case where it matters more.
+
+        A failure that took twenty seconds is a timeout worth backing off
+        from; one that took twenty milliseconds is a rejection worth fixing.
+        The error code alone does not separate them.
+        """
+        async with client, respx.mock:
+            token_route()
+            respx.post(f"{DATA}/parameterizedSearch").mock(
+                return_value=httpx.Response(404, json=[{"errorCode": "NOT_FOUND", "message": "no"}])
+            )
+
+            result = await search(client, query="Ada")
+
+            assert not result.ok
+            assert result.duration_ms is not None
+
+    def test_it_travels_in_metadata_rather_than_in_the_payload(self) -> None:
+        """Bookkeeping, so it goes where bookkeeping goes.
+
+        The declared output schema describes what the action returns. A caller
+        validating against it should not find a timing field mixed in.
+        """
+        carried = (
+            mcp_translate.as_result(
+                ActionResult(ok=True, request_id="r-1", data={"contacts": []}, duration_ms=12.5)
+            ).meta
+            or {}
+        )
+
+        assert carried["salesforce-connector/duration_ms"] == 12.5
+
+
 class TestTheAdapterCarriesItBesideThePayload:
     def test_both_travel_in_metadata_not_in_the_declared_output(self) -> None:
         outcome = ActionResult(
